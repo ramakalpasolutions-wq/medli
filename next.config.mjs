@@ -1,7 +1,7 @@
+// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Tell Next.js these Node.js-only packages
-  // should never be bundled for browser or edge runtime
+  // ── Node.js-only packages — never bundle for browser/edge ──────────────────
   serverExternalPackages: [
     'bullmq',
     'ioredis',
@@ -16,6 +16,7 @@ const nextConfig = {
     'path',
   ],
 
+  // ── Images ──────────────────────────────────────────────────────────────────
   images: {
     remotePatterns: [
       {
@@ -27,6 +28,7 @@ const nextConfig = {
     ],
   },
 
+  // ── CORS Headers ────────────────────────────────────────────────────────────
   async headers() {
     return [
       {
@@ -42,12 +44,8 @@ const nextConfig = {
     ]
   },
 
-  // Disable eslint errors blocking build
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
-  // Disable typescript errors blocking build
+  // ── TypeScript — ignore build errors ────────────────────────────────────────
+  // eslint is NO longer configured here in Next.js 15+
   typescript: {
     ignoreBuildErrors: true,
   },
