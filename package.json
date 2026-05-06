@@ -12,7 +12,9 @@
     "db:seed": "node prisma/seed.js",
     "db:indexes": "node prisma/createIndexes.js",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "create-indexes": "node scripts/create-geo-indexes.js",
+    "setup": "npm run create-indexes && npm run dev"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1041.0",
@@ -32,6 +34,7 @@
     "jsonwebtoken": "^9.0.3",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.14.0",
+    "mongodb": "^7.2.0",
     "next": "16.2.4",
     "nodemailer": "^8.0.7",
     "pdfkit": "^0.18.0",

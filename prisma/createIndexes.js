@@ -1,17 +1,18 @@
+// prisma/createIndexes.js
 const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
 async function createIndexes() {
-  console.log('📍 Creating MongoDB geo indexes...\n')
+  console.log('📍 Creating MongoDB indexes...\n')
 
+  // ── Hospitals ─────────────────────────────────────────────────────────────
   try {
-    // ── Hospitals 2dsphere index ──────────────────────────────────────────────
     await prisma.$runCommandRaw({
       createIndexes: 'hospitals',
       indexes: [
         {
-          key:  { 'location': '2dsphere' },
+          key:  { location: '2dsphere' },
           name: 'location_2dsphere',
         },
       ],
@@ -25,13 +26,13 @@ async function createIndexes() {
     }
   }
 
+  // ── Labs ──────────────────────────────────────────────────────────────────
   try {
-    // ── Labs 2dsphere index ───────────────────────────────────────────────────
     await prisma.$runCommandRaw({
       createIndexes: 'labs',
       indexes: [
         {
-          key:  { 'location': '2dsphere' },
+          key:  { location: '2dsphere' },
           name: 'location_2dsphere',
         },
       ],
@@ -45,15 +46,15 @@ async function createIndexes() {
     }
   }
 
+  // ── Bookings ──────────────────────────────────────────────────────────────
   try {
-    // ── Bookings compound indexes ─────────────────────────────────────────────
     await prisma.$runCommandRaw({
       createIndexes: 'bookings',
       indexes: [
-        { key: { userId: 1, status: 1 },    name: 'userId_status' },
+        { key: { userId: 1, status: 1 },      name: 'userId_status' },
         { key: { doctorId: 1, startTime: 1 }, name: 'doctorId_startTime' },
-        { key: { hospitalId: 1, status: 1 }, name: 'hospitalId_status' },
-        { key: { labId: 1, status: 1 },      name: 'labId_status' },
+        { key: { hospitalId: 1, status: 1 },  name: 'hospitalId_status' },
+        { key: { labId: 1, status: 1 },       name: 'labId_status' },
       ],
     })
     console.log('✅ bookings — compound indexes created')
@@ -65,8 +66,8 @@ async function createIndexes() {
     }
   }
 
+  // ── Users ─────────────────────────────────────────────────────────────────
   try {
-    // ── Users indexes ─────────────────────────────────────────────────────────
     await prisma.$runCommandRaw({
       createIndexes: 'users',
       indexes: [
@@ -74,7 +75,7 @@ async function createIndexes() {
         { key: { phone: 1 }, name: 'phone_unique', unique: true, sparse: true },
       ],
     })
-    console.log('✅ users — email + phone unique indexes created')
+    console.log('✅ users — email + phone indexes created')
   } catch (err) {
     if (err.message?.includes('already exists')) {
       console.log('ℹ️  users — indexes already exist')
@@ -83,8 +84,8 @@ async function createIndexes() {
     }
   }
 
+  // ── Coupons ───────────────────────────────────────────────────────────────
   try {
-    // ── Coupons index ─────────────────────────────────────────────────────────
     await prisma.$runCommandRaw({
       createIndexes: 'coupons',
       indexes: [
@@ -100,8 +101,8 @@ async function createIndexes() {
     }
   }
 
+  // ── Settlements ───────────────────────────────────────────────────────────
   try {
-    // ── Settlements index ─────────────────────────────────────────────────────
     await prisma.$runCommandRaw({
       createIndexes: 'settlements',
       indexes: [
@@ -117,7 +118,7 @@ async function createIndexes() {
     }
   }
 
-  console.log('\n✅ All indexes done!')
+  console.log('\n🎉 All indexes done!')
 }
 
 createIndexes()

@@ -1,212 +1,142 @@
 // src/app/api/payments/debug/route.js
-// TEMPORARY — delete after fixing 10052
-// Visit: /api/payments/debug to see encryption test
-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 import crypto from 'crypto'
 
 export async function GET() {
-  const results = {}
+  const SECRET_KEY = (process.env.ONE_PAY_SECRET_KEY || '').trim()
+  const SECRET_IV  = (process.env.ONE_PAY_SECRET_IV  || '').trim()
 
-  const SECRET_KEY = process.env.ONE_PAY_SECRET_KEY || ''
-  const SECRET_IV  = process.env.ONE_PAY_SECRET_IV  || ''
-
-  results.env = {
-    MERCHANT_ID:     process.env.ONE_PAY_MERCHANT_ID || 'NOT SET',
-    API_KEY:         process.env.ONE_PAY_API_KEY     || 'NOT SET',
-    SECRET_KEY_RAW:  SECRET_KEY,
-    SECRET_IV_RAW:   SECRET_IV,
-    SECRET_KEY_LEN:  SECRET_KEY.length,
-    SECRET_IV_LEN:   SECRET_IV.length,
-    API_BASE_UAT:    process.env.ONE_PAY_API_BASE_UAT  || 'NOT SET',
-    APP_URL:         process.env.NEXT_PUBLIC_APP_URL   || 'NOT SET',
+  // ── Key analysis ──────────────────────────────────────────────────────────
+  const keyAnalysis = {
+    rawValue:     SECRET_KEY,
+    charCount:    SECRET_KEY.length,
+    isEvenLength: SECRET_KEY.length % 2 === 0,
+    expectedLen:  64,
+    missing:      64 - SECRET_KEY.length,
+    isValidHex:   /^[0-9a-fA-F]+$/.test(SECRET_KEY),
   }
 
-  // Test all possible encryption combinations
-  const testPayload = {
-    merchantId:        process.env.ONE_PAY_MERCHANT_ID || 'TEST',
-    apiKey:            process.env.ONE_PAY_API_KEY     || 'TEST',
-    txnId:             'MEDLITEST001',
-    Amount:            '100.00',
-    dateTime:          new Date().toISOString().slice(0, 19).replace('T', ' '),
-    custMobile:        '9999999999',
-    custMail:          'test@medli.in',
-    channelId:         0,
-    txnType:           'DIRECT',
-    returnURL:         `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/onepay-callback`,
-    productId:         'DEFAULT',
-    isMultiSettlement: 0,
-    udf1:              'NA',
-    udf2:              'NA',
+  const ivAnalysis = {
+    rawValue:   SECRET_IV,
+    charCount:  SECRET_IV.length,
+    expectedLen:32,
+    missing:    32 - SECRET_IV.length,
+    isValidHex: /^[0-9a-fA-F]+$/.test(SECRET_IV),
   }
 
-  results.testPayload = testPayload
-  results.encryptionTests = {}
+  // ── Try padding the key ───────────────────────────────────────────────────
+  const keyVariants = {}
 
-  // ── Test 1: HEX key + HEX IV (official sample) ───────────────────────────
+  // Variant A: pad to even then convert
+  const paddedKey = SECRET_KEY.length % 2 !== 0
+    ? '0' + SECRET_KEY
+    : SECRET_KEY
+  const keyBufA = Buffer.from(paddedKey, 'hex')
+  keyVariants.paddedToEven = {
+    hexLen:   paddedKey.length,
+    bytes:    keyBufA.length,
+    isValid:  keyBufA.length === 32,
+  }
+
+  // Variant B: add leading zero (63 → 64)
+  const keyWithLeadingZero = '0' + SECRET_KEY
+  const keyBufB = Buffer.from(keyWithLeadingZero, 'hex')
+  keyVariants.addLeadingZero = {
+    hexLen:  keyWithLeadingZero.length,
+    bytes:   keyBufB.length,
+    isValid: keyBufB.length === 32,
+  }
+
+  // Variant C: add trailing zero
+  const keyWithTrailingZero = SECRET_KEY + '0'
+  const keyBufC = Buffer.from(keyWithTrailingZero, 'hex')
+  keyVariants.addTrailingZero = {
+    hexLen:  keyWithTrailingZero.length,
+    bytes:   keyBufC.length,
+    isValid: keyBufC.length === 32,
+  }
+
+  // Variant D: pad to 32 bytes with zeros
+  const keyBufD = Buffer.alloc(32, 0)
+  Buffer.from(paddedKey, 'hex').copy(keyBufD)
+  keyVariants.paddedToBytes = {
+    bytes:   keyBufD.length,
+    isValid: keyBufD.length === 32,
+  }
+
+  // ── IV analysis ───────────────────────────────────────────────────────────
+  const ivBuf = Buffer.from(SECRET_IV, 'hex')
+
+  // ── Test encryption with each key variant ────────────────────────────────
+  const testData = JSON.stringify({
+    merchantId: process.env.ONE_PAY_MERCHANT_ID,
+    txnId:      'TEST001',
+    Amount:     '100.00',
+  })
+
+  const encTests = {}
+
+  // Test with paddedToEven key
   try {
-    const keyBuf = Buffer.from(SECRET_KEY, 'hex')
-    const ivBuf  = Buffer.from(SECRET_IV,  'hex')
-
-    results.encryptionTests.test1_hex_key_hex_iv = {
-      keyBytes: keyBuf.length,
-      ivBytes:  ivBuf.length,
-      valid:    keyBuf.length === 32 && ivBuf.length === 16,
+    if (keyBufA.length === 32 && ivBuf.length === 16) {
+      const c = crypto.createCipheriv('aes-256-cbc', keyBufA, ivBuf)
+      let e   = c.update(testData, 'utf8', 'base64')
+      e      += c.final('base64')
+      encTests.variantA_paddedToEven = { success: true, reqDataLen: e.length }
     }
-
-    if (keyBuf.length === 32 && ivBuf.length === 16) {
-      const cipher  = crypto.createCipheriv('aes-256-cbc', keyBuf, ivBuf)
-      let enc        = cipher.update(JSON.stringify(testPayload), 'utf8', 'base64')
-      enc           += cipher.final('base64')
-
-      results.encryptionTests.test1_hex_key_hex_iv.reqData       = enc
-      results.encryptionTests.test1_hex_key_hex_iv.reqDataLength = enc.length
-      results.encryptionTests.test1_hex_key_hex_iv.status        = 'SUCCESS'
-    } else {
-      results.encryptionTests.test1_hex_key_hex_iv.status = 'SKIP — wrong byte length'
-    }
-  } catch (e) {
-    results.encryptionTests.test1_hex_key_hex_iv = { status: 'ERROR', error: e.message }
+  } catch (err) {
+    encTests.variantA_paddedToEven = { success: false, error: err.message }
   }
 
-  // ── Test 2: UTF-8 key + IV = first 16 bytes of key ───────────────────────
+  // Test with leading zero key
   try {
-    const keyBuf = Buffer.alloc(32, 0)
-    Buffer.from(SECRET_KEY, 'utf8').copy(keyBuf, 0, 0, Math.min(SECRET_KEY.length, 32))
-    const ivBuf = keyBuf.slice(0, 16)
-
-    const cipher  = crypto.createCipheriv('aes-256-cbc', keyBuf, ivBuf)
-    let enc        = cipher.update(JSON.stringify(testPayload), 'utf8', 'base64')
-    enc           += cipher.final('base64')
-
-    results.encryptionTests.test2_utf8_key_first16_iv = {
-      keyBytes:     keyBuf.length,
-      ivBytes:      ivBuf.length,
-      reqData:      enc,
-      reqDataLength:enc.length,
-      status:       'SUCCESS',
+    if (keyBufB.length === 32 && ivBuf.length === 16) {
+      const c = crypto.createCipheriv('aes-256-cbc', keyBufB, ivBuf)
+      let e   = c.update(testData, 'utf8', 'base64')
+      e      += c.final('base64')
+      encTests.variantB_leadingZero = { success: true, reqDataLen: e.length }
     }
-  } catch (e) {
-    results.encryptionTests.test2_utf8_key_first16_iv = {
-      status: 'ERROR',
-      error:  e.message,
-    }
+  } catch (err) {
+    encTests.variantB_leadingZero = { success: false, error: err.message }
   }
 
-  // ── Test 3: UTF-8 key + full key as IV (32 bytes → CBC uses first 16) ────
+  // Test with padded to 32 bytes
   try {
-    const keyBuf = Buffer.alloc(32, 0)
-    Buffer.from(SECRET_KEY, 'utf8').copy(keyBuf, 0, 0, Math.min(SECRET_KEY.length, 32))
-    const ivBuf = keyBuf // full 32 bytes — Node uses first 16
-
-    const cipher  = crypto.createCipheriv('aes-256-cbc', keyBuf, ivBuf)
-    let enc        = cipher.update(JSON.stringify(testPayload), 'utf8', 'base64')
-    enc           += cipher.final('base64')
-
-    results.encryptionTests.test3_utf8_key_fullkey_iv = {
-      keyBytes:     keyBuf.length,
-      ivBytes:      ivBuf.length,
-      reqData:      enc,
-      reqDataLength:enc.length,
-      status:       'SUCCESS',
+    if (ivBuf.length === 16) {
+      const c = crypto.createCipheriv('aes-256-cbc', keyBufD, ivBuf)
+      let e   = c.update(testData, 'utf8', 'base64')
+      e      += c.final('base64')
+      encTests.variantD_paddedBytes = { success: true, reqDataLen: e.length }
     }
-  } catch (e) {
-    results.encryptionTests.test3_utf8_key_fullkey_iv = {
-      status: 'ERROR',
-      error:  e.message,
-    }
+  } catch (err) {
+    encTests.variantD_paddedBytes = { success: false, error: err.message }
   }
 
-  // ── Test 4: HEX key + first 16 bytes of key as IV ────────────────────────
-  try {
-    const keyBuf = Buffer.from(SECRET_KEY, 'hex')
-    const ivBuf  = keyBuf.slice(0, 16)
+  return Response.json({
+    problem: keyAnalysis.charCount !== 64
+      ? `KEY IS ${keyAnalysis.charCount} CHARS — SHOULD BE 64 — MISSING ${keyAnalysis.missing} CHAR(S)`
+      : 'Key length OK',
 
-    results.encryptionTests.test4_hex_key_first16_iv = {
-      keyBytes: keyBuf.length,
-      ivBytes:  ivBuf.length,
-      valid:    keyBuf.length === 32,
-    }
+    keyAnalysis,
+    ivAnalysis: {
+      ...ivAnalysis,
+      bufferBytes: ivBuf.length,
+      isValid:     ivBuf.length === 16,
+    },
+    keyVariants,
+    encryptionTests:  encTests,
 
-    if (keyBuf.length === 32) {
-      const cipher  = crypto.createCipheriv('aes-256-cbc', keyBuf, ivBuf)
-      let enc        = cipher.update(JSON.stringify(testPayload), 'utf8', 'base64')
-      enc           += cipher.final('base64')
+    recommendation: keyAnalysis.charCount === 63
+      ? 'Your key is 63 chars (missing 1). Most likely a leading zero was stripped. Try adding "0" at the start: ONE_PAY_SECRET_KEY=0' + SECRET_KEY
+      : 'Contact 1Pay support for correct key',
 
-      results.encryptionTests.test4_hex_key_first16_iv.reqData       = enc
-      results.encryptionTests.test4_hex_key_first16_iv.reqDataLength = enc.length
-      results.encryptionTests.test4_hex_key_first16_iv.status        = 'SUCCESS'
-    } else {
-      results.encryptionTests.test4_hex_key_first16_iv.status = 'SKIP — key not 32 bytes'
-    }
-  } catch (e) {
-    results.encryptionTests.test4_hex_key_first16_iv = {
-      status: 'ERROR',
-      error:  e.message,
-    }
-  }
+    correctKeyToTry: keyAnalysis.charCount === 63
+      ? '0' + SECRET_KEY
+      : 'Contact 1Pay',
 
-  // ── Test 5: ECB mode (no IV) ──────────────────────────────────────────────
-  try {
-    const keyBuf = Buffer.alloc(32, 0)
-    Buffer.from(SECRET_KEY, 'utf8').copy(keyBuf, 0, 0, Math.min(SECRET_KEY.length, 32))
-
-    const cipher  = crypto.createCipheriv('aes-256-ecb', keyBuf, null)
-    let enc        = cipher.update(JSON.stringify(testPayload), 'utf8', 'base64')
-    enc           += cipher.final('base64')
-
-    results.encryptionTests.test5_ecb_utf8_key = {
-      keyBytes:     keyBuf.length,
-      reqData:      enc,
-      reqDataLength:enc.length,
-      status:       'SUCCESS',
-    }
-  } catch (e) {
-    results.encryptionTests.test5_ecb_utf8_key = {
-      status: 'ERROR',
-      error:  e.message,
-    }
-  }
-
-  // ── Test 6: ECB mode with HEX key ────────────────────────────────────────
-  try {
-    const keyBuf = Buffer.from(SECRET_KEY, 'hex')
-
-    if (keyBuf.length === 32) {
-      const cipher  = crypto.createCipheriv('aes-256-ecb', keyBuf, null)
-      let enc        = cipher.update(JSON.stringify(testPayload), 'utf8', 'base64')
-      enc           += cipher.final('base64')
-
-      results.encryptionTests.test6_ecb_hex_key = {
-        keyBytes:     keyBuf.length,
-        reqData:      enc,
-        reqDataLength:enc.length,
-        status:       'SUCCESS',
-      }
-    } else {
-      results.encryptionTests.test6_ecb_hex_key = {
-        keyBytes: keyBuf.length,
-        status:   'SKIP — key not 32 bytes when decoded as hex',
-      }
-    }
-  } catch (e) {
-    results.encryptionTests.test6_ecb_hex_key = {
-      status: 'ERROR',
-      error:  e.message,
-    }
-  }
-
-  // ── What to share with 1Pay ───────────────────────────────────────────────
-  results.shareWith1Pay = {
-    message: 'Share test1 reqData with 1Pay support and ask them to decrypt it',
-    test1_reqData: results.encryptionTests.test1_hex_key_hex_iv?.reqData || 'N/A',
-    test2_reqData: results.encryptionTests.test2_utf8_key_first16_iv?.reqData || 'N/A',
-    test5_reqData: results.encryptionTests.test5_ecb_utf8_key?.reqData || 'N/A',
-  }
-
-  return Response.json(results, {
-    headers: { 'Content-Type': 'application/json' },
+    merchantId: process.env.ONE_PAY_MERCHANT_ID,
+    ivBuffer:   ivBuf.length + ' bytes',
   })
 }

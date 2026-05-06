@@ -111,7 +111,6 @@ enum NotificationStatus {
   failed
 }
 
-// REPLACED: PaymentHDFCStatus → Payment1PayStatus
 enum Payment1PayStatus {
   created
   success
@@ -291,23 +290,39 @@ type TAT {
   unit  TAT_Unit @default(hours)
 }
 
+// ── NEW: Family member composite type ─────────────────────────────────────────
+type FamilyMember {
+  id          String
+  name        String
+  relation    String
+  age         Int?
+  gender      String?
+  bloodGroup  String?
+  phone       String?
+  notes       String?
+  createdAt   String?
+  updatedAt   String?
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id           String           @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  email        String?          @unique
-  phone        String?          @unique
-  role         Role             @default(user)
-  passwordHash String?
-  avatar       String?
-  isVerified   Boolean          @default(false)
-  isBlocked    Boolean          @default(false)
-  bankAccount  BankAccountUser?
-  devices      UserDevice[]
-  wallet       UserWallet?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String?          @unique
+  phone         String?          @unique
+  role          Role             @default(user)
+  passwordHash  String?
+  avatar        String?
+  isVerified    Boolean          @default(false)
+  isBlocked     Boolean          @default(false)
+  bankAccount   BankAccountUser?
+  devices       UserDevice[]
+  wallet        UserWallet?
+  // ── NEW: family members stored inside user document ──────────────────────
+  familyMembers FamilyMember[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@map("users")
 }
@@ -433,9 +448,11 @@ model Booking {
   subtotal            Float              @default(0)
   adminCouponDiscount Float              @default(0)
   totalAmount         Float              @default(0)
-  // 1Pay fields — replaces hdfcOrderId / hdfcTrackingId
-  onePayTxnId         String?
-  onePayPgRefId       String?
+
+  // ── 1Pay fields ────────────────────────────────────────────────────────────
+  onePayTxnId         String?            // Our txnId sent to 1Pay gateway
+  onePayPgRefId       String?            // 1Pay's payment reference ID (pgRefId)
+
   labStatus           LabStatus?
   reportR2Key         String?
   isSettled           Boolean            @default(false)
@@ -452,27 +469,32 @@ model Booking {
   @@index([doctorId, startTime])
   @@index([hospitalId, status])
   @@index([labId, status])
+  @@index([onePayTxnId])           // ← Add this index for fast callback lookup
   @@map("bookings")
 }
 
 model Payment {
-  id                   String             @id @default(auto()) @map("_id") @db.ObjectId
-  bookingId            String             @db.ObjectId
-  userId               String             @db.ObjectId
-  // 1Pay fields — replaces all hdfc* fields
-  onePayTxnId          String?
-  onePayPgRefId        String?
-  onePayInstrumentType String?
-  onePayBankRefId      String?
-  onePayFailureMsg     String?
-  amount               Float?
-  currency             String             @default("INR")
-  status               Payment1PayStatus  @default(created)
-  refunds              RefundEntry[]
-  callbackData         Json?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id                   String            @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId            String            @db.ObjectId
+  userId               String            @db.ObjectId
 
+  // ── 1Pay fields ────────────────────────────────────────────────────────────
+  onePayTxnId          String?           // Matches txnId we send to gateway
+  onePayPgRefId        String?           // Gateway payment reference
+  onePayInstrumentType String?           // UPI / CARD / NB / WALLET
+  onePayBankRefId      String?           // Bank reference number
+  onePayFailureMsg     String?           // Failure reason from gateway
+
+  amount               Float?
+  currency             String            @default("INR")
+  status               Payment1PayStatus @default(created)
+  refunds              RefundEntry[]
+  callbackData         Json?             // Full decrypted callback stored here
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@index([onePayTxnId])           // ← Fast lookup by txnId in callback
+  @@index([bookingId])
   @@map("payments")
 }
 
@@ -497,14 +519,18 @@ model Invoice {
   adminCouponDiscount Float?
   totalAmount         Float?
   gstDetails          GSTDetails?
-  paymentMethod       String?
-  paymentMode         String?
-  // 1Pay field — replaces hdfcTrackingId
-  onePayPgRefId       String?
+
+  // ── Payment info on invoice ────────────────────────────────────────────────
+  paymentMethod       String?       // UPI / CARD / NB
+  paymentMode         String?       // Online
+  onePayPgRefId       String?       // Gateway reference for invoice
+
   type                InvoiceType   @default(invoice)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
+  @@index([bookingId])
+  @@index([userId])
   @@map("invoices")
 }
 
@@ -596,8 +622,6 @@ model Settlement {
   beneficiaryIFSC     String?
   bankName            String?
   transferMode        TransferMode?
-  // Manual settlement: admin enters UTR after bank transfer
-  // hdfcTransactionId removed — no auto payout
   utrNumber           String?
   transferredAt       DateTime?
   confirmedBy         String?          @db.ObjectId
@@ -627,9 +651,11 @@ model Refund {
   beneficiaryName       String?
   beneficiaryAccount    String?
   beneficiaryIFSC       String?
-  // 1Pay refund fields — replaces hdfcTransactionId / utrNumber
-  onePayRefundRequestId String?
-  onePayRefundStatus    String?
+
+  // ── 1Pay refund tracking ───────────────────────────────────────────────────
+  onePayRefundRequestId String?       // 1Pay refund request ID
+  onePayRefundStatus    String?       // 1Pay refund status response
+
   status                RefundStatus  @default(pending)
   failureReason         String?
   processedAt           DateTime?
@@ -637,6 +663,7 @@ model Refund {
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
+  @@index([bookingId])
   @@map("refunds")
 }
 
