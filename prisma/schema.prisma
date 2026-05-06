@@ -1,0 +1,720 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  user
+  doctor
+  hospital_admin
+  lab_admin
+  regional_manager
+  super_admin
+}
+
+enum BookingType {
+  hospital
+  online
+  lab
+}
+
+enum BookingStatus {
+  created
+  pending_payment
+  confirmed
+  completed
+  cancelled
+  no_show
+  refunded
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  refunded
+  partial_refund
+  failed
+}
+
+enum LabStatus {
+  sample_collected
+  processing
+  report_ready
+}
+
+enum CollectionType {
+  walk_in
+  home
+}
+
+enum CouponType {
+  hospital
+  lab
+  platform
+}
+
+enum DiscountType {
+  percent
+  fixed
+}
+
+enum EntityType {
+  hospital
+  lab
+  user
+}
+
+enum SettlementStatus {
+  pending
+  processing
+  completed
+  failed
+  on_hold
+}
+
+enum RefundStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum RefundMethod {
+  original_source
+  bank_transfer
+  wallet
+}
+
+enum TransferMode {
+  IMPS
+  NEFT
+  RTGS
+  UPI
+}
+
+enum NotificationChannel {
+  sms
+  email
+  push
+}
+
+enum NotificationStatus {
+  queued
+  sent
+  delivered
+  failed
+}
+
+// REPLACED: PaymentHDFCStatus → Payment1PayStatus
+enum Payment1PayStatus {
+  created
+  success
+  failure
+  timeout
+  pending
+}
+
+enum AccountType {
+  current
+  savings
+}
+
+enum DevicePlatform {
+  web
+  android
+  ios
+}
+
+enum InvoiceType {
+  invoice
+  credit_note
+}
+
+enum LedgerType {
+  credit
+  debit
+}
+
+enum LedgerCategory {
+  booking_payment
+  platform_fee
+  settlement
+  refund
+  coupon_discount
+}
+
+enum TAT_Unit {
+  hours
+  days
+}
+
+enum VerificationMethod {
+  penny_drop
+  manual
+}
+
+// ─── Composite Types ──────────────────────────────────────────────────────────
+
+type Address {
+  line1   String?
+  city    String?
+  state   String?
+  pinCode String?
+}
+
+type Location {
+  type        String  @default("Point")
+  coordinates Float[]
+}
+
+type OperatingDay {
+  open   String?
+  close  String?
+  isOpen Boolean @default(false)
+}
+
+type OperatingHours {
+  mon OperatingDay?
+  tue OperatingDay?
+  wed OperatingDay?
+  thu OperatingDay?
+  fri OperatingDay?
+  sat OperatingDay?
+  sun OperatingDay?
+}
+
+type Rating {
+  average Float @default(0)
+  count   Int   @default(0)
+}
+
+type HospitalImages {
+  cover   String?
+  logo    String?
+  gallery String[]
+}
+
+type ConsultationFee {
+  online  Float @default(0)
+  offline Float @default(0)
+}
+
+type AvailabilitySlot {
+  dayOfWeek    Int
+  startTime    String
+  endTime      String
+  slotDuration Int    @default(10)
+}
+
+type DoctorException {
+  date      DateTime
+  available Boolean  @default(false)
+  reason    String?
+}
+
+type HomeCollectionSlot {
+  dayOfWeek Int
+  startTime String
+  endTime   String
+}
+
+type HomeCollection {
+  enabled      Boolean              @default(false)
+  areaCoverage String[]
+  slots        HomeCollectionSlot[]
+}
+
+type CollectionAddress {
+  line1   String?
+  city    String?
+  state   String?
+  pinCode String?
+}
+
+type BankAccountUser {
+  accountHolderName String?
+  accountNumber     String?
+  ifscCode          String?
+  bankName          String?
+  upiId             String?
+  isVerified        Boolean @default(false)
+}
+
+type UserWallet {
+  balance Float @default(0)
+}
+
+type UserDevice {
+  token      String
+  platform   DevicePlatform
+  lastActive DateTime?
+}
+
+type GSTDetails {
+  providerGstin String?
+  medliGstin    String?
+  hsnCode       String?
+  gstRate       Float?
+}
+
+type CouponCreatedBy {
+  role       String
+  userId     String
+  entityId   String?
+  entityName String?
+}
+
+type InvoiceItem {
+  description String
+  quantity    Int
+  rate        Float
+  amount      Float
+}
+
+type RefundEntry {
+  amount           Float
+  refundTrackingId String?
+  utrNumber        String?
+  reason           String?
+  status           String?
+  processedAt      DateTime?
+}
+
+type TAT {
+  value Int
+  unit  TAT_Unit @default(hours)
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String           @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String?          @unique
+  phone        String?          @unique
+  role         Role             @default(user)
+  passwordHash String?
+  avatar       String?
+  isVerified   Boolean          @default(false)
+  isBlocked    Boolean          @default(false)
+  bankAccount  BankAccountUser?
+  devices      UserDevice[]
+  wallet       UserWallet?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@map("users")
+}
+
+model Hospital {
+  id                 String          @id @default(auto()) @map("_id") @db.ObjectId
+  name               String
+  slug               String          @unique
+  address            Address?
+  location           Location?
+  departments        String[]
+  services           String[]
+  images             HospitalImages?
+  contactPhone       String?
+  contactEmail       String?
+  operatingHours     OperatingHours?
+  rating             Rating?
+  isApproved         Boolean         @default(false)
+  isActive           Boolean         @default(true)
+  adminUserId        String?         @db.ObjectId
+  regionId           String?         @db.ObjectId
+  platformFeePercent Float           @default(10)
+  bankAccountId      String?         @db.ObjectId
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@map("hospitals")
+}
+
+model Doctor {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String?            @db.ObjectId
+  hospitalId        String             @db.ObjectId
+  name              String
+  specialization    String[]
+  qualifications    String[]
+  experience        Int?
+  avatar            String?
+  consultationFee   ConsultationFee?
+  consultationTypes String[]
+  availability      AvailabilitySlot[]
+  exceptions        DoctorException[]
+  isVerified        Boolean            @default(false)
+  isActive          Boolean            @default(true)
+  rating            Rating?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@map("doctors")
+}
+
+model Lab {
+  id                 String               @id @default(auto()) @map("_id") @db.ObjectId
+  name               String
+  slug               String               @unique
+  address            Address?
+  location           Location?
+  images             HospitalImages?
+  certifications     String[]
+  homeCollection     HomeCollection?
+  walkInSlots        HomeCollectionSlot[]
+  contactPhone       String?
+  contactEmail       String?
+  rating             Rating?
+  isApproved         Boolean              @default(false)
+  isActive           Boolean              @default(true)
+  adminUserId        String?              @db.ObjectId
+  regionId           String?              @db.ObjectId
+  platformFeePercent Float                @default(8)
+  bankAccountId      String?              @db.ObjectId
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@map("labs")
+}
+
+model Test {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  labId                   String   @db.ObjectId
+  name                    String
+  code                    String?
+  category                String?
+  parameters              String[]
+  price                   Float
+  discountedPrice         Float?
+  turnaroundTime          TAT?
+  sampleType              String?
+  preparationInstructions String?
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("tests")
+}
+
+model Booking {
+  id                  String             @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId           String             @unique
+  userId              String             @db.ObjectId
+  type                BookingType
+  hospitalId          String?            @db.ObjectId
+  doctorId            String?            @db.ObjectId
+  labId               String?            @db.ObjectId
+  testIds             String[]           @db.ObjectId
+  collectionType      CollectionType?
+  collectionAddress   CollectionAddress?
+  startTime           DateTime
+  endTime             DateTime?
+  timezone            String             @default("Asia/Kolkata")
+  meetLink            String?
+  calendarEventId     String?
+  status              BookingStatus      @default(created)
+  paymentStatus       PaymentStatus      @default(pending)
+  baseFee             Float              @default(0)
+  couponCode          String?
+  couponType          CouponType?
+  couponDiscount      Float              @default(0)
+  discountedFee       Float              @default(0)
+  platformFeePercent  Float              @default(0)
+  platformFee         Float              @default(0)
+  gstPercent          Float              @default(18)
+  gst                 Float              @default(0)
+  subtotal            Float              @default(0)
+  adminCouponDiscount Float              @default(0)
+  totalAmount         Float              @default(0)
+  // 1Pay fields — replaces hdfcOrderId / hdfcTrackingId
+  onePayTxnId         String?
+  onePayPgRefId       String?
+  labStatus           LabStatus?
+  reportR2Key         String?
+  isSettled           Boolean            @default(false)
+  settlementId        String?            @db.ObjectId
+  cancellationReason  String?
+  cancelledBy         String?
+  rescheduleCount     Int                @default(0)
+  refundAmount        Float              @default(0)
+  doctorNotes         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([doctorId, startTime])
+  @@index([hospitalId, status])
+  @@index([labId, status])
+  @@map("bookings")
+}
+
+model Payment {
+  id                   String             @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId            String             @db.ObjectId
+  userId               String             @db.ObjectId
+  // 1Pay fields — replaces all hdfc* fields
+  onePayTxnId          String?
+  onePayPgRefId        String?
+  onePayInstrumentType String?
+  onePayBankRefId      String?
+  onePayFailureMsg     String?
+  amount               Float?
+  currency             String             @default("INR")
+  status               Payment1PayStatus  @default(created)
+  refunds              RefundEntry[]
+  callbackData         Json?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@map("payments")
+}
+
+model Invoice {
+  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber       String        @unique
+  bookingId           String        @db.ObjectId
+  userId              String        @db.ObjectId
+  entityType          String?
+  entityId            String?       @db.ObjectId
+  items               InvoiceItem[]
+  baseFee             Float?
+  couponCode          String?
+  couponDiscount      Float?
+  couponType          String?
+  discountedFee       Float?
+  platformFeePercent  Float?
+  platformFee         Float?
+  gstPercent          Float?
+  gst                 Float?
+  subtotal            Float?
+  adminCouponDiscount Float?
+  totalAmount         Float?
+  gstDetails          GSTDetails?
+  paymentMethod       String?
+  paymentMode         String?
+  // 1Pay field — replaces hdfcTrackingId
+  onePayPgRefId       String?
+  type                InvoiceType   @default(invoice)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@map("invoices")
+}
+
+model Coupon {
+  id                     String           @id @default(auto()) @map("_id") @db.ObjectId
+  code                   String           @unique
+  name                   String?
+  description            String?
+  createdBy              CouponCreatedBy?
+  couponType             CouponType
+  discountType           DiscountType
+  discountValue          Float
+  maxDiscountAmount      Float?
+  minOrderAmount         Float            @default(0)
+  validFrom              DateTime?
+  validUntil             DateTime?
+  totalUsageLimit        Int?
+  perUserLimit           Int              @default(1)
+  currentUsageCount      Int              @default(0)
+  applicableFor          String           @default("all")
+  hospitalIds            String[]         @db.ObjectId
+  labIds                 String[]         @db.ObjectId
+  testIds                String[]         @db.ObjectId
+  applicableBookingTypes String[]
+  isActive               Boolean          @default(true)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@map("coupons")
+}
+
+model CouponUsage {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  couponId       String   @db.ObjectId
+  couponCode     String
+  userId         String   @db.ObjectId
+  bookingId      String   @db.ObjectId
+  discountAmount Float?
+  appliedOn      String?
+  createdAt      DateTime @default(now())
+
+  @@map("coupon_usages")
+}
+
+model BankAccount {
+  id                     String              @id @default(auto()) @map("_id") @db.ObjectId
+  entityType             EntityType
+  entityId               String              @db.ObjectId
+  accountHolderName      String?
+  accountNumber          String?
+  ifscCode               String?
+  bankName               String?
+  branchName             String?
+  accountType            AccountType?
+  upiId                  String?
+  panNumber              String?
+  gstin                  String?
+  isVerified             Boolean             @default(false)
+  verificationMethod     VerificationMethod?
+  verifiedAt             DateTime?
+  verifiedBy             String?             @db.ObjectId
+  pennyDropTransactionId String?
+  isActive               Boolean             @default(true)
+  isPrimary              Boolean             @default(true)
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@map("bank_accounts")
+}
+
+model Settlement {
+  id                  String           @id @default(auto()) @map("_id") @db.ObjectId
+  settlementNumber    String           @unique
+  entityType          String
+  entityId            String           @db.ObjectId
+  entityName          String?
+  periodFrom          DateTime?
+  periodTo            DateTime?
+  totalBookings       Int?
+  grossAmount         Float?
+  platformFee         Float?
+  gst                 Float?
+  couponAbsorbed      Float?
+  refundsDeducted     Float?
+  netSettlementAmount Float?
+  bankAccountId       String?          @db.ObjectId
+  beneficiaryName     String?
+  beneficiaryAccount  String?
+  beneficiaryIFSC     String?
+  bankName            String?
+  transferMode        TransferMode?
+  // Manual settlement: admin enters UTR after bank transfer
+  // hdfcTransactionId removed — no auto payout
+  utrNumber           String?
+  transferredAt       DateTime?
+  confirmedBy         String?          @db.ObjectId
+  status              SettlementStatus @default(pending)
+  failureReason       String?
+  retryCount          Int              @default(0)
+  initiatedBy         String?          @db.ObjectId
+  notes               String?
+  bookingIds          String[]         @db.ObjectId
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@map("settlements")
+}
+
+model Refund {
+  id                    String        @id @default(auto()) @map("_id") @db.ObjectId
+  refundNumber          String        @unique
+  bookingId             String        @db.ObjectId
+  userId                String        @db.ObjectId
+  bookingAmount         Float?
+  refundPercent         Float?
+  refundAmount          Float?
+  reason                String?
+  cancelledBy           String?
+  refundMethod          RefundMethod?
+  beneficiaryName       String?
+  beneficiaryAccount    String?
+  beneficiaryIFSC       String?
+  // 1Pay refund fields — replaces hdfcTransactionId / utrNumber
+  onePayRefundRequestId String?
+  onePayRefundStatus    String?
+  status                RefundStatus  @default(pending)
+  failureReason         String?
+  processedAt           DateTime?
+  initiatedBy           String?       @db.ObjectId
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  @@map("refunds")
+}
+
+model Ledger {
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  entityType     String
+  entityId       String         @db.ObjectId
+  type           LedgerType
+  category       LedgerCategory
+  amount         Float
+  currency       String         @default("INR")
+  description    String?
+  referenceType  String?
+  referenceId    String?        @db.ObjectId
+  runningBalance Float?
+  createdAt      DateTime       @default(now())
+
+  @@map("ledger")
+}
+
+model Region {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  states    String[]
+  cities    String[]
+  managerId String?  @db.ObjectId
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("regions")
+}
+
+model NotificationLog {
+  id               String              @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String?             @db.ObjectId
+  channel          NotificationChannel
+  template         String?
+  variables        Json?
+  status           NotificationStatus  @default(queued)
+  retryCount       Int                 @default(0)
+  providerResponse Json?
+  createdAt        DateTime            @default(now())
+
+  @@map("notification_logs")
+}
+
+model AuditLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId    String?  @db.ObjectId
+  actorRole  String?
+  action     String
+  targetType String?
+  targetId   String?  @db.ObjectId
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model Permission {
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  roleId  String
+  module  String
+  actions String[]
+
+  @@map("permissions")
+}
+
+model PlatformSetting {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  value     Json
+  category  String?
+  updatedBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}

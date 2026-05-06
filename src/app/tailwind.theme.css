@@ -1,0 +1,39 @@
+@theme {
+  /* ─── Primary Colors ─────────────────────────────────────── */
+  --color-primary-50:  #eef9ff;
+  --color-primary-100: #d8f1ff;
+  --color-primary-200: #b9e8ff;
+  --color-primary-300: #89daff;
+  --color-primary-400: #52c3ff;
+  --color-primary-500: #2aa5ff;
+  --color-primary-600: #1286f5;
+  --color-primary-700: #0b6de1;
+  --color-primary-800: #1058b6;
+  --color-primary-900: #134d8f;
+  --color-primary-950: #0f3060;
+  --color-primary:     #1286f5;
+
+  /* ─── Box Shadows ────────────────────────────────────────── */
+  --shadow-card:  0 2px 12px 0 rgba(0,0,0,0.08), 0 1px 3px 0 rgba(0,0,0,0.05);
+  --shadow-modal: 0 20px 60px 0 rgba(0,0,0,0.18), 0 8px 24px 0 rgba(0,0,0,0.10);
+
+  /* ─── Animations ─────────────────────────────────────────── */
+  --animate-shimmer:  shimmer 2s infinite linear;
+  --animate-fade-in:  fadeIn 0.3s ease-in-out;
+  --animate-slide-up: slideUp 0.4s ease-out;
+
+  @keyframes shimmer {
+    0%   { background-position: -1000px 0; }
+    100% { background-position:  1000px 0; }
+  }
+
+  @keyframes fadeIn {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    0%   { opacity: 0; transform: translateY(24px); }
+    100% { opacity: 1; transform: translateY(0);    }
+  }
+}
