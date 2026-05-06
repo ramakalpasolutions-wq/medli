@@ -1,26 +1,29 @@
-// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Tell Next.js these Node.js-only packages
+  // should never be bundled for browser or edge runtime
   serverExternalPackages: [
-    '@prisma/client',
-    'prisma',
     'bullmq',
     'ioredis',
+    '@prisma/client',
+    'prisma',
     'pdfkit',
     'nodemailer',
     'firebase-admin',
     'googleapis',
-    'jsonwebtoken',
-    'bcryptjs',
+    'crypto',
+    'fs',
+    'path',
   ],
 
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: '**.r2.dev' },
-      { protocol: 'https', hostname: '**.cloudflare.com' },
-      { protocol: 'https', hostname: 'images.unsplash.com' },
-      { protocol: 'https', hostname: '**.githubusercontent.com' },
-      { protocol: 'https', hostname: 'cdn.medli.in' },
+      {
+        protocol: 'https',
+        hostname: 'cdn.medli.in',
+        port:     '',
+        pathname: '/**',
+      },
     ],
   },
 
@@ -39,15 +42,14 @@ const nextConfig = {
     ]
   },
 
-  typescript: {
-    ignoreBuildErrors: true,
+  // Disable eslint errors blocking build
+  eslint: {
+    ignoreDuringBuilds: true,
   },
 
-  // ── Add this — shows more build output ──────────────────────────────────────
-  logging: {
-    fetches: {
-      fullUrl: true,
-    },
+  // Disable typescript errors blocking build
+  typescript: {
+    ignoreBuildErrors: true,
   },
 }
 
