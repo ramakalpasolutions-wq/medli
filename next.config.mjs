@@ -1,34 +1,32 @@
 // next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ── Node.js-only packages — never bundle for browser/edge ──────────────────
+  // ── Server-only packages — never bundle for browser/edge ───────────────────
   serverExternalPackages: [
-    'bullmq',
-    'ioredis',
     '@prisma/client',
     'prisma',
+    'bullmq',
+    'ioredis',
     'pdfkit',
     'nodemailer',
     'firebase-admin',
     'googleapis',
-    'crypto',
-    'fs',
-    'path',
+    'jsonwebtoken',
+    'bcryptjs',
   ],
 
   // ── Images ──────────────────────────────────────────────────────────────────
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'cdn.medli.in',
-        port:     '',
-        pathname: '/**',
-      },
+      { protocol: 'https', hostname: '**.r2.dev' },
+      { protocol: 'https', hostname: '**.cloudflare.com' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: '**.githubusercontent.com' },
+      { protocol: 'https', hostname: 'cdn.medli.in' },
     ],
   },
 
-  // ── CORS Headers ────────────────────────────────────────────────────────────
+  // ── CORS + Security Headers ──────────────────────────────────────────────────
   async headers() {
     return [
       {
@@ -44,8 +42,7 @@ const nextConfig = {
     ]
   },
 
-  // ── TypeScript — ignore build errors ────────────────────────────────────────
-  // eslint is NO longer configured here in Next.js 15+
+  // ── Suppress build-blocking errors ──────────────────────────────────────────
   typescript: {
     ignoreBuildErrors: true,
   },
