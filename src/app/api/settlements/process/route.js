@@ -1,10 +1,13 @@
+// src/app/api/settlements/process-all/route.js
+
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { checkRole } from '@/lib/middleware/rbac.middleware'
-import { processSettlement } from '@/lib/services/settlement.service'
-import { logAdminAction } from '@/lib/middleware/audit.middleware'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { initiateSettlement } from '@/lib/services/settlement.service'
 
-export function OPTIONS() { return handleOptions() }
+export async function OPTIONS() {
+  return handleOptions()
+}
 
 export async function POST(request) {
   try {
@@ -12,37 +15,49 @@ export async function POST(request) {
     checkRole(user, 'super_admin')
 
     const body = await request.json()
-    if (!body.entityType || !body.entityId)
-      return errorResponse('entityType and entityId required', 'VALIDATION_ERROR', 400)
+    const { entityIds } = body
 
-    const settlement = await processSettlement({
-      entityType: body.entityType,
-      entityId: body.entityId,
-      periodFrom: body.periodFrom,
-      periodTo: body.periodTo,
-      initiatedBy: user.id,
-      notes: body.notes,
-    })
+    if (!entityIds || !Array.isArray(entityIds) || entityIds.length === 0) {
+      return errorResponse('entityIds array is required', 'MISSING_FIELDS', 400)
+    }
 
-    await logAdminAction({
-      actorId: user.id,
-      actorRole: user.role,
-      action: 'settlement_processed',
-      targetType: body.entityType,
-      targetId: body.entityId,
-      details: {
-        settlementNumber: settlement.settlementNumber,
-        amount: settlement.netSettlementAmount,
-        status: settlement.status,
-      },
-      request,
-    })
+    const results = []
 
-    return successResponse(settlement, 'Settlement processed')
+    for (const item of entityIds) {
+      try {
+        const result = await initiateSettlement({
+          entityType:  item.entityType,
+          entityId:    item.entityId,
+          periodFrom:  item.periodFrom,
+          periodTo:    item.periodTo,
+          initiatedBy: user.id,
+          notes:       item.notes,
+        })
+        results.push({
+          success:              true,
+          entityId:             item.entityId,
+          entityType:           item.entityType,
+          settlement:           result.settlement,
+          transferInstructions: result.transferInstructions,
+        })
+      } catch (err) {
+        results.push({
+          success:    false,
+          entityId:   item.entityId,
+          entityType: item.entityType,
+          error:      err.message,
+        })
+      }
+    }
+
+    return successResponse({
+      total:      results.length,
+      successful: results.filter(r => r.success).length,
+      failed:     results.filter(r => !r.success).length,
+      results,
+    }, 'Bulk settlement initiation complete')
   } catch (err) {
-    console.error('[Settlement Process]', err.message)
-    if (err.message.includes('token') || err.message.includes('auth'))
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    return errorResponse(err.message, 'SETTLEMENT_ERROR', 400)
+    console.error('[Settlement Process-All] Error:', err)
+    return errorResponse(err.message, 'SETTLEMENT_ERROR', 500)
   }
 }
