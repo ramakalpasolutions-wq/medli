@@ -1,36 +1,34 @@
 // src/lib/utils/onepay.js
-// ─────────────────────────────────────────────────────────────────────────────
-// 1Pay Payment Gateway Utility
-//
-// CONFIRMED KEY FORMAT:
-//   SECRET_KEY : 32 UTF-8 chars  → 32 bytes → AES-256
-//   SECRET_IV  : 16 UTF-8 chars  → 16 bytes → AES-CBC IV
-//   Encoding   : NOT hex — plain alphanumeric strings
-//   Algorithm  : AES-256-CBC
-//   Output     : Base64
-// ─────────────────────────────────────────────────────────────────────────────
-
 import crypto from 'crypto'
 import axios  from 'axios'
 
-// ── Read env vars — trim whitespace/newlines ──────────────────────────────────
+// ── Env ───────────────────────────────────────────────────────────────────────
 const MERCHANT_ID = (process.env.ONE_PAY_MERCHANT_ID  || '').trim()
 const API_KEY     = (process.env.ONE_PAY_API_KEY       || '').trim()
 const SECRET_KEY  = (process.env.ONE_PAY_SECRET_KEY    || '').trim()
 const SECRET_IV   = (process.env.ONE_PAY_SECRET_IV     || '').trim()
 
-const IS_PROD  = process.env.NODE_ENV === 'production'
+const IS_PROD = process.env.NODE_ENV === 'production'
+
+// ── Base URLs ─────────────────────────────────────────────────────────────────
 const API_BASE = IS_PROD
   ? (process.env.ONE_PAY_API_BASE_PROD || 'https://pay.1pay.in')
   : (process.env.ONE_PAY_API_BASE_UAT  || 'https://pa-preprod.1pay.in')
+
+// ── Payment PAGE URLs (where user is redirected to enter card/UPI details) ────
+// UAT:  https://pa-preprod.1pay.in/payment/payprocessorV2
+// PROD: https://pay.1pay.in/payment/payprocessorV2
+const PAY_PAGE_URL = IS_PROD
+  ? (process.env.ONE_PAY_PAY_PAGE_PROD || 'https://pay.1pay.in/payment/payprocessorV2')
+  : (process.env.ONE_PAY_PAY_PAGE_UAT  || 'https://pa-preprod.1pay.in/payment/payprocessorV2')
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
   .replace(/\/+$/, '')
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDATE KEYS
-// KEY  must be exactly 32 UTF-8 chars (= 32 bytes for AES-256)
-// IV   must be exactly 16 UTF-8 chars (= 16 bytes for AES block size)
+// KEY : 32 UTF-8 chars = 32 bytes = AES-256
+// IV  : 16 UTF-8 chars = 16 bytes = AES block size
 // ─────────────────────────────────────────────────────────────────────────────
 function validateKeys() {
   const issues = []
@@ -39,8 +37,7 @@ function validateKeys() {
     issues.push('ONE_PAY_SECRET_KEY is not set')
   } else if (SECRET_KEY.length !== 32) {
     issues.push(
-      `ONE_PAY_SECRET_KEY must be exactly 32 chars (got ${SECRET_KEY.length}). ` +
-      `32 UTF-8 chars = 32 bytes = AES-256`
+      `ONE_PAY_SECRET_KEY must be exactly 32 chars (got ${SECRET_KEY.length})`
     )
   }
 
@@ -48,21 +45,15 @@ function validateKeys() {
     issues.push('ONE_PAY_SECRET_IV is not set')
   } else if (SECRET_IV.length !== 16) {
     issues.push(
-      `ONE_PAY_SECRET_IV must be exactly 16 chars (got ${SECRET_IV.length}). ` +
-      `16 UTF-8 chars = 16 bytes = AES block size`
+      `ONE_PAY_SECRET_IV must be exactly 16 chars (got ${SECRET_IV.length})`
     )
   }
 
-  if (!MERCHANT_ID) {
-    issues.push('ONE_PAY_MERCHANT_ID is not set')
-  }
-
-  if (!API_KEY) {
-    issues.push('ONE_PAY_API_KEY is not set')
-  }
+  if (!MERCHANT_ID) issues.push('ONE_PAY_MERCHANT_ID is not set')
+  if (!API_KEY)     issues.push('ONE_PAY_API_KEY is not set')
 
   if (issues.length > 0) {
-    const msg = '[1Pay Config]\n' + issues.map(i => '  • ' + i).join('\n')
+    const msg = '[1Pay Config Error]\n' + issues.map(i => '  • ' + i).join('\n')
     console.error(msg)
     throw new Error(msg)
   }
@@ -70,16 +61,15 @@ function validateKeys() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENCRYPT — AES-256-CBC
-// Key : Buffer.from(SECRET_KEY, 'utf8')  → 32 bytes
-// IV  : Buffer.from(SECRET_IV,  'utf8')  → 16 bytes
-// Out : Base64 string
+// Key : Buffer.from(SECRET_KEY, 'utf8') → 32 bytes
+// IV  : Buffer.from(SECRET_IV,  'utf8') → 16 bytes
+// Out : Base64
 // ─────────────────────────────────────────────────────────────────────────────
 export function onePayEncrypt(data) {
   validateKeys()
 
-  // ✅ UTF-8 encoding — NOT hex
-  const keyBuf = Buffer.from(SECRET_KEY, 'utf8')  // 32 chars → 32 bytes
-  const ivBuf  = Buffer.from(SECRET_IV,  'utf8')  // 16 chars → 16 bytes
+  const keyBuf = Buffer.from(SECRET_KEY, 'utf8')
+  const ivBuf  = Buffer.from(SECRET_IV,  'utf8')
 
   console.log('[1Pay][Encrypt] Key:', keyBuf.length, 'bytes | IV:', ivBuf.length, 'bytes')
 
@@ -90,7 +80,7 @@ export function onePayEncrypt(data) {
   let enc  = cipher.update(text, 'utf8', 'base64')
   enc     += cipher.final('base64')
 
-  console.log('[1Pay][Encrypt] Input length:', text.length, '| Output length:', enc.length)
+  console.log('[1Pay][Encrypt] Output length:', enc.length)
   return enc
 }
 
@@ -108,7 +98,7 @@ export function onePayDecrypt(ciphertext) {
   let dec  = decipher.update(ciphertext, 'base64', 'utf8')
   dec     += decipher.final('utf8')
 
-  console.log('[1Pay][Decrypt] Success, output length:', dec.length)
+  console.log('[1Pay][Decrypt] Output length:', dec.length)
 
   try {
     return JSON.parse(dec)
@@ -118,7 +108,7 @@ export function onePayDecrypt(ciphertext) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GENERATE TRANSACTION ID — unique per attempt
+// GENERATE TRANSACTION ID
 // ─────────────────────────────────────────────────────────────────────────────
 export function generateTxnId(bookingId = '') {
   const short = bookingId.slice(-6).toUpperCase()
@@ -128,7 +118,7 @@ export function generateTxnId(bookingId = '') {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET DATE TIME — format: dd-MM-yyyy HH:mm:ss
+// GET DATE TIME — dd-MM-yyyy HH:mm:ss
 // ─────────────────────────────────────────────────────────────────────────────
 export function getDateTime() {
   const now = new Date()
@@ -170,12 +160,11 @@ export function buildOnePayPayload({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST to 1Pay API
+// POST to 1Pay API (server-to-server)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function onePayPost(endpoint, payload) {
   const url = `${API_BASE}${endpoint}`
   console.log('[1Pay][POST]', url)
-  console.log('[1Pay][POST] Payload keys:', Object.keys(payload))
 
   try {
     const response = await axios.post(url, payload, {
@@ -183,7 +172,6 @@ export async function onePayPost(endpoint, payload) {
       timeout: 30000,
     })
     console.log('[1Pay][POST] Status:', response.status)
-    console.log('[1Pay][POST] Response:', JSON.stringify(response.data).substring(0, 200))
     return response.data
   } catch (err) {
     if (err.code === 'ECONNABORTED') throw new Error('GATEWAY_TIMEOUT')
@@ -251,9 +239,13 @@ export function mapStatus(onePayStatus) {
   return map[onePayStatus] || 'pending'
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// EXPORTS
+// ─────────────────────────────────────────────────────────────────────────────
 export {
-  API_BASE   as ONE_PAY_API_BASE,
-  APP_URL    as ONE_PAY_APP_URL,
+  API_BASE    as ONE_PAY_API_BASE,
+  PAY_PAGE_URL as ONE_PAY_PAY_PAGE_URL,   // ← form action URL
+  APP_URL     as ONE_PAY_APP_URL,
   MERCHANT_ID,
   API_KEY,
 }
