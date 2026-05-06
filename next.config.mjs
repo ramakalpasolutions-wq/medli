@@ -1,7 +1,6 @@
 // next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ── Server-only packages — never bundle for browser/edge ───────────────────
   serverExternalPackages: [
     '@prisma/client',
     'prisma',
@@ -15,7 +14,6 @@ const nextConfig = {
     'bcryptjs',
   ],
 
-  // ── Images ──────────────────────────────────────────────────────────────────
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.r2.dev' },
@@ -26,7 +24,6 @@ const nextConfig = {
     ],
   },
 
-  // ── CORS + Security Headers ──────────────────────────────────────────────────
   async headers() {
     return [
       {
@@ -42,9 +39,15 @@ const nextConfig = {
     ]
   },
 
-  // ── Suppress build-blocking errors ──────────────────────────────────────────
   typescript: {
     ignoreBuildErrors: true,
+  },
+
+  // ── Add this — shows more build output ──────────────────────────────────────
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
   },
 }
 
