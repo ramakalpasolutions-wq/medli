@@ -1,60 +1,68 @@
 // src/lib/utils/onepay.js
-// Built from official 1Pay sample code
-// Key insight: key and IV are HEX strings from 1Pay
-// crypto.createCipheriv('aes-256-cbc', Buffer.from(key,'hex'), Buffer.from(iv,'hex'))
+// CONFIRMED: AES-256-CBC + HEX key (64 chars) + HEX IV (32 chars)
+// From debug: KEY=417492e3... (64 hex) IV=1b74d07f... (32 hex)
 
 import crypto from 'crypto'
 import axios  from 'axios'
 
-// ── Base URL ──────────────────────────────────────────────────────────────────
 const API_BASE =
   process.env.NODE_ENV === 'production'
     ? process.env.ONE_PAY_API_BASE_PROD
     : process.env.ONE_PAY_API_BASE_UAT
 
-// ── Read env vars ─────────────────────────────────────────────────────────────
-// ONE_PAY_SECRET_KEY = hex string (64 hex chars = 32 bytes = AES-256)
-// ONE_PAY_SECRET_IV  = hex string (32 hex chars = 16 bytes = AES block size)
-// If 1Pay gave you a single key (not separate IV), set IV = first 32 hex chars of key
-const SECRET_KEY = process.env.ONE_PAY_SECRET_KEY || ''
-const SECRET_IV  = process.env.ONE_PAY_SECRET_IV  || SECRET_KEY.substring(0, 32)
+// Clean app URL — remove trailing slash
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
 
 /**
  * Encrypt using AES-256-CBC
- * Exactly matching official 1Pay sample:
- *   crypto.createCipheriv('aes-256-cbc', Buffer.from(key,'hex'), Buffer.from(iv,'hex'))
- *
- * @param {object|string} data
- * @returns {string} Base64 encrypted string (reqData)
+ * Key: 64 hex chars → 32 bytes
+ * IV:  32 hex chars → 16 bytes
+ * Confirmed by debug endpoint test1_hex_key_hex_iv
  */
 export function onePayEncrypt(data) {
-  const text = typeof data === 'string' ? data : JSON.stringify(data)
+  const SECRET_KEY = (process.env.ONE_PAY_SECRET_KEY || '').trim()
+  const SECRET_IV  = (process.env.ONE_PAY_SECRET_IV  || '').trim()
 
-  const keyBuf = Buffer.from(SECRET_KEY, 'hex')
-  const ivBuf  = Buffer.from(SECRET_IV,  'hex')
+  // Convert hex strings to byte buffers
+  const keyBuf = Buffer.from(SECRET_KEY, 'hex') // 64 hex → 32 bytes
+  const ivBuf  = Buffer.from(SECRET_IV,  'hex') // 32 hex → 16 bytes
 
-  const cipher    = crypto.createCipheriv('aes-256-cbc', keyBuf, ivBuf)
-  let encrypted   = cipher.update(text, 'utf8', 'base64')
-  encrypted      += cipher.final('base64')
+  console.log('[1Pay Encrypt] Key bytes:', keyBuf.length, '(must be 32)')
+  console.log('[1Pay Encrypt] IV  bytes:', ivBuf.length,  '(must be 16)')
 
+  if (keyBuf.length !== 32) {
+    throw new Error(`Invalid key length: ${keyBuf.length} bytes (expected 32)`)
+  }
+  if (ivBuf.length !== 16) {
+    throw new Error(`Invalid IV length: ${ivBuf.length} bytes (expected 16)`)
+  }
+
+  const text    = typeof data === 'string' ? data : JSON.stringify(data)
+  const cipher  = crypto.createCipheriv('aes-256-cbc', keyBuf, ivBuf)
+  cipher.setAutoPadding(true)
+
+  let encrypted  = cipher.update(text, 'utf8', 'base64')
+  encrypted     += cipher.final('base64')
+
+  console.log('[1Pay Encrypt] reqData length:', encrypted.length)
   return encrypted
 }
 
 /**
- * Decrypt using AES-256-CBC
- * Exactly matching official 1Pay sample:
- *   crypto.createDecipheriv('aes-256-cbc', Buffer.from(key,'hex'), Buffer.from(iv,'hex'))
- *
- * @param {string} ciphertext - Base64 encrypted respData from 1Pay
- * @returns {object|string} Decrypted response
+ * Decrypt AES-256-CBC response from 1Pay
  */
 export function onePayDecrypt(ciphertext) {
-  const keyBuf = Buffer.from(SECRET_KEY, 'hex')
-  const ivBuf  = Buffer.from(SECRET_IV,  'hex')
+  const SECRET_KEY = (process.env.ONE_PAY_SECRET_KEY || '').trim()
+  const SECRET_IV  = (process.env.ONE_PAY_SECRET_IV  || '').trim()
 
-  const decipher  = crypto.createDecipheriv('aes-256-cbc', keyBuf, ivBuf)
-  let decrypted   = decipher.update(ciphertext, 'base64', 'utf8')
-  decrypted      += decipher.final('utf8')
+  const keyBuf   = Buffer.from(SECRET_KEY, 'hex')
+  const ivBuf    = Buffer.from(SECRET_IV,  'hex')
+
+  const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuf, ivBuf)
+  decipher.setAutoPadding(true)
+
+  let decrypted  = decipher.update(ciphertext, 'base64', 'utf8')
+  decrypted     += decipher.final('utf8')
 
   try {
     return JSON.parse(decrypted)
@@ -67,53 +75,34 @@ export function onePayDecrypt(ciphertext) {
  * POST to 1Pay API
  */
 export async function onePayPost(endpoint, payload) {
-  const url = `${API_BASE}${endpoint}`
-
-  console.log(`[1Pay POST] ${url}`, JSON.stringify(payload))
-
+  const url      = `${API_BASE}${endpoint}`
   const response = await axios.post(url, payload, {
     headers: { 'Content-Type': 'application/json' },
     timeout: 30000,
   })
-
-  console.log(`[1Pay POST] Response:`, JSON.stringify(response.data))
-
   return response.data
 }
 
 /**
- * GET from 1Pay API (transaction status, refund status)
- * Per docs: GET /payment/getTxnDetails?merchantId=X&txnId=Y
+ * GET from 1Pay API
  */
 export async function onePayGet(endpoint, params = {}) {
-  const url = `${API_BASE}${endpoint}`
-
-  console.log(`[1Pay GET] ${url}`, params)
-
+  const url      = `${API_BASE}${endpoint}`
   const response = await axios.get(url, {
     params,
     headers: { 'Content-Type': 'application/json' },
     timeout: 30000,
   })
-
-  console.log(`[1Pay GET] Response:`, JSON.stringify(response.data))
-
   return response.data
 }
 
-/**
- * Transaction status values per 1Pay docs
- */
 export const TXN_STATUS = {
-  SUCCESS: 'Ok',      // payment successful
-  FAILED:  'F',       // payment failed
-  TIMEOUT: 'To',      // timeout
-  PENDING: 'Pending', // pending
+  SUCCESS: 'Ok',
+  FAILED:  'F',
+  TIMEOUT: 'To',
+  PENDING: 'Pending',
 }
 
-/**
- * Refund status codes
- */
 export const REFUND_CODES = {
   RF000: 'Refund initiated successfully',
   RF001: 'Transaction not found',
@@ -123,4 +112,4 @@ export const REFUND_CODES = {
   RF005: 'Invalid refund amount',
 }
 
-export { API_BASE as ONE_PAY_API_BASE }
+export { API_BASE as ONE_PAY_API_BASE, APP_URL as ONE_PAY_APP_URL }
