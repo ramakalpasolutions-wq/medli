@@ -112,69 +112,80 @@ export async function createOrder({ bookingId, userId }) {
 // Called when 1Pay POSTs encrypted respData to /api/payments/onepay-callback
 // ─────────────────────────────────────────────────────────────────────────────
 export async function processCallback(respData) {
-  console.log('[PaymentService][processCallback] Processing...')
+  console.log('[PaymentService][processCallback] start')
 
   // 1. Decrypt
-  let cbData
+  let cbDataRaw
   try {
-    cbData = onePayDecrypt(respData)
-    console.log(
-      '[PaymentService][processCallback] Decrypted:',
-      JSON.stringify(cbData, null, 2)
-    )
+    cbDataRaw = onePayDecrypt(respData)
   } catch (err) {
-    console.error('[PaymentService][processCallback] Decrypt failed:', err.message)
+    console.error('[PaymentService][processCallback] decrypt error:', err.message)
     throw new Error('Failed to decrypt callback data')
   }
 
-  // 2. Normalise keys from 1Pay (supports both new and old field names)
+  // 2. Normalise into plain object
+  let cbData = cbDataRaw
+  if (typeof cbDataRaw === 'string') {
+    // Try JSON then querystring
+    try {
+      cbData = JSON.parse(cbDataRaw)
+    } catch {
+      const params = new URLSearchParams(cbDataRaw)
+      cbData = Object.fromEntries(params.entries())
+    }
+  }
+
+  console.log('[PaymentService][processCallback] keys:', Object.keys(cbData))
+
+  // 3. Extract with multiple fallbacks
   const {
-    // transaction ids
     txnId,
     txnid,
-
-    // PG reference
+    TXNID,
+    merchantTxnId,
     pgRefId,
     pgrefid,
-
-    // status
+    PGREFID,
     status,
     transstatus,
-
-    // amounts
+    STATUS,
     Amount,
     amount,
     txnamount,
-
-    // udf fields (we used udf1 = bookingId, udf2 = userId)
+    AMOUNT,
     udf1: bookingId,
     udf2: userId,
-
-    // bank refs & messages
     bankRefId,
     bankrefid,
+    BANKREFID,
     failureMsg,
     respmessage,
-
-    // instrument / payment mode
+    message,
     instrumentType,
     paymentmode,
   } = cbData
 
-  const finalTxnId      = txnId || txnid
-  const finalPgRefId    = pgRefId || pgrefid || null
-  const rawStatus       = status || transstatus
-  const finalAmount     = Amount || amount || txnamount || null
-  const finalBankRefId  = bankRefId || bankrefid || null
-  const finalFailureMsg = failureMsg || respmessage || null
+  const finalTxnId      = txnId || txnid || TXNID || merchantTxnId
+  const finalPgRefId    = pgRefId || pgrefid || PGREFID || null
+  const rawStatus       = status || transstatus || STATUS || null
+  const finalAmount     = Amount || amount || txnamount || AMOUNT || null
+  const finalBankRefId  = bankRefId || bankrefid || BANKREFID || null
+  const finalFailureMsg = failureMsg || respmessage || message || null
+
+  console.log('[PaymentService][processCallback] ids:', {
+    txnId,
+    txnid,
+    TXNID,
+    merchantTxnId,
+    finalTxnId,
+  })
 
   if (!finalTxnId) {
-    console.error(
-      '[PaymentService][processCallback] Missing txnId in cbData keys:',
-      Object.keys(cbData)
-    )
     throw new Error('No txnId in callback data')
   }
+
+  // …then continue with verify + DB updates using finalTxnId, finalPgRefId, etc.
+}
 
   console.log('[PaymentService][processCallback]', {
     txnId: finalTxnId,
