@@ -85,6 +85,7 @@ export default function BookingDetailPage({ params }) {
   const [cancelling,    setCancelling]    = useState(false)
   const [dlInvoice,     setDlInvoice]     = useState(false)
   const [dlReport,      setDlReport]      = useState(false)
+  const [paying,        setPaying]        = useState(false)  // NEW
 
   const { data: booking, isLoading, mutate } = useSWR(
     `/api/bookings/${id}`,
@@ -207,6 +208,60 @@ export default function BookingDetailPage({ params }) {
       toast.error('Cancel failed. Please try again.')
     } finally {
       setCancelling(false)
+    }
+  }
+
+  // ── Pay Now (1Pay) ────────────────────────────────────────────────────────
+  const handlePayNow = async () => {
+    try {
+      setPaying(true)
+
+      // 1. Call backend to create 1Pay order
+      const res = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ bookingId: id }),
+      })
+
+      const json = await res.json()
+
+      if (!res.ok || !json.success) {
+        toast.error(json.error || json.message || 'Failed to create payment order')
+        return
+      }
+
+      const { merchantId, reqData, paymentUrl } = json.data
+
+      if (!merchantId || !reqData || !paymentUrl) {
+        toast.error('Invalid payment response from server')
+        return
+      }
+
+      // 2. Build hidden form and POST directly to 1Pay payment page
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = paymentUrl
+
+      const merchantInput = document.createElement('input')
+      merchantInput.type = 'hidden'
+      merchantInput.name = 'merchantId'
+      merchantInput.value = merchantId
+      form.appendChild(merchantInput)
+
+      const reqDataInput = document.createElement('input')
+      reqDataInput.type = 'hidden'
+      reqDataInput.name = 'reqData'
+      reqDataInput.value = reqData
+      form.appendChild(reqDataInput)
+
+      document.body.appendChild(form)
+      form.submit()
+    } catch (err) {
+      console.error('[PayNow]', err)
+      toast.error('Could not start payment. Please try again.')
+    } finally {
+      setPaying(false)
     }
   }
 
@@ -460,13 +515,13 @@ export default function BookingDetailPage({ params }) {
           <p className="text-sm font-semibold text-gray-800 mb-3">Payment Summary</p>
           <div className="space-y-2">
             {[
-              { label: 'Base Fee',                    value: booking.baseFee,              show: true },
+              { label: 'Base Fee',                         value: booking.baseFee,              show: true },
               { label: `Coupon (${booking.couponCode || ''})`,
-                                                      value: -booking.couponDiscount,      show: booking.couponDiscount > 0 },
+                                                       value: -booking.couponDiscount,      show: booking.couponDiscount > 0 },
               { label: `Platform Fee (${booking.platformFeePercent}%)`,
-                                                      value: booking.platformFee,          show: true },
-              { label: `GST (${booking.gstPercent}%)`,value: booking.gst,                  show: true },
-              { label: 'Platform Coupon',             value: -booking.adminCouponDiscount, show: booking.adminCouponDiscount > 0 },
+                                                       value: booking.platformFee,          show: true },
+              { label: `GST (${booking.gstPercent}%)`,    value: booking.gst,                 show: true },
+              { label: 'Platform Coupon',                 value: -booking.adminCouponDiscount, show: booking.adminCouponDiscount > 0 },
             ]
               .filter((r) => r.show)
               .map(({ label, value }) => (
@@ -528,6 +583,18 @@ export default function BookingDetailPage({ params }) {
           transition={{ delay: 0.12 }}
           className="flex flex-wrap gap-3"
         >
+          {/* Pay Now — only if not paid and not finished */}
+          {booking.paymentStatus !== 'paid' && !isFinished && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handlePayNow}
+              disabled={paying}
+            >
+              {paying ? 'Redirecting…' : 'Pay Now'}
+            </Button>
+          )}
+
           {/* Invoice download */}
           <Button
             variant="secondary"
