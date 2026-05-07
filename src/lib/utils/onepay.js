@@ -17,18 +17,22 @@ const SECRET_IV = API_KEY.substring(0, 16)
 const IS_PROD = process.env.NODE_ENV === 'production'
 
 // ── API base (server-to-server) ───────────────────────────────────────────────
-const API_BASE = IS_PROD
-  ? (process.env.ONE_PAY_API_BASE_PROD || 'https://pay.1pay.in')
-  : (process.env.ONE_PAY_API_BASE_UAT  || 'https://pa-preprod.1pay.in')
+const API_BASE =
+  process.env.ONE_PAY_API_BASE_UAT ||
+  'https://pa-preprod.1pay.in'
 
 // ── Payment PAGE (where user is sent to enter card/UPI details) ───────────────
-const PAY_PAGE_URL = IS_PROD
-  ? (process.env.ONE_PAY_PAY_PAGE_PROD || 'https://pay.1pay.in/payment/payprocessorV2')
-  : (process.env.ONE_PAY_PAY_PAGE_UAT  || 'https://pa-preprod.1pay.in/payment/payprocessorV2')
+const PAY_PAGE_URL =
+  process.env.ONE_PAY_PAY_PAGE_UAT ||
+  'https://pa-preprod.1pay.in/payment/payprocessorV2'
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
   .replace(/\/+$/, '')
+console.log('[1Pay] API_BASE:', API_BASE)
 
+console.log('[1Pay] PAY_PAGE_URL:', PAY_PAGE_URL)
+
+console.log('[1Pay] APP_URL:', APP_URL)
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDATE KEYS
 // ─────────────────────────────────────────────────────────────────────────────
