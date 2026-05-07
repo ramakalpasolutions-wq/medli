@@ -170,7 +170,7 @@ export function buildOnePayPayload({
     // Transaction
     txnId: String(txnId),
 
-    // IMPORTANT: Capital A
+     
     amount: parseFloat(amount).toFixed(2),
 
     // Format: dd-MM-yyyy HH:mm:ss

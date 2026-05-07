@@ -24,8 +24,7 @@ export async function GET(request) {
   const respData = searchParams.get('respData') || searchParams.get('encRespData')
   const appUrl   = process.env.NEXT_PUBLIC_APP_URL
 
-  // ── No respData — this is just a browser test ─────────────────────────────
-  // Return JSON instead of redirecting to /payment/error
+  // No respData → simple JSON ping
   if (!respData) {
     return Response.json({
       success: true,
@@ -36,7 +35,7 @@ export async function GET(request) {
     })
   }
 
-  // ── Has respData — process it ─────────────────────────────────────────────
+  // Has respData — process it
   try {
     const result = await processCallback(respData)
 
@@ -69,7 +68,6 @@ export async function POST(request) {
     const contentType = request.headers.get('content-type') || ''
     let respData = null
 
-    // Handle different content types 1Pay may use
     if (contentType.includes('application/x-www-form-urlencoded')) {
       const text   = await request.text()
       const params = new URLSearchParams(text)
@@ -82,7 +80,6 @@ export async function POST(request) {
       console.log('[1Pay Callback] JSON keys:', Object.keys(body))
 
     } else {
-      // Try both formats
       const text = await request.text()
       console.log('[1Pay Callback] Raw body (first 200):', text.substring(0, 200))
       try {
@@ -94,10 +91,8 @@ export async function POST(request) {
       }
     }
 
-    // No respData found
     if (!respData) {
       console.error('[1Pay Callback] No respData in POST body')
-      // Return 200 to 1Pay so they don't retry
       return Response.json({
         success: false,
         error:   'Missing respData',
@@ -108,13 +103,11 @@ export async function POST(request) {
 
     const result = await processCallback(respData)
 
-    // Flutter/mobile app — return JSON
     const platform = request.headers.get('x-platform')
     if (platform === 'flutter') {
       return Response.json({ success: result.success, ...result })
     }
 
-    // Web redirect
     if (result.success) {
       console.log('[1Pay] SUCCESS → bookingId:', result.bookingId)
       return Response.redirect(
@@ -136,7 +129,6 @@ export async function POST(request) {
 
   } catch (err) {
     console.error('[1Pay Callback POST Error]', err.message)
-    // Return 200 so 1Pay doesn't keep retrying
     return Response.json({
       success: false,
       error:   err.message,
