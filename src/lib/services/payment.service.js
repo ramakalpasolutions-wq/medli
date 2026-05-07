@@ -194,12 +194,26 @@ export async function processCallback(respData) {
     finalTxnId,
   })
 
+  // If still no txnId, log everything and return a structured failure (no throw)
   if (!finalTxnId) {
     console.error(
       '[PaymentService][processCallback] Missing txnId in cbData keys:',
       Object.keys(cbData)
     )
-    throw new Error('No txnId in callback data')
+    console.error(
+      '[PaymentService][processCallback] cbData payload:',
+      cbData
+    )
+
+    return {
+      success:   false,
+      reason:    'missing_txn_id',
+      txnId:     null,
+      bookingId: bookingId || null,
+      pgRefId:   null,
+      status:    'failure',
+      raw:       cbData,
+    }
   }
 
   console.log('[PaymentService][processCallback]', {

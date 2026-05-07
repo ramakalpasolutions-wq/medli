@@ -109,11 +109,25 @@ export function onePayDecrypt(ciphertext) {
   dec     += decipher.final('utf8')
 
   console.log('[1Pay][Decrypt] Output length:', dec.length)
+  console.log('[1Pay][Decrypt] Raw decrypted:', dec)
 
+  // 1) Try JSON
   try {
-    return JSON.parse(dec)
+    const obj = JSON.parse(dec)
+    console.log('[1Pay][Decrypt] Parsed as JSON, keys:', Object.keys(obj))
+    return obj
   } catch {
-    return dec
+    // 2) Try querystring → object
+    try {
+      const params = new URLSearchParams(dec)
+      const obj = Object.fromEntries(params.entries())
+      console.log('[1Pay][Decrypt] Parsed as querystring, keys:', Object.keys(obj))
+      return obj
+    } catch {
+      // 3) Fallback: wrap raw string
+      console.warn('[1Pay][Decrypt] Could not parse JSON or querystring')
+      return { raw: dec }
+    }
   }
 }
 
