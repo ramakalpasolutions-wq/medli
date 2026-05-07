@@ -171,7 +171,7 @@ export function buildOnePayPayload({
     txnId: String(txnId),
 
     // IMPORTANT: Capital A
-    Amount: parseFloat(amount).toFixed(2),
+    amount: parseFloat(amount).toFixed(2),
 
     // Format: dd-MM-yyyy HH:mm:ss
     dateTime: getDateTime(),
