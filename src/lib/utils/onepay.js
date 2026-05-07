@@ -1,13 +1,4 @@
 // src/lib/utils/onepay.js
-// ─────────────────────────────────────────────────────────────────────────────
-// 1Pay Payment Gateway Utility
-//
-// KEY FORMAT (confirmed):
-//   SECRET_KEY : 32 UTF-8 chars = 32 bytes = AES-256
-//   IV         : first 16 chars of API_KEY = 16 bytes = AES block size
-//   Algorithm  : AES-256-CBC
-//   Output     : Base64
-// ─────────────────────────────────────────────────────────────────────────────
 
 import crypto from 'crypto'
 import axios  from 'axios'
@@ -156,22 +147,84 @@ export function buildOnePayPayload({
   udf1 = 'NA',
   udf2 = 'NA',
 }) {
-  return {
-    merchantId:        MERCHANT_ID,
-    apiKey:            API_KEY,
-    txnId,
-    Amount:            parseFloat(amount).toFixed(2), // Capital A
-    dateTime:          getDateTime(),
-    custMobile:        String(custMobile),
-    custMail:          custMail || 'customer@medli.in',
-    channelId:         0,
-    txnType:           'DIRECT',
-    returnURL,
-    productId:         'DEFAULT',
-    isMultiSettlement: 0,
-    udf1,
-    udf2,
+
+  // ── IMPORTANT ─────────────────────────────────────────────
+  // 1Pay is VERY strict about:
+  // - exact field names
+  // - exact datatypes
+  // - mandatory NA fields
+  // - DIRECT flow structure
+  // ──────────────────────────────────────────────────────────
+
+  const payload = {
+
+    // Merchant Credentials
+    merchantId: MERCHANT_ID,
+
+    apiKey: API_KEY,
+
+    // Transaction
+    txnId: String(txnId),
+
+    // IMPORTANT: Capital A
+    Amount: parseFloat(amount).toFixed(2),
+
+    // Format: dd-MM-yyyy HH:mm:ss
+    dateTime: getDateTime(),
+
+    // Customer
+    custMobile: String(custMobile || '9999999999'),
+
+    custMail: String(
+      custMail || 'customer@medli.in'
+    ),
+
+    // IMPORTANT:
+    // Docs expect STRING values
+    channelId: '0',
+
+    // IMPORTANT:
+    // Must be DIRECT
+    txnType: 'DIRECT',
+
+    // Callback URL
+    returnURL: String(returnURL),
+
+    // Product
+    productId: 'DEFAULT',
+
+    // IMPORTANT:
+    // Docs expect STRING
+    isMultiSettlement: '0',
+
+    // User-defined fields
+    udf1: String(udf1 || 'NA'),
+
+    udf2: String(udf2 || 'NA'),
+
+    // REQUIRED by 1Pay
+    udf3: 'NA',
+
+    udf4: 'NA',
+
+    udf5: 'NA',
+
+    udf6: 'NA',
+
+    // REQUIRED for DIRECT flow
+    instrumentId: 'NA',
+
+    cardDetails: 'NA',
+
+    cardType: 'NA',
   }
+
+  console.log(
+    '[1Pay][Payload]',
+    JSON.stringify(payload, null, 2)
+  )
+
+  return payload
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
