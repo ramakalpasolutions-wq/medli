@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import {
   CheckCircle, Calendar, Clock,
-  Download, Home, FileText,
+  Home, FileText,
 } from 'lucide-react'
 
 const fetcher = (url) =>
@@ -31,6 +31,29 @@ export default function BookingSuccessPage({ params }) {
     fetcher,
     { refreshInterval: 0 }
   )
+
+  // Optional: verify with 1Pay if marked success but paymentStatus not updated yet
+  useEffect(() => {
+    if (!booking?.onePayTxnId) return
+    if (booking.paymentStatus === 'paid') return
+
+    let cancelled = false
+
+    const verify = async () => {
+      try {
+        await fetch(`/api/payments/verify/${booking.onePayTxnId}`, {
+          credentials: 'include',
+        })
+        if (cancelled) return
+        // Booking detail page will reflect correct status when user navigates
+      } catch {
+        // ignore
+      }
+    }
+
+    verify()
+    return () => { cancelled = true }
+  }, [booking?.onePayTxnId, booking?.paymentStatus])
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">

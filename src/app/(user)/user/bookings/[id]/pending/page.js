@@ -19,22 +19,50 @@ export default function BookingPendingPage({ params }) {
     const timer = setTimeout(async () => {
       setChecking(true)
       try {
-        const res  = await fetch(`/api/bookings/${id}`, {
+        // Step 1: get booking to know txnId + local status
+        const bookingRes  = await fetch(`/api/bookings/${id}`, {
           credentials: 'include',
         })
-        const json = await res.json()
+        const bookingJson = await bookingRes.json()
 
-        if (json.success && json.data) {
-          const booking = json.data
+        if (!bookingJson.success || !bookingJson.data) {
+          setAttempts((a) => a + 1)
+          return
+        }
 
-          if (booking.status === 'confirmed' || booking.paymentStatus === 'paid') {
-            router.replace(`/user/bookings/${id}/success`)
-            return
-          }
+        const booking = bookingJson.data
 
-          if (booking.paymentStatus === 'failed') {
-            router.replace(`/user/bookings/${id}/failed`)
-            return
+        // If already resolved locally, redirect
+        if (booking.status === 'confirmed' || booking.paymentStatus === 'paid') {
+          router.replace(`/user/bookings/${id}/success`)
+          return
+        }
+        if (booking.paymentStatus === 'failed') {
+          router.replace(`/user/bookings/${id}/failed`)
+          return
+        }
+
+        // Step 2: if we have a txnId, force verify with 1Pay
+        if (booking.onePayTxnId) {
+          await fetch(`/api/payments/verify/${booking.onePayTxnId}`, {
+            credentials: 'include',
+          })
+
+          // Step 3: re-fetch booking and decide
+          const refreshedRes  = await fetch(`/api/bookings/${id}`, {
+            credentials: 'include',
+          })
+          const refreshedJson = await refreshedRes.json()
+          if (refreshedJson.success && refreshedJson.data) {
+            const refreshed = refreshedJson.data
+            if (refreshed.status === 'confirmed' || refreshed.paymentStatus === 'paid') {
+              router.replace(`/user/bookings/${id}/success`)
+              return
+            }
+            if (refreshed.paymentStatus === 'failed') {
+              router.replace(`/user/bookings/${id}/failed`)
+              return
+            }
           }
         }
 
@@ -52,23 +80,50 @@ export default function BookingPendingPage({ params }) {
   const handleManualCheck = async () => {
     setChecking(true)
     try {
-      const res  = await fetch(`/api/bookings/${id}`, {
+      const bookingRes  = await fetch(`/api/bookings/${id}`, {
         credentials: 'include',
       })
-      const json = await res.json()
+      const bookingJson = await bookingRes.json()
 
-      if (json.success && json.data) {
-        const booking = json.data
-        if (booking.status === 'confirmed' || booking.paymentStatus === 'paid') {
-          router.replace(`/user/bookings/${id}/success`)
-          return
-        }
-        if (booking.paymentStatus === 'failed') {
-          router.replace(`/user/bookings/${id}/failed`)
-          return
-        }
-        alert('Payment is still being processed. Please wait.')
+      if (!bookingJson.success || !bookingJson.data) {
+        alert('Could not fetch booking. Please try again.')
+        return
       }
+
+      const booking = bookingJson.data
+
+      if (booking.status === 'confirmed' || booking.paymentStatus === 'paid') {
+        router.replace(`/user/bookings/${id}/success`)
+        return
+      }
+      if (booking.paymentStatus === 'failed') {
+        router.replace(`/user/bookings/${id}/failed`)
+        return
+      }
+
+      if (booking.onePayTxnId) {
+        await fetch(`/api/payments/verify/${booking.onePayTxnId}`, {
+          credentials: 'include',
+        })
+
+        const refreshedRes  = await fetch(`/api/bookings/${id}`, {
+          credentials: 'include',
+        })
+        const refreshedJson = await refreshedRes.json()
+        if (refreshedJson.success && refreshedJson.data) {
+          const refreshed = refreshedJson.data
+          if (refreshed.status === 'confirmed' || refreshed.paymentStatus === 'paid') {
+            router.replace(`/user/bookings/${id}/success`)
+            return
+          }
+          if (refreshed.paymentStatus === 'failed') {
+            router.replace(`/user/bookings/${id}/failed`)
+            return
+          }
+        }
+      }
+
+      alert('Payment is still being processed. Please wait.')
     } catch {
       alert('Network error. Please try again.')
     } finally {

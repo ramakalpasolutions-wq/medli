@@ -85,12 +85,36 @@ export default function BookingDetailPage({ params }) {
   const [cancelling,    setCancelling]    = useState(false)
   const [dlInvoice,     setDlInvoice]     = useState(false)
   const [dlReport,      setDlReport]      = useState(false)
-  const [paying,        setPaying]        = useState(false)  // NEW
+  const [paying,        setPaying]        = useState(false)
 
   const { data: booking, isLoading, mutate } = useSWR(
     `/api/bookings/${id}`,
     fetcher
   )
+
+  // Auto-verify with 1Pay once if booking exists, not paid yet, and has a txnId
+  useEffect(() => {
+    if (!booking?.onePayTxnId) return
+    if (booking.paymentStatus === 'paid') return
+
+    let cancelled = false
+
+    const verify = async () => {
+      try {
+        const res = await fetch(`/api/payments/verify/${booking.onePayTxnId}`, {
+          credentials: 'include',
+        })
+        const json = await res.json()
+        if (!json.success || cancelled) return
+        mutate()
+      } catch {
+        // ignore; user still has manual options
+      }
+    }
+
+    verify()
+    return () => { cancelled = true }
+  }, [booking?.onePayTxnId, booking?.paymentStatus, mutate])
 
   // Time-based join window — only valid after mount
   const now      = mounted ? new Date() : null
@@ -116,7 +140,6 @@ export default function BookingDetailPage({ params }) {
   const handleInvoiceDownload = async () => {
     setDlInvoice(true)
     try {
-      // Step 1: resolve invoice by booking
       const lookupRes  = await fetch(`/api/invoices/by-booking/${id}`, {
         credentials: 'include',
       })
@@ -130,7 +153,6 @@ export default function BookingDetailPage({ params }) {
       const invoiceId     = lookupJson.data.id
       const invoiceNumber = lookupJson.data.invoiceNumber || booking?.bookingId
 
-      // Step 2: stream PDF
       const dlRes = await fetch(`/api/invoices/${invoiceId}/download`, {
         credentials: 'include',
       })
@@ -216,7 +238,6 @@ export default function BookingDetailPage({ params }) {
     try {
       setPaying(true)
 
-      // 1. Call backend to create 1Pay order
       const res = await fetch('/api/payments/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -238,7 +259,6 @@ export default function BookingDetailPage({ params }) {
         return
       }
 
-      // 2. Build hidden form and POST directly to 1Pay payment page
       const form = document.createElement('form')
       form.method = 'POST'
       form.action = paymentUrl
@@ -295,7 +315,6 @@ export default function BookingDetailPage({ params }) {
       <Navbar />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20 space-y-4">
-
         {/* Back */}
         <button
           onClick={() => router.push('/user/bookings')}
@@ -325,11 +344,11 @@ export default function BookingDetailPage({ params }) {
 
           <div className="grid grid-cols-2 gap-3">
             {[
-              ['Type',    booking.type],
-              ['Date',    mounted
+              ['Type',   booking.type],
+              ['Date',   mounted
                 ? new Date(booking.startTime).toLocaleDateString('en-IN')
                 : '—'],
-              ['Time',    mounted
+              ['Time',   mounted
                 ? new Date(booking.startTime).toLocaleTimeString('en-IN', {
                     hour: '2-digit', minute: '2-digit',
                   })
@@ -515,13 +534,13 @@ export default function BookingDetailPage({ params }) {
           <p className="text-sm font-semibold text-gray-800 mb-3">Payment Summary</p>
           <div className="space-y-2">
             {[
-              { label: 'Base Fee',                         value: booking.baseFee,              show: true },
+              { label: 'Base Fee',                           value: booking.baseFee,               show: true },
               { label: `Coupon (${booking.couponCode || ''})`,
-                                                       value: -booking.couponDiscount,      show: booking.couponDiscount > 0 },
+                value: -booking.couponDiscount,             show: booking.couponDiscount > 0 },
               { label: `Platform Fee (${booking.platformFeePercent}%)`,
-                                                       value: booking.platformFee,          show: true },
-              { label: `GST (${booking.gstPercent}%)`,    value: booking.gst,                 show: true },
-              { label: 'Platform Coupon',                 value: -booking.adminCouponDiscount, show: booking.adminCouponDiscount > 0 },
+                value: booking.platformFee,                 show: true },
+              { label: `GST (${booking.gstPercent}%)`,       value: booking.gst,                   show: true },
+              { label: 'Platform Coupon',                    value: -booking.adminCouponDiscount,  show: booking.adminCouponDiscount > 0 },
             ]
               .filter((r) => r.show)
               .map(({ label, value }) => (
@@ -534,7 +553,9 @@ export default function BookingDetailPage({ params }) {
               ))}
 
             <div className="border-t border-gray-100 pt-2 flex justify-between">
-              <span className="text-sm font-bold text-gray-800">Total Paid</span>
+              <span className="text-sm font-bold text-gray-800">
+                {booking.paymentStatus === 'paid' ? 'Total Paid' : 'Payable Amount'}
+              </span>
               <span className="text-sm font-bold text-blue-600">
                 Rs. {booking.totalAmount?.toFixed(2)}
               </span>
@@ -622,7 +643,6 @@ export default function BookingDetailPage({ params }) {
             </Button>
           )}
         </motion.div>
-
       </div>
 
       <Footer />

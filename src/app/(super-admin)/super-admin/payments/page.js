@@ -1,5 +1,4 @@
 // src/app/(super-admin)/super-admin/payments/page.js
-
 'use client'
 
 import useSWR from 'swr'
@@ -7,8 +6,8 @@ import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import DataTable from '@/components/ui/DataTable'
 import Badge from '@/components/ui/Badge'
-import DateRangePicker from '@/components/ui/DateRangePicker'
 import { formatCurrency } from '@/lib/utils/helpers'
+import { useToast } from '@/context/ToastContext'
 
 const fetcher = (url, token) =>
   fetch(url, { headers: { Authorization: `Bearer ${token}` } })
@@ -22,31 +21,56 @@ function getPaymentBadge(status) {
     success: 'success',
     failure: 'danger',
     timeout: 'warning',
-    pending: 'info'
+    pending: 'info',
   }
   return map[status] || 'neutral'
 }
 
 export default function PaymentsPage() {
   const { accessToken } = useAuth()
+  const toast = useToast()
   const [status,   setStatus]   = useState('')
   const [page,     setPage]     = useState(1)
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo,   setDateTo]   = useState('')
+  const [verifyingId, setVerifyingId] = useState(null)
 
   const params = new URLSearchParams({
     page,
     ...(status   && { status }),
     ...(dateFrom && { dateFrom }),
-    ...(dateTo   && { dateTo })
+    ...(dateTo   && { dateTo }),
   })
 
-  const { data, isLoading } = useSWR(
+  const { data, isLoading, mutate } = useSWR(
     accessToken
       ? [`/api/payments?${params}`, accessToken]
       : null,
     ([url, token]) => fetcher(url, token)
   )
+
+  const handleVerify = async (txnId) => {
+    if (!txnId) return
+    setVerifyingId(txnId)
+    try {
+      const res  = await fetch(`/api/payments/verify/${txnId}`, {
+        credentials: 'include',
+      })
+      const json = await res.json()
+
+      if (!json.success) {
+        toast.error(json.error || 'Failed to verify with 1Pay')
+        return
+      }
+
+      toast.success('Status synced from 1Pay')
+      mutate()
+    } catch {
+      toast.error('Network error during verification')
+    } finally {
+      setVerifyingId(null)
+    }
+  }
 
   const columns = [
     {
@@ -54,21 +78,21 @@ export default function PaymentsPage() {
       label:  'Transaction ID',
       render: (val) => (
         <span className="font-mono text-xs text-gray-700">{val || '-'}</span>
-      )
+      ),
     },
     {
       key:    'onePayPgRefId',
       label:  'PG Reference',
       render: (val) => (
         <span className="font-mono text-xs text-gray-700">{val || '-'}</span>
-      )
+      ),
     },
     {
       key:    'onePayInstrumentType',
       label:  'Instrument',
       render: (val) => (
         <span className="text-xs text-gray-600 capitalize">{val || '-'}</span>
-      )
+      ),
     },
     {
       key:    'amount',
@@ -77,7 +101,7 @@ export default function PaymentsPage() {
         <span className="font-semibold text-gray-900">
           {val ? formatCurrency(val) : '-'}
         </span>
-      )
+      ),
     },
     {
       key:    'status',
@@ -86,13 +110,27 @@ export default function PaymentsPage() {
         <Badge variant={getPaymentBadge(val)}>
           {val}
         </Badge>
-      )
+      ),
     },
     {
       key:    'createdAt',
       label:  'Date',
-      render: (val) => new Date(val).toLocaleDateString('en-IN')
-    }
+      render: (val) => new Date(val).toLocaleDateString('en-IN'),
+    },
+    {
+      key:    'actions',
+      label:  'Actions',
+      render: (_val, row) => (
+        <button
+          type="button"
+          disabled={!row.onePayTxnId || verifyingId === row.onePayTxnId}
+          onClick={() => handleVerify(row.onePayTxnId)}
+          className="text-xs px-3 py-1.5 rounded-full border border-blue-500 text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50 transition-colors"
+        >
+          {verifyingId === row.onePayTxnId ? 'Verifying…' : 'Verify with 1Pay'}
+        </button>
+      ),
+    },
   ]
 
   return (
@@ -141,7 +179,7 @@ export default function PaymentsPage() {
           { status: 'failure', label: 'Failed',   variant: 'danger'  },
           { status: 'timeout', label: 'Timeout',  variant: 'warning' },
           { status: 'pending', label: 'Pending',  variant: 'info'    },
-          { status: 'created', label: 'Created',  variant: 'neutral' }
+          { status: 'created', label: 'Created',  variant: 'neutral' },
         ].map(item => (
           <Badge key={item.status} variant={item.variant}>
             {item.label}
@@ -156,10 +194,10 @@ export default function PaymentsPage() {
           data={data?.payments || []}
           loading={isLoading}
           pagination={{
-            page:       data?.pagination?.page || 1,
-            pages:      data?.pagination?.pages || 1,
-            total:      data?.pagination?.total || 0,
-            onPageChange: setPage
+            page:         data?.pagination?.page  || 1,
+            pages:        data?.pagination?.pages || 1,
+            total:        data?.pagination?.total || 0,
+            onPageChange: setPage,
           }}
         />
       </div>
