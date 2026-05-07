@@ -37,7 +37,9 @@ export async function GET(request) {
 
   // Has respData — process it
   try {
+    console.log('[1Pay Callback GET] respData length:', respData.length)
     const result = await processCallback(respData)
+    console.log('[1Pay Callback GET] processCallback result:', result)
 
     if (result.success) {
       return Response.redirect(
@@ -50,7 +52,7 @@ export async function GET(request) {
       )
     }
     return Response.redirect(
-      `${appUrl}/user/bookings/${result.bookingId}/failed`, 302
+      `${appUrl}/user/bookings/${result.bookingId || ''}/failed`, 302
     )
   } catch (err) {
     console.error('[1Pay Callback GET Error]', err)
@@ -79,7 +81,7 @@ export async function POST(request) {
     } else if (contentType.includes('application/json')) {
       const body = await request.json()
       respData   = body.respData || body.encRespData
-      console.log('[1Pay Callback] JSON body:', JSON.stringify(body, null, 2))
+      console.log('[1Pay Callback] JSON body:', JSON.stringify(body, null, 400))
       console.log('[1Pay Callback] JSON keys:', Object.keys(body))
 
     } else {
@@ -110,7 +112,9 @@ export async function POST(request) {
     console.log('[1Pay Callback] respData length:', respData.length)
 
     // Let the service decrypt and log details
+    console.log('[1Pay Callback] Calling processCallback...')
     const result = await processCallback(respData)
+    console.log('[1Pay Callback] processCallback result:', result)
 
     // Flutter/mobile app — return JSON
     const platform = request.headers.get('x-platform')
@@ -135,7 +139,7 @@ export async function POST(request) {
 
     console.log('[1Pay] FAILED → bookingId:', result.bookingId)
     return Response.redirect(
-      `${appUrl}/user/bookings/${result.bookingId}/failed`, 302
+      `${appUrl}/user/bookings/${result.bookingId || ''}/failed`, 302
     )
 
   } catch (err) {
