@@ -57,7 +57,7 @@ export async function createOrder({ bookingId, userId }) {
     custMobile,
     custMail,
     returnURL,
-    udf1:      bookingId,  // Used in callback to find booking
+    udf1:      bookingId, // Used in callback to find booking
     udf2:      userId,
   })
 
@@ -112,55 +112,69 @@ export async function createOrder({ bookingId, userId }) {
 // Called when 1Pay POSTs encrypted respData to /api/payments/onepay-callback
 // ─────────────────────────────────────────────────────────────────────────────
 export async function processCallback(respData) {
-  console.log('[PaymentService][processCallback] start')
+  console.log('[PaymentService][processCallback] Processing...')
 
   // 1. Decrypt
   let cbDataRaw
   try {
     cbDataRaw = onePayDecrypt(respData)
   } catch (err) {
-    console.error('[PaymentService][processCallback] decrypt error:', err.message)
+    console.error('[PaymentService][processCallback] Decrypt failed:', err.message)
     throw new Error('Failed to decrypt callback data')
   }
 
-  // 2. Normalise into plain object
+  // 2. Ensure cbData is a plain object (handles JSON string or querystring)
   let cbData = cbDataRaw
   if (typeof cbDataRaw === 'string') {
-    // Try JSON then querystring
     try {
       cbData = JSON.parse(cbDataRaw)
+      console.log('[PaymentService][processCallback] Parsed JSON cbData keys:', Object.keys(cbData))
     } catch {
       const params = new URLSearchParams(cbDataRaw)
       cbData = Object.fromEntries(params.entries())
+      console.log('[PaymentService][processCallback] Parsed querystring cbData keys:', Object.keys(cbData))
     }
+  } else {
+    console.log('[PaymentService][processCallback] Decrypted object keys:', Object.keys(cbData))
   }
 
-  console.log('[PaymentService][processCallback] keys:', Object.keys(cbData))
-
-  // 3. Extract with multiple fallbacks
+  // 3. Normalise keys from 1Pay (supports multiple field name variants)
   const {
+    // transaction ids
     txnId,
     txnid,
     TXNID,
     merchantTxnId,
+
+    // PG reference
     pgRefId,
     pgrefid,
     PGREFID,
+
+    // status
     status,
     transstatus,
     STATUS,
+
+    // amounts
     Amount,
     amount,
     txnamount,
     AMOUNT,
+
+    // udf fields (we used udf1 = bookingId, udf2 = userId)
     udf1: bookingId,
     udf2: userId,
+
+    // bank refs & messages
     bankRefId,
     bankrefid,
     BANKREFID,
     failureMsg,
     respmessage,
     message,
+
+    // instrument / payment mode
     instrumentType,
     paymentmode,
   } = cbData
@@ -172,7 +186,7 @@ export async function processCallback(respData) {
   const finalBankRefId  = bankRefId || bankrefid || BANKREFID || null
   const finalFailureMsg = failureMsg || respmessage || message || null
 
-  console.log('[PaymentService][processCallback] ids:', {
+  console.log('[PaymentService][processCallback] txnId variants:', {
     txnId,
     txnid,
     TXNID,
@@ -181,11 +195,12 @@ export async function processCallback(respData) {
   })
 
   if (!finalTxnId) {
+    console.error(
+      '[PaymentService][processCallback] Missing txnId in cbData keys:',
+      Object.keys(cbData)
+    )
     throw new Error('No txnId in callback data')
   }
-
-  // …then continue with verify + DB updates using finalTxnId, finalPgRefId, etc.
-}
 
   console.log('[PaymentService][processCallback]', {
     txnId: finalTxnId,
@@ -195,7 +210,7 @@ export async function processCallback(respData) {
     Amount: finalAmount,
   })
 
-  // 3. Cross-verify with 1Pay
+  // 4. Cross-verify with 1Pay
   let verifiedStatus = rawStatus
   try {
     const verified = await onePayVerify(finalTxnId)
@@ -211,7 +226,7 @@ export async function processCallback(respData) {
   const finalStatus = mapStatus(verifiedStatus)
   console.log('[PaymentService][processCallback] Final status:', finalStatus)
 
-  // 4. Update Payment record
+  // 5. Update Payment record
   const payment = await prisma.payment.findFirst({
     where: { onePayTxnId: finalTxnId },
   })
@@ -240,7 +255,7 @@ export async function processCallback(respData) {
     )
   }
 
-  // 5. Find booking — try udf1 (bookingId) first, else match by txnId
+  // 6. Find booking — try udf1 (bookingId) first, else match by txnId
   const booking = await prisma.booking.findFirst({
     where: {
       OR: [
@@ -258,7 +273,7 @@ export async function processCallback(respData) {
     throw new Error(`Booking not found for txnId: ${finalTxnId}`)
   }
 
-  // 6. Update Booking
+  // 7. Update Booking
   const bookingUpdate = { onePayPgRefId: finalPgRefId }
 
   if (finalStatus === 'success') {
@@ -282,7 +297,7 @@ export async function processCallback(respData) {
     booking.id, '→', finalStatus
   )
 
-  // 7. Create invoice on success
+  // 8. Create invoice on success
   if (finalStatus === 'success') {
     await createInvoice(booking, finalPgRefId)
   }
@@ -426,7 +441,7 @@ export async function process1PayRefund({ bookingId, refundAmount }) {
     }
   }
 
-  // 3. Call 1Pay Refund API (placeholder, as in your original)
+  // 3. Call 1Pay Refund API (placeholder)
   return {
     success:            true,
     refundRequestId:    `RFQ-${Date.now()}`,
