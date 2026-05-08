@@ -1,58 +1,68 @@
-// src/app/(super-admin)/super-admin/refunds/page.js
-
 'use client'
 
-import useSWR from 'swr'
 import { useState } from 'react'
-import { RefreshCw } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
-import { useToast } from '@/context/ToastContext'
+import useSWR from 'swr'
+import AdminHeader from '@/components/admin/AdminHeader'
 import DataTable from '@/components/ui/DataTable'
 import Badge from '@/components/ui/Badge'
-import Button from '@/components/ui/Button'
-import { formatCurrency } from '@/lib/utils/helpers'
+import { useAuth } from '@/hooks/useAuth'
+import { useToast } from '@/context/ToastContext'
 
-const fetcher = (url, token) =>
+const fetcher = ([url, token]) =>
   fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-    .then(r => r.json())
-    .then(d => d.data)
+    .then((r) => r.json()).then((d) => d.data)
 
-// 1Pay RF code → display
+const KF = `@keyframes rf-spin{to{transform:rotate(360deg)}}`
+
 const RF_CODES = {
-  RF000: { label: 'Refunded',             variant: 'success' },
-  RF001: { label: 'Txn Not Found',        variant: 'danger'  },
-  RF002: { label: 'Txn Failed',           variant: 'danger'  },
-  RF003: { label: 'Already Refunded',     variant: 'warning' },
-  RF004: { label: 'Pending Settlement',   variant: 'warning' },
-  RF005: { label: 'Invalid Amount',       variant: 'danger'  }
+  RF000: { label: 'Refunded',           variant: 'success' },
+  RF001: { label: 'Txn Not Found',      variant: 'danger'  },
+  RF002: { label: 'Txn Failed',         variant: 'danger'  },
+  RF003: { label: 'Already Refunded',   variant: 'warning' },
+  RF004: { label: 'Pending Settlement', variant: 'warning' },
+  RF005: { label: 'Invalid Amount',     variant: 'danger'  },
 }
 
-function RefundStatusBadge({ status, onePayRefundStatus }) {
-  // Show 1Pay RF code if available
-  if (onePayRefundStatus && RF_CODES[onePayRefundStatus]) {
-    const rf = RF_CODES[onePayRefundStatus]
-    return (
-      <div className="flex flex-col gap-1">
-        <Badge variant={rf.variant}>{rf.label}</Badge>
-        <span className="text-xs text-gray-400 font-mono">{onePayRefundStatus}</span>
-      </div>
-    )
-  }
+const STATUS_BADGE = { pending: 'warning', processing: 'info', completed: 'success', failed: 'danger' }
 
-  // Fall back to general status
-  const map = {
-    pending:    'warning',
-    processing: 'info',
-    completed:  'success',
-    failed:     'danger'
-  }
-
+function TabBtn({ label, active, onClick }) {
+  const [h, setH] = useState(false)
   return (
-    <Badge variant={map[status] || 'neutral'}>
-      {status}
-    </Badge>
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        padding: '8px 16px', borderRadius: 12, border: 'none',
+        background: active ? '#fff' : h ? 'rgba(255,255,255,0.5)' : 'transparent',
+        color: active ? '#0f172a' : '#64748b',
+        fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer',
+        boxShadow: active ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: 'all .15s ease',
+      }}>
+      {label}
+    </button>
   )
 }
+
+function RetryBtn({ onClick, loading: isLoading }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} disabled={isLoading} onMouseEnter={() => !isLoading && setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 8, border: 'none',
+        background: h ? 'rgba(99,102,241,0.1)' : 'transparent', color: '#6366f1',
+        fontSize: 11, fontWeight: 600, cursor: isLoading ? 'not-allowed' : 'pointer',
+        transition: 'background .13s ease', opacity: isLoading ? 0.6 : 1,
+      }}>
+      {isLoading && <span style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'rf-spin .7s linear infinite', display: 'inline-block' }} />}
+      🔄 Retry
+    </button>
+  )
+}
+
+const TABS = [
+  { id: 'all',       label: 'All'       },
+  { id: 'pending',   label: 'Pending'   },
+  { id: 'completed', label: 'Completed' },
+  { id: 'failed',    label: 'Failed'    },
+]
 
 export default function RefundsPage() {
   const { accessToken } = useAuth()
@@ -62,181 +72,87 @@ export default function RefundsPage() {
   const [retrying,  setRetrying]  = useState(null)
 
   const statusFilter = activeTab === 'all' ? '' : activeTab
-
-  const params = new URLSearchParams({
-    page,
-    ...(statusFilter && { status: statusFilter })
-  })
+  const params       = new URLSearchParams({ page, ...(statusFilter && { status: statusFilter }) })
 
   const { data, isLoading, mutate } = useSWR(
-    accessToken
-      ? [`/api/refunds?${params}`, accessToken]
-      : null,
-    ([url, token]) => fetcher(url, token)
+    accessToken ? [`/api/refunds?${params}`, accessToken] : null,
+    fetcher
   )
 
   const handleRetry = async (refundId) => {
     setRetrying(refundId)
     try {
-      const res = await fetch(`/api/refunds/${refundId}/retry`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        }
+      const res    = await fetch(`/api/refunds/${refundId}/retry`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       })
       const result = await res.json()
-
-      if (!result.success) {
-        toast.error(result.error || 'Retry failed')
-        return
-      }
-
-      toast.success('Refund retry initiated')
+      result.success ? toast.success('Refund retry initiated') : toast.error(result.error || 'Retry failed')
       mutate()
-    } catch {
-      toast.error('Failed to retry refund')
-    } finally {
-      setRetrying(null)
-    }
+    } catch { toast.error('Failed to retry refund') }
+    finally { setRetrying(null) }
   }
 
-  const tabs = [
-    { id: 'all',        label: 'All'        },
-    { id: 'pending',    label: 'Pending'    },
-    { id: 'completed',  label: 'Completed'  },
-    { id: 'failed',     label: 'Failed'     }
-  ]
-
   const columns = [
-    { key: 'refundNumber', label: 'Refund #' },
+    { key: 'refundNumber',         header: 'Refund #',    render: (v) => <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{v}</span> },
+    { key: 'bookingId',            header: 'Booking',     render: (v) => <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{v}</span> },
+    { key: 'refundAmount',         header: 'Amount',      render: (v) => <span style={{ fontSize: 13, fontWeight: 600 }}>{v ? `₹${Number(v).toLocaleString('en-IN')}` : '-'}</span> },
+    { key: 'refundPercent',        header: '%',           render: (v) => <span style={{ fontSize: 12 }}>{v ? `${v}%` : '-'}</span> },
+    { key: 'onePayRefundRequestId',header: '1Pay Ref',    render: (v) => <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#64748b' }}>{v || '-'}</span> },
     {
-      key:    'bookingId',
-      label:  'Booking',
-      render: (val) => (
-        <span className="font-mono text-xs">{val}</span>
-      )
+      key: 'status', header: 'Status',
+      render: (v, row) => {
+        if (row.onePayRefundStatus && RF_CODES[row.onePayRefundStatus]) {
+          const rf = RF_CODES[row.onePayRefundStatus]
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <Badge variant={rf.variant} size="sm">{rf.label}</Badge>
+              <span style={{ fontFamily: 'monospace', fontSize: 10, color: '#94a3b8' }}>{row.onePayRefundStatus}</span>
+            </div>
+          )
+        }
+        return <Badge variant={STATUS_BADGE[v] || 'neutral'} size="sm">{v}</Badge>
+      },
     },
-    {
-      key:    'refundAmount',
-      label:  'Amount',
-      render: (val) => (
-        <span className="font-semibold text-gray-900">
-          {val ? formatCurrency(val) : '-'}
-        </span>
-      )
-    },
-    {
-      key:    'refundPercent',
-      label:  'Percent',
-      render: (val) => val ? `${val}%` : '-'
-    },
-    {
-      key:    'onePayRefundRequestId',
-      label:  '1Pay Ref ID',
-      render: (val) => (
-        <span className="font-mono text-xs text-gray-500">{val || '-'}</span>
-      )
-    },
-    {
-      key:    'status',
-      label:  '1Pay Status',
-      render: (val, row) => (
-        <RefundStatusBadge
-          status={val}
-          onePayRefundStatus={row.onePayRefundStatus}
-        />
-      )
-    },
-    {
-      key:    'reason',
-      label:  'Reason',
-      render: (val) => (
-        <span className="text-xs text-gray-500 max-w-32 truncate block">
-          {val || '-'}
-        </span>
-      )
-    },
-    {
-      key:    'createdAt',
-      label:  'Date',
-      render: (val) => new Date(val).toLocaleDateString('en-IN')
-    },
-    {
-      key:    'id',
-      label:  'Action',
-      render: (val, row) =>
-        row.status === 'failed' ? (
-          <Button
-            variant="ghost"
-            size="xs"
-            loading={retrying === val}
-            onClick={() => handleRetry(val)}
-          >
-            <RefreshCw className="h-3 w-3" />
-            Retry
-          </Button>
-        ) : null
-    }
+    { key: 'reason',    header: 'Reason', render: (v) => <span style={{ fontSize: 11, color: '#64748b', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{v || '-'}</span> },
+    { key: 'createdAt', header: 'Date',   render: (v) => <span style={{ fontSize: 12, color: '#64748b' }}>{new Date(v).toLocaleDateString('en-IN')}</span> },
+    { key: 'id',        header: 'Action', render: (v, row) => row.status === 'failed' ? <RetryBtn onClick={() => handleRetry(v)} loading={retrying === v} /> : null },
   ]
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Refunds</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          1Pay refund requests and status
-        </p>
-      </div>
+    <>
+      <style>{KF}</style>
+      <AdminHeader title="Refunds" subtitle="1Pay refund requests and status"
+        breadcrumbs={[{ label: 'Dashboard', href: '/super-admin/dashboard' }, { label: 'Refunds' }]} />
 
       {/* RF Code Legend */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-xs font-semibold text-blue-700 mb-2">
-          1Pay Refund Status Codes
-        </p>
-        <div className="flex flex-wrap gap-2">
+      <div style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 14, padding: '12px 16px', marginBottom: 20 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', marginBottom: 8 }}>1Pay Refund Status Codes</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {Object.entries(RF_CODES).map(([code, info]) => (
-            <div key={code} className="flex items-center gap-1">
-              <Badge variant={info.variant} size="sm">
-                {code}
-              </Badge>
-              <span className="text-xs text-gray-500">{info.label}</span>
+            <div key={code} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Badge variant={info.variant} size="sm">{code}</Badge>
+              <span style={{ fontSize: 11, color: '#64748b' }}>{info.label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Status tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => { setActiveTab(tab.id); setPage(1) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.id
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {tab.label}
-          </button>
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 14, padding: 4, width: 'fit-content', marginBottom: 20 }}>
+        {TABS.map((t) => (
+          <TabBtn key={t.id} label={t.label} active={activeTab === t.id} onClick={() => { setActiveTab(t.id); setPage(1) }} />
         ))}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <DataTable
-          columns={columns}
-          data={data?.refunds || []}
-          loading={isLoading}
-          pagination={{
-            page:        data?.pagination?.page  || 1,
-            pages:       data?.pagination?.pages || 1,
-            total:       data?.pagination?.total || 0,
-            onPageChange:setPage
-          }}
-        />
-      </div>
-    </div>
+      <DataTable
+        columns={columns}
+        data={data?.refunds || []}
+        loading={isLoading}
+        page={page}
+        totalPages={data?.pagination?.pages || 1}
+        onPageChange={setPage}
+        emptyTitle="No refunds found"
+      />
+    </>
   )
 }

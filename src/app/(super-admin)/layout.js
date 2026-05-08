@@ -1,4 +1,3 @@
-// src/app/(super-admin)/layout.js
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
@@ -8,6 +7,7 @@ import { useAuth, getDashboardForRole } from '@/context/AuthContext'
 import SuperAdminSidebar from '@/components/admin/SuperAdminSidebar'
 
 const ALLOWED_ROLES = ['super_admin']
+const KF = `@keyframes sa-spin{to{transform:rotate(360deg)}}`
 
 function SuperAdminGuard({ children }) {
   const { user, loading } = useAuth()
@@ -16,49 +16,53 @@ function SuperAdminGuard({ children }) {
   const timerRef          = useRef(null)
 
   useEffect(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
     if (loading) return
-
     if (!user) {
       timerRef.current = setTimeout(() => {
         router.replace('/auth/login?redirect=/super-admin/dashboard')
       }, 150)
       return
     }
-
     if (!ALLOWED_ROLES.includes(user.role)) {
-      // Wrong role — send to their correct dashboard
       router.replace(getDashboardForRole(user.role))
       return
     }
-
     setReady(true)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [user, loading, router])
 
   if (loading || !ready) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400 font-medium">Loading MEDLI...</p>
+      <>
+        <style>{KF}</style>
+        <div style={{
+          height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'linear-gradient(135deg,#0a0a14,#12101e)',
+          flexDirection: 'column', gap: 14,
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: '50%',
+            border: '3px solid rgba(99,102,241,0.25)',
+            borderTopColor: '#6366f1',
+            animation: 'sa-spin .8s linear infinite',
+          }} />
+          <div style={{
+            fontSize: 13, fontWeight: 600,
+            backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}>Loading...</div>
         </div>
-      </div>
+      </>
     )
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
       <SuperAdminSidebar />
-      <main className="flex-1 overflow-auto lg:ml-64">
-        <div className="p-6">{children}</div>
+      <main style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px,3vw,28px)' }}>
+        {children}
       </main>
     </div>
   )
