@@ -9,7 +9,7 @@ import {
   onePayEncrypt,
   onePayDecrypt,
   onePayPost,
-  verifyTransaction as onePayVerify, // uses new verifyTransaction from onepay.js
+  verifyTransaction as onePayVerify,
   buildOnePayPayload,
   generateTxnId,
   mapStatus,
@@ -114,7 +114,7 @@ export async function createOrder({ bookingId, userId }) {
 export async function processCallback(respData) {
   console.log('[PaymentService][processCallback] Processing...')
 
-  // 1. Decrypt
+  // 1. Decrypt from 1Pay
   let cbDataRaw
   try {
     cbDataRaw = onePayDecrypt(respData)
@@ -123,14 +123,16 @@ export async function processCallback(respData) {
     throw new Error('Failed to decrypt callback data')
   }
 
-  // 2. Ensure cbData is a plain object (handles JSON string or querystring)
+  console.log('[PaymentService][processCallback] cbDataRaw:', cbDataRaw)
+
+  // 2. Normalise cbData to plain object
   let cbData = cbDataRaw
   if (typeof cbDataRaw === 'string') {
     try {
       cbData = JSON.parse(cbDataRaw)
       console.log('[PaymentService][processCallback] Parsed JSON cbData keys:', Object.keys(cbData))
     } catch {
-      const params = new URLSearchParams(cbDataRaw)
+      const params = new URLSearchParams(cbDataRaw.replace(/,\s*/g, '&'))
       cbData = Object.fromEntries(params.entries())
       console.log('[PaymentService][processCallback] Parsed querystring cbData keys:', Object.keys(cbData))
     }
@@ -138,7 +140,9 @@ export async function processCallback(respData) {
     console.log('[PaymentService][processCallback] Decrypted object keys:', Object.keys(cbData))
   }
 
-  // 3. Normalise keys from 1Pay (supports multiple field name variants)
+  console.log('[PaymentService][processCallback] Normalised cbData:', cbData)
+
+  // 3. Normalise keys from 1Pay
   const {
     // transaction ids
     txnId,
@@ -173,6 +177,7 @@ export async function processCallback(respData) {
     failureMsg,
     respmessage,
     message,
+    respcode,
 
     // instrument / payment mode
     instrumentType,
@@ -186,12 +191,19 @@ export async function processCallback(respData) {
   const finalBankRefId  = bankRefId || bankrefid || BANKREFID || null
   const finalFailureMsg = failureMsg || respmessage || message || null
 
-  console.log('[PaymentService][processCallback] txnId variants:', {
+  console.log('[PaymentService][processCallback] Extracted fields:', {
     txnId,
     txnid,
     TXNID,
     merchantTxnId,
     finalTxnId,
+    transstatus,
+    status,
+    STATUS,
+    rawStatus,
+    finalAmount,
+    respmessage,
+    respcode,
   })
 
   // If still no txnId, log everything and return a structured failure (no throw)
@@ -216,31 +228,24 @@ export async function processCallback(respData) {
     }
   }
 
-  console.log('[PaymentService][processCallback]', {
-    txnId: finalTxnId,
-    pgRefId: finalPgRefId,
-    rawStatus,
-    bookingId,
-    Amount: finalAmount,
-  })
+  console.log('[PaymentService][processCallback] Using txnId:', finalTxnId)
 
-  // 4. Cross-verify with 1Pay
- // inside processCallback()
+  // 4. Cross-verify with 1Pay TxnStatus
+  let verifiedStatus = rawStatus
+  try {
+    const verified = await onePayVerify(finalTxnId)
+    console.log('[PaymentService][processCallback] Verified raw:', verified)
+    verifiedStatus  = verified.status || verified.transstatus || rawStatus
+    console.log('[PaymentService][processCallback] Verified status:', verifiedStatus)
+  } catch (err) {
+    console.warn(
+      '[PaymentService][processCallback] Verify failed, using callback status:',
+      err.message
+    )
+  }
 
-let verifiedStatus = rawStatus
-try {
-  const verified = await onePayVerify(finalTxnId)
-  verifiedStatus  = verified.status || verified.transstatus || rawStatus
-  console.log('[PaymentService][processCallback] Verified status:', verifiedStatus)
-} catch (err) {
-  console.warn(
-    '[PaymentService][processCallback] Verify failed, using callback status:',
-    err.message
-  )
-}
-
-const finalStatus = mapStatus(verifiedStatus)
-console.log('[PaymentService][processCallback] Final status:', finalStatus)
+  const finalStatus = mapStatus(verifiedStatus)
+  console.log('[PaymentService][processCallback] Final status:', finalStatus)
 
   // 5. Update Payment record
   const payment = await prisma.payment.findFirst({
@@ -297,7 +302,7 @@ console.log('[PaymentService][processCallback] Final status:', finalStatus)
     bookingUpdate.status        = 'confirmed'
   } else if (finalStatus === 'failure') {
     bookingUpdate.paymentStatus      = 'failed'
-    bookingUpdate.status             = 'cancelled'
+    bookingUpdate.status            = 'cancelled'
     bookingUpdate.cancellationReason = finalFailureMsg || 'Payment failed'
   } else {
     bookingUpdate.paymentStatus = 'pending'
@@ -336,7 +341,7 @@ export async function verifyTransaction(txnId) {
 
   // 1. Verify with 1Pay
   const verifiedData = await onePayVerify(txnId)
-  const finalStatus  = mapStatus(verifiedData.status)
+  const finalStatus  = mapStatus(verifiedData.status || verifiedData.transstatus)
 
   // 2. Update payment record
   const payment = await prisma.payment.findFirst({
@@ -347,9 +352,9 @@ export async function verifyTransaction(txnId) {
     await prisma.payment.update({
       where: { id: payment.id },
       data: {
-        status:          finalStatus,
-        onePayPgRefId:   verifiedData.pgRefId   || null,
-        onePayBankRefId: verifiedData.bankRefId || null,
+        status:           finalStatus,
+        onePayPgRefId:    verifiedData.pgRefId   || verifiedData.pgrefid   || null,
+        onePayBankRefId:  verifiedData.bankRefId || verifiedData.bankrefid || null,
       },
     })
   }
@@ -366,11 +371,11 @@ export async function verifyTransaction(txnId) {
         data: {
           paymentStatus: 'paid',
           status:        'confirmed',
-          onePayPgRefId: verifiedData.pgRefId || null,
+          onePayPgRefId: verifiedData.pgRefId || verifiedData.pgrefid || null,
         },
       })
       console.log('[PaymentService][verifyTransaction] Booking confirmed:', booking.id)
-      await createInvoice(booking, verifiedData.pgRefId)
+      await createInvoice(booking, verifiedData.pgRefId || verifiedData.pgrefid)
     }
   }
 
@@ -388,8 +393,8 @@ export async function initiateRefund({ bookingId, amount, reason, initiatedBy })
   console.log('[PaymentService][initiateRefund]', { bookingId, amount })
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } })
-  if (!booking)                     throw new Error('Booking not found')
-  if (booking.paymentStatus !== 'paid') throw new Error('Booking is not paid')
+  if (!booking)                          throw new Error('Booking not found')
+  if (booking.paymentStatus !== 'paid')  throw new Error('Booking is not paid')
 
   const refundAmount = amount || booking.totalAmount
   const refundNumber = `REF-${Date.now()}-${Math.random()
@@ -500,13 +505,13 @@ async function createInvoice(booking, pgRefId) {
         subtotal:            booking.subtotal            || 0,
         adminCouponDiscount: booking.adminCouponDiscount || 0,
         totalAmount:         booking.totalAmount         || 0,
-        onePayPgRefId:       pgRefId                    || null,
+        onePayPgRefId:       pgRefId                     || null,
         type:                'invoice',
         items: [
           {
             description: `${booking.type} booking`,
             quantity:    1,
-            rate:        booking.baseFee    || 0,
+            rate:        booking.baseFee     || 0,
             amount:      booking.totalAmount || 0,
           },
         ],
