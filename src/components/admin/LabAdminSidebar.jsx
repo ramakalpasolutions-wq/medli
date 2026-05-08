@@ -1,88 +1,172 @@
-// src/components/admin/LabAdminSidebar.jsx
 'use client'
 
-import { useState } from 'react'
-import { usePathname } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Menu, X, LayoutDashboard, Calendar,
-  FlaskConical, TrendingUp, Wallet, Settings,
-} from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 
-// ✅ Removed /lab-admin/staff — page does not exist
+function usePathname() {
+  const [path, setPath] = useState('')
+  useEffect(() => {
+    setPath(window.location.pathname)
+    const fn = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', fn)
+    return () => window.removeEventListener('popstate', fn)
+  }, [])
+  return path
+}
+
 const NAV_ITEMS = [
-  { label: 'Dashboard',   href: '/lab-admin/dashboard',   icon: <LayoutDashboard className="w-4 h-4" /> },
-  { label: 'Bookings',    href: '/lab-admin/bookings',    icon: <Calendar        className="w-4 h-4" /> },
-  { label: 'Tests',       href: '/lab-admin/tests',       icon: <FlaskConical    className="w-4 h-4" /> },
-  { label: 'Reports',     href: '/lab-admin/reports',     icon: <TrendingUp      className="w-4 h-4" /> },
-  { label: 'Settlements', href: '/lab-admin/settlements', icon: <Wallet          className="w-4 h-4" /> },
-  { label: 'Settings',    href: '/lab-admin/settings',    icon: <Settings        className="w-4 h-4" /> },
+  { label: 'Dashboard',   href: '/lab-admin/dashboard',   icon: '📊' },
+  { label: 'Bookings',    href: '/lab-admin/bookings',    icon: '📅' },
+  { label: 'Tests',       href: '/lab-admin/tests',       icon: '🧪' },
+  { label: 'Reports',     href: '/lab-admin/reports',     icon: '📈' },
+  { label: 'Settlements', href: '/lab-admin/settlements', icon: '💰' },
+  { label: 'Settings',    href: '/lab-admin/settings',    icon: '⚙️' },
 ]
+
+const KF = `
+  @keyframes la-slide { from{transform:translateX(-100%)} to{transform:translateX(0)} }
+  @keyframes la-fade  { from{opacity:0} to{opacity:1} }
+`
+
+function NavItem({ item, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <a
+      href={item.href}
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 12px', borderRadius: 12, marginBottom: 2,
+        textDecoration: 'none',
+        background: active
+          ? 'linear-gradient(135deg,rgba(16,185,129,0.15),rgba(5,150,105,0.1))'
+          : h ? 'rgba(255,255,255,0.06)' : 'transparent',
+        border: active
+          ? '1px solid rgba(16,185,129,0.25)'
+          : '1px solid transparent',
+        color: active
+          ? '#6ee7b7'
+          : h ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)',
+        fontSize: 13, fontWeight: active ? 600 : 400,
+        transition: 'all .15s ease', cursor: 'pointer',
+      }}
+    >
+      <span style={{
+        fontSize: 16, flexShrink: 0,
+        opacity: active ? 1 : h ? 0.9 : 0.6,
+        transition: 'opacity .15s ease',
+      }}>
+        {item.icon}
+      </span>
+      <span style={{ flex: 1 }}>{item.label}</span>
+      {active && (
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+          background: 'linear-gradient(135deg,#10b981,#059669)',
+          boxShadow: '0 0 6px rgba(16,185,129,0.6)',
+        }} />
+      )}
+    </a>
+  )
+}
 
 function SidebarContent({ pathname, onClose }) {
   const { user, logout } = useAuth()
+  const [logoutH, setLogoutH] = useState(false)
+  const initials = user?.name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || 'L'
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between h-14 px-4 border-b border-gray-100 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-green-600">MEDLI</span>
-          <span className="text-xs bg-green-50 text-green-600 px-1.5 py-0.5 rounded-md font-medium">
-            Lab
-          </span>
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%',
+      background: 'linear-gradient(180deg,#0f172a 0%,#064e3b 100%)',
+    }}>
+      {/* Logo */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        height: 56, padding: '0 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: 'linear-gradient(135deg,#10b981,#059669)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, boxShadow: '0 3px 10px rgba(16,185,129,0.4)',
+          }}>🧪</div>
+          <div>
+            <div style={{
+              fontSize: 15, fontWeight: 800,
+              backgroundImage: 'linear-gradient(135deg,#6ee7b7,#34d399)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text', letterSpacing: '-0.3px', lineHeight: 1,
+            }}>MEDLI</div>
+            <div style={{
+              fontSize: 9, color: 'rgba(255,255,255,0.35)',
+              letterSpacing: '1.5px', fontWeight: 600, textTransform: 'uppercase',
+            }}>Lab Admin</div>
+          </div>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        {onClose && <CloseBtn onClick={onClose} />}
       </div>
 
+      {/* User info */}
+      {user && (
+        <div style={{
+          padding: '12px 14px',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'linear-gradient(135deg,#10b981,#059669)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 700, fontSize: 14,
+            flexShrink: 0, overflow: 'hidden',
+          }}>
+            {user.avatar
+              ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : initials}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{
+              fontSize: 13, fontWeight: 700, color: '#fff', margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{user.name}</p>
+            <p style={{
+              fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '1px 0 0',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {user.email || (user.phone ? `+91 ${user.phone}` : 'Lab Admin')}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      <nav style={{ flex: 1, padding: '10px 10px', overflowY: 'auto', scrollbarWidth: 'none' }}>
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname?.startsWith(item.href + '/')
-          return (
-            <a
-              key={item.href}
-              href={item.href}
-              onClick={onClose}
-              className={active
-                ? 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold bg-green-50 text-green-700 transition-colors'
-                : 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors'}
-            >
-              <span className={active ? 'text-green-600' : 'text-gray-400'}>
-                {item.icon}
-              </span>
-              {item.label}
-              {active && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-600 flex-shrink-0" />
-              )}
-            </a>
-          )
+          return <NavItem key={item.href} item={item} active={active} onClick={onClose} />
         })}
       </nav>
 
-      {/* User footer */}
-      <div className="flex-shrink-0 p-3 border-t border-gray-100">
-        <div className="flex items-center gap-2.5 mb-2">
-          <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center text-green-700 text-xs font-bold flex-shrink-0">
-            {user?.name?.charAt(0)?.toUpperCase() || 'L'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-800 truncate">{user?.name || '—'}</p>
-            <p className="text-xs text-gray-400 truncate">{user?.email || user?.phone || '—'}</p>
-          </div>
-        </div>
+      {/* Logout */}
+      <div style={{ padding: '10px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
         <button
           onClick={logout}
-          className="w-full text-xs text-gray-400 hover:text-red-500 transition-colors text-left px-1"
+          onMouseEnter={() => setLogoutH(true)}
+          onMouseLeave={() => setLogoutH(false)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '9px 12px', borderRadius: 10, border: 'none',
+            background: logoutH ? 'rgba(239,68,68,0.1)' : 'transparent',
+            color: logoutH ? '#fca5a5' : 'rgba(255,255,255,0.35)',
+            fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all .15s ease',
+          }}
         >
+          <span style={{ fontSize: 15 }}>🚪</span>
           Sign out
         </button>
       </div>
@@ -90,45 +174,86 @@ function SidebarContent({ pathname, onClose }) {
   )
 }
 
+function CloseBtn({ onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        width: 32, height: 32, borderRadius: 8, border: 'none',
+        background: h ? 'rgba(255,255,255,0.1)' : 'transparent',
+        color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 18,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'background .15s ease',
+      }}>✕</button>
+  )
+}
+
+function HamburgerBtn({ onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      aria-label="Open menu"
+      style={{
+        position: 'fixed', top: 12, left: 12, zIndex: 800,
+        width: 44, height: 44, borderRadius: 12,
+        border: '1px solid rgba(255,255,255,0.1)',
+        background: h ? 'rgba(16,185,129,0.2)' : 'rgba(15,23,42,0.92)',
+        backdropFilter: 'blur(12px)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', transition: 'background .15s ease',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+      }}>
+      <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+        <rect y="0"  width="18" height="2" rx="1" fill="rgba(255,255,255,0.8)" />
+        <rect y="6"  width="13" height="2" rx="1" fill="#34d399" />
+        <rect y="12" width="15" height="2" rx="1" fill="rgba(255,255,255,0.8)" />
+      </svg>
+    </button>
+  )
+}
+
 export default function LabAdminSidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
   return (
     <>
+      <style>{KF}</style>
+
       {/* Desktop */}
-      <aside className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-100 z-30 hidden lg:flex flex-col">
+      <aside style={{ width: 240, height: '100vh', position: 'sticky', top: 0, flexShrink: 0, display: 'none' }}
+        className="la-desktop">
+        <style>{`@media(min-width:1024px){.la-desktop{display:block!important}.la-burger{display:none!important}}@media(max-width:1023px){.la-burger{display:flex!important}}`}</style>
         <SidebarContent pathname={pathname} />
       </aside>
 
       {/* Mobile hamburger */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed top-3 left-3 z-40 lg:hidden p-2 bg-white rounded-xl border border-gray-200 shadow-sm"
-        style={{ minHeight: 44, minWidth: 44 }}
-      >
-        <Menu className="w-4 h-4 text-gray-600" />
-      </button>
+      <div className="la-burger" style={{ display: 'none' }}>
+        <HamburgerBtn onClick={() => setOpen(true)} />
+      </div>
 
       {/* Mobile drawer */}
-      <AnimatePresence>
-        {open && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-              onClick={() => setOpen(false)}
-            />
-            <motion.aside
-              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-gray-100 flex flex-col z-50 lg:hidden"
-            >
-              <SidebarContent pathname={pathname} onClose={() => setOpen(false)} />
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{
+            position: 'fixed', inset: 0, zIndex: 900,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
+            animation: 'la-fade .2s ease',
+          }} />
+          <aside style={{
+            position: 'fixed', top: 0, left: 0, bottom: 0,
+            width: 240, zIndex: 910,
+            animation: 'la-slide .28s cubic-bezier(0.34,1.56,0.64,1)',
+          }}>
+            <SidebarContent pathname={pathname} onClose={() => setOpen(false)} />
+          </aside>
+        </>
+      )}
     </>
   )
 }
