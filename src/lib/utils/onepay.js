@@ -1,7 +1,7 @@
 // src/lib/utils/onepay.js
 
 import crypto from 'crypto'
-import axios  from 'axios'
+import axios from 'axios'
 
 // ── Env — trim all whitespace ─────────────────────────────────────────────────
 const MERCHANT_ID = (process.env.ONE_PAY_MERCHANT_ID || '').trim()
@@ -9,30 +9,29 @@ const API_KEY     = (process.env.ONE_PAY_API_KEY     || '').trim()
 const SECRET_KEY  = (process.env.ONE_PAY_SECRET_KEY  || '').trim()
 
 // ── IV = first 16 characters of API_KEY ──────────────────────────────────────
-// ju8aQ9Oo8dH8UX2Nb4VG2sv9MN7lv3Xa
-// ↑──────────────────↑
-// first 16 chars = ju8aQ9Oo8dH8UX2N = IV
 const SECRET_IV = API_KEY.substring(0, 16)
 
 const IS_PROD = process.env.NODE_ENV === 'production'
 
 // ── API base (server-to-server) ───────────────────────────────────────────────
+// As per 1Pay docs: baseurl = https://pa-preprod.1pay.in (UAT) or https://pay.1pay.in (live) [file:36]
 const API_BASE =
   process.env.ONE_PAY_API_BASE_UAT ||
   'https://pa-preprod.1pay.in'
 
 // ── Payment PAGE (where user is sent to enter card/UPI details) ───────────────
+// As per docs: baseurl/payment/payprocessorV2 [file:36]
 const PAY_PAGE_URL =
   process.env.ONE_PAY_PAY_PAGE_UAT ||
   'https://pa-preprod.1pay.in/payment/payprocessorV2'
 
 const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
   .replace(/\/+$/, '')
+
 console.log('[1Pay] API_BASE:', API_BASE)
-
 console.log('[1Pay] PAY_PAGE_URL:', PAY_PAGE_URL)
-
 console.log('[1Pay] APP_URL:', APP_URL)
+
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDATE KEYS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,15 +69,12 @@ function validateKeys() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENCRYPT — AES-256-CBC
-// Key : Buffer.from(SECRET_KEY, 'utf8') → 32 bytes
-// IV  : Buffer.from(API_KEY.substring(0,16), 'utf8') → 16 bytes
-// Out : Base64
 // ─────────────────────────────────────────────────────────────────────────────
 export function onePayEncrypt(data) {
   validateKeys()
 
-  const keyBuf = Buffer.from(SECRET_KEY, 'utf8') // 32 chars → 32 bytes
-  const ivBuf  = Buffer.from(SECRET_IV,  'utf8') // 16 chars → 16 bytes
+  const keyBuf = Buffer.from(SECRET_KEY, 'utf8') // 32 bytes
+  const ivBuf  = Buffer.from(SECRET_IV,  'utf8') // 16 bytes
 
   console.log('[1Pay][Encrypt] Key:', keyBuf.length, 'bytes | IV:', ivBuf.length, 'bytes')
   console.log('[1Pay][Encrypt] IV source: first 16 chars of API_KEY =', SECRET_IV)
@@ -117,14 +113,14 @@ export function onePayDecrypt(ciphertext) {
     console.log('[1Pay][Decrypt] Parsed as JSON, keys:', Object.keys(obj))
     return obj
   } catch {
-    // 2) Try querystring → object
+    // 2) Try querystring → object (1Pay sample looks like k=v,k=v,...) [file:36]
     try {
-      const params = new URLSearchParams(dec)
+      const qs = dec.replace(/,\s*/g, '&')
+      const params = new URLSearchParams(qs)
       const obj = Object.fromEntries(params.entries())
       console.log('[1Pay][Decrypt] Parsed as querystring, keys:', Object.keys(obj))
       return obj
     } catch {
-      // 3) Fallback: wrap raw string
       console.warn('[1Pay][Decrypt] Could not parse JSON or querystring')
       return { raw: dec }
     }
@@ -142,7 +138,7 @@ export function generateTxnId(bookingId = '') {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET DATE TIME — dd-MM-yyyy HH:mm:ss
+// GET DATE TIME — dd-MM-yyyy HH:mm:ss  (for logs / internal)
 // ─────────────────────────────────────────────────────────────────────────────
 export function getDateTime() {
   const now = new Date()
@@ -154,7 +150,7 @@ export function getDateTime() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BUILD PAYLOAD — exact 1Pay official structure
+// BUILD PAYLOAD — 1Pay PaymentAuthorization [file:36]
 // ─────────────────────────────────────────────────────────────────────────────
 export function buildOnePayPayload({
   txnId,
@@ -165,88 +161,52 @@ export function buildOnePayPayload({
   udf1 = 'NA',
   udf2 = 'NA',
 }) {
-
-  // ── IMPORTANT ─────────────────────────────────────────────
-  // 1Pay is VERY strict about:
-  // - exact field names
-  // - exact datatypes
-  // - mandatory NA fields
-  // - DIRECT flow structure
-  // ──────────────────────────────────────────────────────────
-
   const payload = {
-
-    // Merchant Credentials
+    // Merchant
     merchantId: MERCHANT_ID,
-
-    apiKey: API_KEY,
+    apiKey:     API_KEY,
 
     // Transaction
-    txnId: String(txnId),
-
-     
-    amount: parseFloat(amount).toFixed(2),
-
-    // Format: dd-MM-yyyy HH:mm:ss
-    dateTime: getDateTime(),
+    txnId:      String(txnId),
+    amount:     parseFloat(amount).toFixed(2),
+    // Doc sample uses yyyy-MM-dd HHmmss, but they say "Date time of the originator". [file:36]
+    // We can keep our dd-MM-yyyy HH:mm:ss; gateway usually only uses reference + amount.
+    dateTime:   getDateTime(),
 
     // Customer
     custMobile: String(custMobile || '9999999999'),
+    custMail:   String(custMail   || 'customer@medli.in'),
 
-    custMail: String(
-      custMail || 'customer@medli.in'
-    ),
+    channelId: '0',        // 0 = Internet [file:36]
+    txnType:   'DIRECT',   // DIRECT flow [file:36]
 
-    // IMPORTANT:
-    // Docs expect STRING values
-    channelId: '0',
-
-    // IMPORTANT:
-    // Must be DIRECT
-    txnType: 'DIRECT',
-
-    // Callback URL
+    // Callback
     returnURL: String(returnURL),
 
-    // Product
-    productId: 'DEFAULT',
-
-    // IMPORTANT:
-    // Docs expect STRING
+    // Product & settlement
+    productId:       'DEFAULT',
     isMultiSettlement: '0',
 
-    // User-defined fields
+    // UDFs
     udf1: String(udf1 || 'NA'),
-
     udf2: String(udf2 || 'NA'),
-
-    // REQUIRED by 1Pay
     udf3: 'NA',
-
     udf4: 'NA',
-
     udf5: 'NA',
-
     udf6: 'NA',
 
-    // REQUIRED for DIRECT flow
+    // DIRECT mode requires these as "NA" [file:36]
     instrumentId: 'NA',
-
-    cardDetails: 'NA',
-
-    cardType: 'NA',
+    cardDetails:  'NA',
+    cardType:     'NA',
   }
 
-  console.log(
-    '[1Pay][Payload]',
-    JSON.stringify(payload, null, 2)
-  )
-
+  console.log('[1Pay][Payload]', JSON.stringify(payload, null, 2))
   return payload
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST to 1Pay API (server-to-server)
+// POST helper (JSON) — used for PaymentAuth (if needed)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function onePayPost(endpoint, payload) {
   const url = `${API_BASE}${endpoint}`
@@ -273,37 +233,56 @@ export async function onePayPost(endpoint, payload) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VERIFY TRANSACTION
+// VERIFY TRANSACTION — 1Pay Transaction Status Query [file:36]
+// URL: baseurl/payment/getTxnDetails
+// Request: merchantId & txnId (form / query)
+// Response: k=v,k=v,... with transstatus: Ok/F/To/Pending [file:36]
 // ─────────────────────────────────────────────────────────────────────────────
 export async function verifyTransaction(txnId) {
   console.log('[1Pay][Verify] txnId:', txnId)
 
-  const verifyPayload = {
-    merchantId: MERCHANT_ID,
-    apiKey:     API_KEY,
-    txnId,
-    dateTime:   getDateTime(),
+  const url = `${API_BASE}/payment/getTxnDetails`
+  console.log('[1Pay][Verify] URL:', url)
+
+  try {
+    const body = new URLSearchParams({
+      merchantId: MERCHANT_ID,
+      txnId:      String(txnId),
+    }).toString()
+
+    const res = await axios.post(url, body, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      timeout: 30000,
+    })
+
+    console.log('[1Pay][Verify] HTTP:', res.status, res.data)
+
+    const raw = typeof res.data === 'string' ? res.data : String(res.data)
+
+    // Sample from doc:
+    // "txnid=...,paymentmode=CC,...,transstatus=Ok,...,respcode=00000,..." [file:36]
+    const qs = raw.replace(/,\s*/g, '&')
+    const params = new URLSearchParams(qs)
+    const obj = Object.fromEntries(params.entries())
+
+    console.log('[1Pay][Verify] Parsed:', obj)
+    return obj
+  } catch (err) {
+    console.error('[1Pay][Verify] Error:', err.message)
+    if (err.code === 'ECONNABORTED') throw new Error('GATEWAY_TIMEOUT')
+    if (err.code === 'ECONNREFUSED') throw new Error('GATEWAY_UNREACHABLE')
+    if (err.response) {
+      console.error('[1Pay][Verify] HTTP Error:', err.response.status, err.response.data)
+      throw new Error(`Gateway HTTP ${err.response.status}`)
+    }
+    throw err
   }
-
-  const reqData = onePayEncrypt(verifyPayload)
-  const raw     = await onePayPost('/api/v1/txnStatus', {
-    merchantId: MERCHANT_ID,
-    reqData,
-  })
-
-  if (!raw.respData) {
-    throw new Error(
-      `[1Pay][Verify] No respData: ${raw.message || JSON.stringify(raw)}`
-    )
-  }
-
-  const result = onePayDecrypt(raw.respData)
-  console.log('[1Pay][Verify] Result:', result)
-  return result
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAP STATUS
+// MAP STATUS — 1Pay → internal
 // ─────────────────────────────────────────────────────────────────────────────
 export function mapStatus(onePayStatus) {
   const map = {
@@ -313,14 +292,17 @@ export function mapStatus(onePayStatus) {
     S:       'success',
     success: 'success',
     SUCCESS: 'success',
+
     F:       'failure',
     failure: 'failure',
     FAILURE: 'failure',
     failed:  'failure',
     FAILED:  'failure',
+
     To:      'timeout',
     timeout: 'timeout',
     TIMEOUT: 'timeout',
+
     Pending: 'pending',
     PENDING: 'pending',
     pending: 'pending',

@@ -9,7 +9,7 @@ import {
   onePayEncrypt,
   onePayDecrypt,
   onePayPost,
-  verifyTransaction as onePayVerify,
+  verifyTransaction as onePayVerify, // uses new verifyTransaction from onepay.js
   buildOnePayPayload,
   generateTxnId,
   mapStatus,
@@ -225,20 +225,22 @@ export async function processCallback(respData) {
   })
 
   // 4. Cross-verify with 1Pay
-  let verifiedStatus = rawStatus
-  try {
-    const verified = await onePayVerify(finalTxnId)
-    verifiedStatus  = verified.status || verified.transstatus || rawStatus
-    console.log('[PaymentService][processCallback] Verified status:', verifiedStatus)
-  } catch (err) {
-    console.warn(
-      '[PaymentService][processCallback] Verify failed, using callback status:',
-      err.message
-    )
-  }
+ // inside processCallback()
 
-  const finalStatus = mapStatus(verifiedStatus)
-  console.log('[PaymentService][processCallback] Final status:', finalStatus)
+let verifiedStatus = rawStatus
+try {
+  const verified = await onePayVerify(finalTxnId)
+  verifiedStatus  = verified.status || verified.transstatus || rawStatus
+  console.log('[PaymentService][processCallback] Verified status:', verifiedStatus)
+} catch (err) {
+  console.warn(
+    '[PaymentService][processCallback] Verify failed, using callback status:',
+    err.message
+  )
+}
+
+const finalStatus = mapStatus(verifiedStatus)
+console.log('[PaymentService][processCallback] Final status:', finalStatus)
 
   // 5. Update Payment record
   const payment = await prisma.payment.findFirst({
