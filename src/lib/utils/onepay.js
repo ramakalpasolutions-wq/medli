@@ -14,13 +14,11 @@ const SECRET_IV = API_KEY.substring(0, 16)
 const IS_PROD = process.env.NODE_ENV === 'production'
 
 // ── API base (server-to-server) ───────────────────────────────────────────────
-// As per 1Pay docs: baseurl = https://pa-preprod.1pay.in (UAT) or https://pay.1pay.in (live) [file:36]
 const API_BASE =
   process.env.ONE_PAY_API_BASE_UAT ||
   'https://pa-preprod.1pay.in'
 
 // ── Payment PAGE (where user is sent to enter card/UPI details) ───────────────
-// As per docs: baseurl/payment/payprocessorV2 [file:36]
 const PAY_PAGE_URL =
   process.env.ONE_PAY_PAY_PAGE_UAT ||
   'https://pa-preprod.1pay.in/payment/payprocessorV2'
@@ -113,7 +111,7 @@ export function onePayDecrypt(ciphertext) {
     console.log('[1Pay][Decrypt] Parsed as JSON, keys:', Object.keys(obj))
     return obj
   } catch {
-    // 2) Try querystring → object (1Pay sample looks like k=v,k=v,...) [file:36]
+    // 2) Try querystring style: "k=v,k=v,..." → replace commas with &
     try {
       const qs = dec.replace(/,\s*/g, '&')
       const params = new URLSearchParams(qs)
@@ -138,7 +136,7 @@ export function generateTxnId(bookingId = '') {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET DATE TIME — dd-MM-yyyy HH:mm:ss  (for logs / internal)
+// GET DATE TIME — dd-MM-yyyy HH:mm:ss (for logs / internal)
 // ─────────────────────────────────────────────────────────────────────────────
 export function getDateTime() {
   const now = new Date()
@@ -150,7 +148,7 @@ export function getDateTime() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BUILD PAYLOAD — 1Pay PaymentAuthorization [file:36]
+// BUILD PAYLOAD — 1Pay PaymentAuthorization
 // ─────────────────────────────────────────────────────────────────────────────
 export function buildOnePayPayload({
   txnId,
@@ -162,32 +160,24 @@ export function buildOnePayPayload({
   udf2 = 'NA',
 }) {
   const payload = {
-    // Merchant
     merchantId: MERCHANT_ID,
     apiKey:     API_KEY,
 
-    // Transaction
-    txnId:      String(txnId),
-    amount:     parseFloat(amount).toFixed(2),
-    // Doc sample uses yyyy-MM-dd HHmmss, but they say "Date time of the originator". [file:36]
-    // We can keep our dd-MM-yyyy HH:mm:ss; gateway usually only uses reference + amount.
-    dateTime:   getDateTime(),
+    txnId:    String(txnId),
+    amount:   parseFloat(amount).toFixed(2),
+    dateTime: getDateTime(),
 
-    // Customer
     custMobile: String(custMobile || '9999999999'),
     custMail:   String(custMail   || 'customer@medli.in'),
 
-    channelId: '0',        // 0 = Internet [file:36]
-    txnType:   'DIRECT',   // DIRECT flow [file:36]
+    channelId: '0',
+    txnType:   'DIRECT',
 
-    // Callback
     returnURL: String(returnURL),
 
-    // Product & settlement
-    productId:       'DEFAULT',
+    productId:        'DEFAULT',
     isMultiSettlement: '0',
 
-    // UDFs
     udf1: String(udf1 || 'NA'),
     udf2: String(udf2 || 'NA'),
     udf3: 'NA',
@@ -195,7 +185,6 @@ export function buildOnePayPayload({
     udf5: 'NA',
     udf6: 'NA',
 
-    // DIRECT mode requires these as "NA" [file:36]
     instrumentId: 'NA',
     cardDetails:  'NA',
     cardType:     'NA',
@@ -206,7 +195,7 @@ export function buildOnePayPayload({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST helper (JSON) — used for PaymentAuth (if needed)
+// POST helper (JSON) — kept for future APIs
 // ─────────────────────────────────────────────────────────────────────────────
 export async function onePayPost(endpoint, payload) {
   const url = `${API_BASE}${endpoint}`
@@ -233,10 +222,10 @@ export async function onePayPost(endpoint, payload) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VERIFY TRANSACTION — 1Pay Transaction Status Query [file:36]
+// VERIFY TRANSACTION — 1Pay Transaction Status Query
 // URL: baseurl/payment/getTxnDetails
-// Request: merchantId & txnId (form / query)
-// Response: k=v,k=v,... with transstatus: Ok/F/To/Pending [file:36]
+// Request: merchantId & txnId
+// Response: "txnid=...,paymentmode=...,transstatus=Ok,..."
 // ─────────────────────────────────────────────────────────────────────────────
 export async function verifyTransaction(txnId) {
   console.log('[1Pay][Verify] txnId:', txnId)
@@ -261,8 +250,7 @@ export async function verifyTransaction(txnId) {
 
     const raw = typeof res.data === 'string' ? res.data : String(res.data)
 
-    // Sample from doc:
-    // "txnid=...,paymentmode=CC,...,transstatus=Ok,...,respcode=00000,..." [file:36]
+    // Convert "a=b, c=d, ..." → "a=b&c=d&..."
     const qs = raw.replace(/,\s*/g, '&')
     const params = new URLSearchParams(qs)
     const obj = Object.fromEntries(params.entries())
