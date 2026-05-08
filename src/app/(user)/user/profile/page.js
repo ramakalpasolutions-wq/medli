@@ -1,23 +1,13 @@
-// src/app/(user)/user/profile/page.js
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import useSWR from 'swr'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/context/ToastContext'
+import { useRouter } from 'next/navigation'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import Badge, { getStatusVariant } from '@/components/ui/Badge'
-import {
-  User, Phone, Mail, Calendar, Clock,
-  ChevronRight, Plus, Trash2, Edit3,
-  Users, FileText, Shield, LogOut,
-  Building2, FlaskConical, Video,
-  CheckCircle, XCircle, AlertCircle,
-  Heart, Baby, UserCheck,
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
 
 function useMounted() {
   const [m, setM] = useState(false)
@@ -26,46 +16,194 @@ function useMounted() {
 }
 
 const fetcher = (url) =>
-  fetch(url, { credentials: 'include' })
-    .then((r) => r.json())
-    .then((j) => j.data)
+  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
 
-const fmtRs = (n) =>
-  `Rs. ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`
-
-// ── Family member relation icons ──────────────────────────────────────────────
-const RELATIONS = [
-  { key: 'spouse',  label: 'Spouse',  icon: Heart  },
-  { key: 'child',   label: 'Child',   icon: Baby   },
-  { key: 'parent',  label: 'Parent',  icon: UserCheck },
-  { key: 'sibling', label: 'Sibling', icon: Users  },
-  { key: 'other',   label: 'Other',   icon: User   },
-]
-
-// ── Booking type icon ─────────────────────────────────────────────────────────
-function BookingTypeIcon({ type }) {
-  if (type === 'lab')    return <FlaskConical className="w-4 h-4 text-green-500" />
-  if (type === 'online') return <Video        className="w-4 h-4 text-purple-500" />
-  return <Building2 className="w-4 h-4 text-blue-500" />
+const KF = `
+  @keyframes prof-spin   { to{transform:rotate(360deg)} }
+  @keyframes prof-in     { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes prof-shimmer{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  @keyframes prof-shake  { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 60%{transform:translateX(5px)} }
+  @keyframes prof-modal  { from{opacity:0;transform:scale(.95) translateY(12px)} to{opacity:1;transform:scale(1) translateY(0)} }
+`
+const SHIMMER = {
+  backgroundImage: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
+  backgroundSize: '200% 100%',
+  animation: 'prof-shimmer 1.5s linear infinite',
 }
 
-// ── Tab button ────────────────────────────────────────────────────────────────
-function TabBtn({ active, onClick, icon: Icon, label, count }) {
+const fmtRs = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
+
+const RELATIONS = [
+  { key: 'spouse', label: 'Spouse', icon: '❤️' },
+  { key: 'child',  label: 'Child',  icon: '👶' },
+  { key: 'parent', label: 'Parent', icon: '👨' },
+  { key: 'sibling',label: 'Sibling',icon: '👥' },
+  { key: 'other',  label: 'Other',  icon: '👤' },
+]
+
+/* ─── Input ──────────────────────────────────────────────────────────── */
+function PInput({ label, disabled, hint, ...props }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {label && <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{label}</label>}
+      <input
+        {...props}
+        disabled={disabled}
+        onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
+        onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
+        style={{
+          padding: '10px 13px', fontSize: 13, fontFamily: 'inherit',
+          borderRadius: 12,
+          border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
+          background: disabled ? '#f8fafc' : '#fff',
+          color: disabled ? '#94a3b8' : '#0f172a',
+          outline: 'none',
+          boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.12)' : 'none',
+          transition: 'all .15s ease', boxSizing: 'border-box', width: '100%',
+          cursor: disabled ? 'not-allowed' : 'text',
+        }}
+      />
+      {hint && <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{hint}</p>}
+    </div>
+  )
+}
+
+/* ─── Select ─────────────────────────────────────────────────────────── */
+function PSelect({ label, children, ...props }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {label && <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{label}</label>}
+      <div style={{ position: 'relative' }}>
+        <select
+          {...props}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            width: '100%', padding: '10px 30px 10px 13px',
+            fontSize: 13, fontFamily: 'inherit', borderRadius: 12,
+            border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
+            background: '#fff', color: '#0f172a', outline: 'none',
+            appearance: 'none', cursor: 'pointer',
+            boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.12)' : 'none',
+            transition: 'all .15s ease', boxSizing: 'border-box',
+          }}
+        >
+          {children}
+        </select>
+        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, pointerEvents: 'none', color: '#94a3b8' }}>▼</span>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Primary button ─────────────────────────────────────────────────── */
+function PBtn({ children, loading: isLoading, disabled, onClick, variant = 'primary', style: sx }) {
+  const [h, setH] = useState(false)
+  const isDisabled = disabled || isLoading
+  const styles = {
+    primary:   { base: 'linear-gradient(135deg,#6366f1,#8b5cf6)', hov: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff', border: 'none' },
+    secondary: { base: '#fff', hov: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0' },
+    danger:    { base: 'rgba(239,68,68,0.05)', hov: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1.5px solid rgba(239,68,68,0.2)' },
+  }
+  const s = styles[variant] || styles.primary
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-        active
-          ? 'bg-blue-600 text-white shadow-sm'
-          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-      }`}
+      disabled={isDisabled}
+      onMouseEnter={() => !isDisabled && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        padding: '11px 20px', borderRadius: 12,
+        background: h && !isDisabled ? s.hov : s.base,
+        color: isDisabled ? '#94a3b8' : s.color,
+        border: s.border || 'none',
+        fontSize: 13, fontWeight: 600,
+        cursor: isDisabled ? 'not-allowed' : 'pointer',
+        opacity: isDisabled ? 0.6 : 1,
+        transition: 'all .15s ease',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        boxShadow: variant === 'primary' && !isDisabled
+          ? h ? '0 6px 20px rgba(99,102,241,0.4)' : '0 3px 12px rgba(99,102,241,0.25)'
+          : 'none',
+        ...sx,
+      }}
     >
-      <Icon className="w-4 h-4" />
+      {isLoading && (
+        <span style={{ width:14, height:14, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', animation:'prof-spin .7s linear infinite', display:'inline-block', flexShrink:0 }} />
+      )}
+      {children}
+    </button>
+  )
+}
+
+/* ─── Modal wrapper ──────────────────────────────────────────────────── */
+function Modal({ open, onClose, title, children, width = 420 }) {
+  useEffect(() => {
+    if (open) document.body.style.overflow = 'hidden'
+    else document.body.style.overflow = ''
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+  if (!open) return null
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: width, maxHeight: '90vh',
+        background: '#fff', borderRadius: 20, overflow: 'hidden', overflowY: 'auto',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.2)',
+        animation: 'prof-modal .25s cubic-bezier(0.34,1.56,0.64,1)',
+      }}>
+        <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>{title}</h2>
+          <CloseBtn onClick={onClose} />
+        </div>
+        <div style={{ padding: 20 }}>{children}</div>
+      </div>
+    </div>
+  )
+}
+
+function CloseBtn({ onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width:32, height:32, borderRadius:8, border:'none', background: h?'#f1f5f9':'transparent', color:'#64748b', cursor:'pointer', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      ✕
+    </button>
+  )
+}
+
+/* ─── Tab button ─────────────────────────────────────────────────────── */
+function TabBtn({ label, icon, active, onClick, count }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '8px 14px', borderRadius: 12, border: 'none',
+        fontSize: 13, fontWeight: active ? 600 : 500, flexShrink: 0,
+        background: active
+          ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+          : h ? '#f1f5f9' : '#fff',
+        color: active ? '#fff' : h ? '#334155' : '#64748b',
+        cursor: 'pointer', boxShadow: active ? '0 3px 12px rgba(99,102,241,0.3)' : '0 1px 3px rgba(0,0,0,0.06)',
+        transition: 'all .15s ease',
+        border: active ? 'none' : '1px solid #f1f5f9',
+      }}
+    >
+      <span style={{ fontSize: 15 }}>{icon}</span>
       {label}
       {count !== undefined && count > 0 && (
-        <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-          active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
-        }`}>
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 100,
+          background: active ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+          color: active ? '#fff' : '#64748b',
+        }}>
           {count}
         </span>
       )}
@@ -73,1237 +211,567 @@ function TabBtn({ active, onClick, icon: Icon, label, count }) {
   )
 }
 
-// ── Section card ──────────────────────────────────────────────────────────────
-function SectionCard({ title, children, action }) {
+/* ─── Section Card ───────────────────────────────────────────────────── */
+function SectionCard({ title, action, children }) {
   return (
-    <div
-      className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
-      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-    >
+    <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #f1f5f9', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
       {(title || action) && (
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
-          {title && (
-            <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid #f8fafc' }}>
+          {title && <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{title}</h3>}
           {action}
         </div>
       )}
-      <div className="p-6">{children}</div>
+      <div style={{ padding: 20 }}>{children}</div>
     </div>
   )
 }
 
-// ── Add / Edit Family Member Modal ────────────────────────────────────────────
-function FamilyMemberModal({ isOpen, onClose, onSave, member, loading }) {
-  const [form, setForm] = useState({
-    name:      '',
-    relation:  'spouse',
-    age:       '',
-    gender:    'male',
-    bloodGroup:'',
-    phone:     '',
-    notes:     '',
-  })
-
-  useEffect(() => {
-    if (member) {
-      setForm({
-        name:       member.name       || '',
-        relation:   member.relation   || 'spouse',
-        age:        member.age        || '',
-        gender:     member.gender     || 'male',
-        bloodGroup: member.bloodGroup || '',
-        phone:      member.phone      || '',
-        notes:      member.notes      || '',
-      })
-    } else {
-      setForm({
-        name: '', relation: 'spouse', age: '',
-        gender: 'male', bloodGroup: '', phone: '', notes: '',
-      })
-    }
-  }, [member, isOpen])
-
-  if (!isOpen) return null
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
-          />
-
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          >
-            <div
-              className="bg-white rounded-2xl w-full max-w-md max-h-[90vh]
-                         overflow-y-auto"
-              style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}
-            >
-              <div className="p-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-5">
-                  {member ? 'Edit Family Member' : 'Add Family Member'}
-                </h2>
-
-                <div className="space-y-4">
-                  {/* Name */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Enter full name"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                 text-sm focus:outline-none focus:ring-2
-                                 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  {/* Relation */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Relation *
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {RELATIONS.map((r) => (
-                        <button
-                          key={r.key}
-                          onClick={() => setForm({ ...form, relation: r.key })}
-                          className={`flex flex-col items-center gap-1 p-2.5 rounded-xl
-                                      border text-xs font-medium transition-all ${
-                            form.relation === r.key
-                              ? 'border-blue-500 bg-blue-50 text-blue-700'
-                              : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                          }`}
-                        >
-                          <r.icon className="w-4 h-4" />
-                          {r.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Age + Gender */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                        Age
-                      </label>
-                      <input
-                        type="number"
-                        placeholder="Age in years"
-                        value={form.age}
-                        onChange={(e) => setForm({ ...form, age: e.target.value })}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                   text-sm focus:outline-none focus:ring-2
-                                   focus:ring-blue-500/20 focus:border-blue-500"
-                        min="0"
-                        max="120"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                        Gender
-                      </label>
-                      <select
-                        value={form.gender}
-                        onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                   text-sm focus:outline-none focus:ring-2
-                                   focus:ring-blue-500/20 appearance-none bg-white"
-                      >
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Blood Group + Phone */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                        Blood Group
-                      </label>
-                      <select
-                        value={form.bloodGroup}
-                        onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                   text-sm focus:outline-none focus:ring-2
-                                   focus:ring-blue-500/20 appearance-none bg-white"
-                      >
-                        <option value="">Select</option>
-                        {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bg => (
-                          <option key={bg} value={bg}>{bg}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                        Phone (optional)
-                      </label>
-                      <input
-                        type="tel"
-                        placeholder="10-digit number"
-                        value={form.phone}
-                        onChange={(e) => setForm({
-                          ...form,
-                          phone: e.target.value.replace(/\D/g, '').slice(0, 10),
-                        })}
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                   text-sm focus:outline-none focus:ring-2
-                                   focus:ring-blue-500/20 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Medical Notes (optional)
-                    </label>
-                    <textarea
-                      placeholder="Allergies, conditions, medications..."
-                      value={form.notes}
-                      onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                      rows={2}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                 text-sm focus:outline-none focus:ring-2
-                                 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Buttons */}
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={onClose}
-                    disabled={loading}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200
-                               text-sm font-medium text-gray-700 hover:bg-gray-50
-                               transition-colors disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => onSave(form)}
-                    disabled={!form.name.trim() || loading}
-                    className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700
-                               disabled:opacity-50 text-white text-sm font-semibold
-                               transition-colors flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <span className="w-4 h-4 border-2 border-white/40
-                                       border-t-white rounded-full animate-spin" />
-                    ) : null}
-                    {member ? 'Save Changes' : 'Add Member'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
-}
-
-// ── Edit Profile Modal ────────────────────────────────────────────────────────
-function EditProfileModal({ isOpen, onClose, user, onSaved }) {
-  const toast   = useToast()
-  const [form,  setForm]    = useState({ name: '', email: '', phone: '' })
+/* ─── Edit Profile Modal ─────────────────────────────────────────────── */
+function EditProfileModal({ open, onClose, user, onSaved }) {
+  const toast = useToast()
+  const [form, setForm] = useState({ name: '', email: '' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (user && isOpen) {
-      setForm({
-        name:  user.name  || '',
-        email: user.email || '',
-        phone: user.phone || '',
-      })
-    }
-  }, [user, isOpen])
+    if (user && open) setForm({ name: user.name || '', email: user.email || '' })
+  }, [user, open])
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      toast.error('Name is required')
-      return
-    }
+    if (!form.name.trim()) { toast.error('Name is required'); return }
     setSaving(true)
     try {
       const res  = await fetch(`/api/users/${user.id}`, {
-        method:      'PUT',
-        headers:     { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body:        JSON.stringify({
-          name:  form.name.trim(),
-          email: form.email.trim() || undefined,
-        }),
+        body: JSON.stringify({ name: form.name.trim(), email: form.email.trim() || undefined }),
       })
       const json = await res.json()
-      if (json.success) {
-        toast.success('Profile updated successfully')
-        onSaved()
-        onClose()
-      } else {
-        toast.error(json.error || 'Failed to update profile')
-      }
-    } catch {
-      toast.error('Network error. Please try again.')
-    } finally {
-      setSaving(false)
-    }
+      if (json.success) { toast.success('Profile updated'); onSaved(); onClose() }
+      else toast.error(json.error || 'Failed to update')
+    } catch { toast.error('Network error') }
+    finally { setSaving(false) }
   }
 
-  if (!isOpen) return null
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          >
-            <div
-              className="bg-white rounded-2xl w-full max-w-sm"
-              style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}
-            >
-              <div className="p-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-5">
-                  Edit Profile
-                </h2>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder="Your full name"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                 text-sm focus:outline-none focus:ring-2
-                                 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      placeholder="you@example.com"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                 text-sm focus:outline-none focus:ring-2
-                                 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={form.phone}
-                      disabled
-                      placeholder="Phone cannot be changed"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2.5
-                                 text-sm bg-gray-50 text-gray-400 cursor-not-allowed"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">
-                      Phone number cannot be changed
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <button
-                    onClick={onClose}
-                    disabled={saving}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200
-                               text-sm font-medium text-gray-700 hover:bg-gray-50
-                               transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !form.name.trim()}
-                    className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700
-                               disabled:opacity-50 text-white text-sm font-semibold
-                               transition-colors flex items-center justify-center gap-2"
-                  >
-                    {saving && (
-                      <span className="w-4 h-4 border-2 border-white/40
-                                       border-t-white rounded-full animate-spin" />
-                    )}
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    <Modal open={open} onClose={onClose} title="Edit Profile" width={400}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <PInput label="Full Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your full name" />
+        <PInput label="Email Address" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@example.com" />
+        <PInput label="Phone Number" value={user?.phone || ''} disabled hint="Phone number cannot be changed" />
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <PBtn variant="secondary" onClick={onClose} disabled={saving} sx={{ flex: 1 }}>Cancel</PBtn>
+          <PBtn onClick={handleSave} loading={saving} disabled={saving || !form.name.trim()} sx={{ flex: 1 }}>Save Changes</PBtn>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
-// ── Main Profile Page ─────────────────────────────────────────────────────────
+/* ─── Family Member Modal ────────────────────────────────────────────── */
+function FamilyModal({ open, onClose, member, onSave, saving }) {
+  const [form, setForm] = useState({ name:'', relation:'spouse', age:'', gender:'male', bloodGroup:'', phone:'', notes:'' })
+
+  useEffect(() => {
+    if (open) {
+      setForm(member ? {
+        name: member.name||'', relation: member.relation||'spouse',
+        age: member.age||'', gender: member.gender||'male',
+        bloodGroup: member.bloodGroup||'', phone: member.phone||'', notes: member.notes||'',
+      } : { name:'', relation:'spouse', age:'', gender:'male', bloodGroup:'', phone:'', notes:'' })
+    }
+  }, [open, member])
+
+  return (
+    <Modal open={open} onClose={onClose} title={member ? 'Edit Family Member' : 'Add Family Member'} width={440}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <PInput label="Full Name *" value={form.name} onChange={(e) => setForm({...form, name:e.target.value})} placeholder="Full name" />
+
+        <div>
+          <label style={{ fontSize:12, fontWeight:600, color:'#475569', display:'block', marginBottom:6 }}>Relation *</label>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:6 }}>
+            {RELATIONS.map((r) => (
+              <RelBtn key={r.key} r={r} active={form.relation===r.key} onClick={() => setForm({...form, relation:r.key})} />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <PInput label="Age" type="number" value={form.age} onChange={(e) => setForm({...form, age:e.target.value})} placeholder="Age" min="0" max="120" />
+          <PSelect label="Gender" value={form.gender} onChange={(e) => setForm({...form, gender:e.target.value})}>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </PSelect>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <PSelect label="Blood Group" value={form.bloodGroup} onChange={(e) => setForm({...form, bloodGroup:e.target.value})}>
+            <option value="">Select</option>
+            {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bg => <option key={bg} value={bg}>{bg}</option>)}
+          </PSelect>
+          <PInput label="Phone (optional)" type="tel" value={form.phone} onChange={(e) => setForm({...form, phone:e.target.value.replace(/\D/g,'').slice(0,10)})} placeholder="10-digit" />
+        </div>
+
+        <div>
+          <label style={{ fontSize:12, fontWeight:600, color:'#475569', display:'block', marginBottom:6 }}>Medical Notes</label>
+          <textarea
+            value={form.notes}
+            onChange={(e) => setForm({...form, notes:e.target.value})}
+            placeholder="Allergies, conditions..."
+            rows={2}
+            style={{ width:'100%', padding:'10px 13px', fontSize:13, fontFamily:'inherit', borderRadius:12, border:'1.5px solid #e2e8f0', outline:'none', resize:'none', boxSizing:'border-box' }}
+          />
+        </div>
+
+        <div style={{ display:'flex', gap:10 }}>
+          <PBtn variant="secondary" onClick={onClose} disabled={saving} sx={{ flex:1 }}>Cancel</PBtn>
+          <PBtn onClick={() => onSave(form)} loading={saving} disabled={!form.name.trim()||saving} sx={{ flex:1 }}>
+            {member ? 'Save Changes' : 'Add Member'}
+          </PBtn>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function RelBtn({ r, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+        padding:'8px 4px', borderRadius:10,
+        border:`1.5px solid ${active?'#6366f1':h?'#c7d2fe':'#e2e8f0'}`,
+        background: active?'rgba(99,102,241,0.08)':h?'rgba(99,102,241,0.04)':'#fff',
+        color: active?'#6366f1':'#64748b', fontSize:11, fontWeight:500,
+        cursor:'pointer', transition:'all .15s ease',
+      }}>
+      <span style={{ fontSize:16 }}>{r.icon}</span>
+      {r.label}
+    </button>
+  )
+}
+
+/* ─── Booking Card (profile) ─────────────────────────────────────────── */
+function ProfileBookingCard({ booking, mounted, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        width:'100%', background:'#fff', borderRadius:16, padding:14,
+        border:`1.5px solid ${h?'#c7d2fe':'#f1f5f9'}`,
+        boxShadow: h?'0 6px 20px rgba(0,0,0,0.08)':'0 1px 4px rgba(0,0,0,0.04)',
+        transform: h?'translateY(-1px)':'translateY(0)',
+        transition:'all .18s ease', cursor:'pointer', textAlign:'left',
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:10,
+      }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{
+          width:36, height:36, borderRadius:10, background:'#f8fafc',
+          display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0,
+        }}>
+          {booking.type==='lab'?'🧪':booking.type==='online'?'🎥':'🏥'}
+        </div>
+        <div>
+          <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{booking.bookingId}</p>
+          <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 0' }}>
+            {mounted ? new Date(booking.startTime).toLocaleDateString('en-IN',{dateStyle:'medium'}) : '—'}
+          </p>
+        </div>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4, flexShrink:0 }}>
+        <Badge variant={getStatusVariant(booking.status)} size="sm">{booking.status?.replace(/_/g,' ')}</Badge>
+        <p style={{ fontSize:12, fontWeight:600, color:'#334155', margin:0 }}>{fmtRs(booking.totalAmount)}</p>
+      </div>
+    </button>
+  )
+}
+
+/* ─── Main Profile Page ──────────────────────────────────────────────── */
 export default function ProfilePage() {
   const { user, logout, refreshUser } = useAuth()
   const router  = useRouter()
   const toast   = useToast()
   const mounted = useMounted()
 
-  const [activeTab,       setActiveTab]       = useState('profile')
-  const [editProfile,     setEditProfile]      = useState(false)
-  const [familyModal,     setFamilyModal]      = useState(false)
-  const [editingMember,   setEditingMember]    = useState(null)
-  const [familyLoading,   setFamilyLoading]    = useState(false)
-  const [familyMembers,   setFamilyMembers]    = useState([])
-  const [loadingFamily,   setLoadingFamily]    = useState(false)
-  const [bookingFilter,   setBookingFilter]    = useState('all')
-  const [bookingPage,     setBookingPage]      = useState(1)
+  const [tab,           setTab]           = useState('profile')
+  const [editModal,     setEditModal]      = useState(false)
+  const [familyModal,   setFamilyModal]   = useState(false)
+  const [editingMember, setEditingMember] = useState(null)
+  const [familySaving,  setFamilySaving]  = useState(false)
+  const [familyMembers, setFamilyMembers] = useState([])
+  const [familyLoading, setFamilyLoading] = useState(false)
+  const [bkFilter,      setBkFilter]      = useState('all')
+  const [bkPage,        setBkPage]        = useState(1)
+  const [headerVis,     setHeaderVis]     = useState(false)
 
-  // ── Fetch bookings ────────────────────────────────────────────────────────
-  const bookingParams = new URLSearchParams({
-    page:  bookingPage,
-    limit: 10,
-    ...(bookingFilter !== 'all' && { status: bookingFilter }),
-  })
-
-  const { data: bookingsData, isLoading: bookingsLoading } = useSWR(
-    user ? `/api/bookings?${bookingParams}` : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  )
-
-  const bookings   = bookingsData?.bookings || []
-  const pagination = bookingsData?.pagination || {}
-
-  // ── Load family members ───────────────────────────────────────────────────
   useEffect(() => {
-    if (!user || activeTab !== 'family') return
-    loadFamilyMembers()
-  }, [user, activeTab])
+    if (mounted) setTimeout(() => setHeaderVis(true), 50)
+  }, [mounted])
 
-  const loadFamilyMembers = async () => {
-    setLoadingFamily(true)
-    try {
-      const res  = await fetch(`/api/users/${user.id}/family`, {
-        credentials: 'include',
-      })
-      const json = await res.json()
-      if (json.success) {
-        setFamilyMembers(json.data || [])
-      }
-    } catch {
-      // Family API might not exist — show empty
-      setFamilyMembers([])
-    } finally {
-      setLoadingFamily(false)
-    }
-  }
+  const bkParams = new URLSearchParams({ page: bkPage, limit: 10, ...(bkFilter !== 'all' && { status: bkFilter }) })
+  const { data: bkData, isLoading: bkLoading } = useSWR(user ? `/api/bookings?${bkParams}` : null, fetcher, { revalidateOnFocus: false })
+  const bookings   = bkData?.bookings || []
+  const pagination = bkData?.pagination || {}
 
-  // ── Add / Edit family member ──────────────────────────────────────────────
-  const handleSaveFamilyMember = async (form) => {
+  useEffect(() => {
+    if (!user || tab !== 'family') return
+    loadFamily()
+  }, [user, tab])
+
+  const loadFamily = async () => {
     setFamilyLoading(true)
     try {
-      const isEdit = !!editingMember
-      const url    = isEdit
-        ? `/api/users/${user.id}/family/${editingMember.id}`
-        : `/api/users/${user.id}/family`
-
-      const res  = await fetch(url, {
-        method:      isEdit ? 'PUT' : 'POST',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body:        JSON.stringify(form),
-      })
+      const res  = await fetch(`/api/users/${user.id}/family`, { credentials: 'include' })
       const json = await res.json()
-
-      if (json.success) {
-        toast.success(isEdit ? 'Member updated' : 'Family member added')
-        setFamilyModal(false)
-        setEditingMember(null)
-        loadFamilyMembers()
-      } else {
-        toast.error(json.error || 'Failed to save')
-      }
-    } catch {
-      toast.error('Network error')
-    } finally {
-      setFamilyLoading(false)
-    }
+      setFamilyMembers(json.success ? (json.data || []) : [])
+    } catch { setFamilyMembers([]) }
+    finally { setFamilyLoading(false) }
   }
 
-  // ── Delete family member ──────────────────────────────────────────────────
-  const handleDeleteMember = async (memberId) => {
+  const handleSaveFamily = async (form) => {
+    setFamilySaving(true)
+    try {
+      const isEdit = !!editingMember
+      const url    = isEdit ? `/api/users/${user.id}/family/${editingMember.id}` : `/api/users/${user.id}/family`
+      const res    = await fetch(url, { method: isEdit?'PUT':'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(form) })
+      const json   = await res.json()
+      if (json.success) { toast.success(isEdit?'Member updated':'Member added'); setFamilyModal(false); setEditingMember(null); loadFamily() }
+      else toast.error(json.error || 'Failed to save')
+    } catch { toast.error('Network error') }
+    finally { setFamilySaving(false) }
+  }
+
+  const handleDeleteMember = async (id) => {
     if (!confirm('Remove this family member?')) return
     try {
-      const res  = await fetch(`/api/users/${user.id}/family/${memberId}`, {
-        method:      'DELETE',
-        credentials: 'include',
-      })
+      const res  = await fetch(`/api/users/${user.id}/family/${id}`, { method:'DELETE', credentials:'include' })
       const json = await res.json()
-      if (json.success) {
-        toast.success('Family member removed')
-        loadFamilyMembers()
-      } else {
-        toast.error(json.error || 'Failed to remove')
-      }
-    } catch {
-      toast.error('Network error')
-    }
+      if (json.success) { toast.success('Member removed'); loadFamily() }
+      else toast.error(json.error || 'Failed to remove')
+    } catch { toast.error('Network error') }
   }
 
-  // ── Logout ────────────────────────────────────────────────────────────────
-  const handleLogout = async () => {
-    await logout()
-    router.push('/')
-  }
+  const handleLogout = async () => { await logout(); router.push('/') }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent
-                        rounded-full animate-spin" />
+      <div style={{ minHeight:'100vh', background:'#f8fafc', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <style>{`@keyframes prof-spin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width:32, height:32, borderRadius:'50%', border:'3px solid #6366f1', borderTopColor:'transparent', animation:'prof-spin .8s linear infinite' }} />
       </div>
     )
   }
 
-  const initials = user.name
-    ?.split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || 'U'
+  const initials = user.name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || 'U'
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <>
+      <style>{KF}</style>
+      <div style={{ minHeight:'100vh', background:'#f8fafc' }}>
+        <Navbar />
+        <div style={{ maxWidth:720, margin:'0 auto', padding:'clamp(88px,12vw,104px) clamp(16px,3vw,32px) 80px' }}>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-24 pb-20">
-
-        {/* ── Profile header ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-blue-600 to-indigo-700
-                     rounded-2xl p-6 mb-6 text-white"
-          style={{ boxShadow: '0 4px 20px rgba(37,99,235,0.3)' }}
-        >
-          <div className="flex items-center gap-4">
-            {/* Avatar */}
-            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center
-                            justify-center text-white font-bold text-xl flex-shrink-0
-                            border-2 border-white/30">
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold truncate">{user.name}</h1>
-              <div className="flex flex-wrap gap-3 mt-1">
-                {user.phone && (
-                  <span className="flex items-center gap-1 text-blue-100 text-sm">
-                    <Phone className="w-3.5 h-3.5" />
-                    +91 {user.phone}
-                  </span>
-                )}
-                {user.email && (
-                  <span className="flex items-center gap-1 text-blue-100 text-sm">
-                    <Mail className="w-3.5 h-3.5" />
-                    {user.email}
-                  </span>
-                )}
+          {/* ── Profile Header ── */}
+          <div style={{
+            backgroundImage: 'linear-gradient(135deg,#4f46e5,#2563eb)',
+            borderRadius: 20, padding: 'clamp(18px,4vw,24px)',
+            color: '#fff', marginBottom: 20,
+            boxShadow: '0 8px 32px rgba(79,70,229,0.3)',
+            opacity: headerVis?1:0,
+            transform: headerVis?'translateY(0)':'translateY(14px)',
+            transition: 'opacity .4s ease, transform .4s ease',
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
+              <div style={{
+                width:60, height:60, borderRadius:'50%',
+                background:'rgba(255,255,255,0.2)', border:'2px solid rgba(255,255,255,0.3)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:22, fontWeight:700, color:'#fff', flexShrink:0, overflow:'hidden',
+              }}>
+                {user.avatar ? <img src={user.avatar} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : initials}
               </div>
-              <div className="mt-2">
-                <span className="text-xs bg-white/20 text-white px-2 py-0.5
-                                 rounded-full capitalize">
-                  {user.role?.replace(/_/g, ' ')}
-                </span>
-                {user.isVerified && (
-                  <span className="ml-2 text-xs bg-emerald-500/30 text-emerald-100
-                                   px-2 py-0.5 rounded-full">
-                    ✓ Verified
+              <div style={{ flex:1, minWidth:0 }}>
+                <h1 style={{ fontSize:'clamp(16px,3vw,20px)', fontWeight:800, color:'#fff', margin:'0 0 6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {user.name}
+                </h1>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 14px' }}>
+                  {user.phone && <span style={{ fontSize:13, color:'rgba(255,255,255,0.75)' }}>📱 +91 {user.phone}</span>}
+                  {user.email && <span style={{ fontSize:13, color:'rgba(255,255,255,0.75)' }}>✉️ {user.email}</span>}
+                </div>
+                <div style={{ marginTop:8, display:'flex', gap:6, flexWrap:'wrap' }}>
+                  <span style={{ fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:100 }}>
+                    {user.role?.replace(/_/g,' ')}
                   </span>
-                )}
+                  {user.isVerified && (
+                    <span style={{ fontSize:11, fontWeight:600, background:'rgba(16,185,129,0.3)', padding:'2px 10px', borderRadius:100 }}>
+                      ✓ Verified
+                    </span>
+                  )}
+                </div>
               </div>
+              <EditProfileBtn onClick={() => setEditModal(true)} />
             </div>
-
-            {/* Edit button */}
-            <button
-              onClick={() => setEditProfile(true)}
-              className="flex-shrink-0 w-9 h-9 bg-white/20 hover:bg-white/30
-                         rounded-xl flex items-center justify-center transition-colors"
-            >
-              <Edit3 className="w-4 h-4 text-white" />
-            </button>
           </div>
-        </motion.div>
 
-        {/* ── Tabs ── */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-          <TabBtn
-            active={activeTab === 'profile'}
-            onClick={() => setActiveTab('profile')}
-            icon={User}
-            label="Profile"
-          />
-          <TabBtn
-            active={activeTab === 'bookings'}
-            onClick={() => setActiveTab('bookings')}
-            icon={Calendar}
-            label="Bookings"
-            count={pagination.total}
-          />
-          <TabBtn
-            active={activeTab === 'family'}
-            onClick={() => setActiveTab('family')}
-            icon={Users}
-            label="Family"
-            count={familyMembers.length}
-          />
-          <TabBtn
-            active={activeTab === 'account'}
-            onClick={() => setActiveTab('account')}
-            icon={Shield}
-            label="Account"
-          />
-        </div>
-
-        <AnimatePresence mode="wait">
+          {/* ── Tabs ── */}
+          <div style={{ display:'flex', gap:8, marginBottom:20, overflowX:'auto', paddingBottom:4 }}>
+            {[
+              { key:'profile',  label:'Profile',  icon:'👤' },
+              { key:'bookings', label:'Bookings', icon:'📅', count:pagination.total },
+              { key:'family',   label:'Family',   icon:'👨‍👩‍👧', count:familyMembers.length },
+              { key:'account',  label:'Account',  icon:'🛡️' },
+            ].map((t) => (
+              <TabBtn key={t.key} label={t.label} icon={t.icon} count={t.count} active={tab===t.key} onClick={() => setTab(t.key)} />
+            ))}
+          </div>
 
           {/* ══ PROFILE TAB ══ */}
-          {activeTab === 'profile' && (
-            <motion.div
-              key="profile"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              {/* Personal Info */}
-              <SectionCard
-                title="Personal Information"
-                action={
-                  <button
-                    onClick={() => setEditProfile(true)}
-                    className="flex items-center gap-1.5 text-xs font-medium
-                               text-blue-600 hover:text-blue-700"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    Edit
-                  </button>
-                }
-              >
-                <div className="space-y-3">
-                  {[
-                    {
-                      icon:  User,
-                      label: 'Full Name',
-                      value: user.name,
-                    },
-                    {
-                      icon:  Phone,
-                      label: 'Phone Number',
-                      value: user.phone ? `+91 ${user.phone}` : '—',
-                    },
-                    {
-                      icon:  Mail,
-                      label: 'Email Address',
-                      value: user.email || '—',
-                    },
-                    {
-                      icon:  Calendar,
-                      label: 'Member Since',
-                      value: mounted && user.createdAt
-                        ? new Date(user.createdAt).toLocaleDateString('en-IN', {
-                            dateStyle: 'medium',
-                          })
-                        : '—',
-                    },
-                  ].map(({ icon: Icon, label, value }) => (
-                    <div
-                      key={label}
-                      className="flex items-center gap-3 py-2.5 border-b
-                                 border-gray-50 last:border-0"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-gray-50 flex
-                                      items-center justify-center flex-shrink-0">
-                        <Icon className="w-4 h-4 text-gray-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-400">{label}</p>
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          {value}
-                        </p>
-                      </div>
+          {tab === 'profile' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:16, animation:'prof-in .2s ease' }}>
+              <SectionCard title="Personal Information" action={
+                <button onClick={() => setEditModal(true)} style={{ fontSize:12, fontWeight:600, color:'#6366f1', background:'none', border:'none', cursor:'pointer' }}>✏️ Edit</button>
+              }>
+                {[
+                  { icon:'👤', label:'Full Name',    value:user.name },
+                  { icon:'📱', label:'Phone',        value:user.phone?`+91 ${user.phone}`:'—' },
+                  { icon:'✉️', label:'Email',        value:user.email||'—' },
+                  { icon:'📅', label:'Member Since', value:mounted&&user.createdAt?new Date(user.createdAt).toLocaleDateString('en-IN',{dateStyle:'medium'}):'—' },
+                ].map(({ icon, label, value }) => (
+                  <div key={label} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
+                    <div style={{ width:34, height:34, borderRadius:10, background:'#f8fafc', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
+                      {icon}
                     </div>
-                  ))}
-                </div>
+                    <div>
+                      <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>{label}</p>
+                      <p style={{ fontSize:13, fontWeight:500, color:'#1e293b', margin:'1px 0 0' }}>{value}</p>
+                    </div>
+                  </div>
+                ))}
               </SectionCard>
 
-              {/* Quick actions */}
               <SectionCard title="Quick Actions">
-                <div className="space-y-2">
-                  {[
-                    {
-                      icon:  Calendar,
-                      label: 'My Bookings',
-                      sub:   'View all appointments',
-                      color: 'bg-blue-50 text-blue-600',
-                      action:() => setActiveTab('bookings'),
-                    },
-                    {
-                      icon:  Users,
-                      label: 'Family Members',
-                      sub:   'Manage family profiles',
-                      color: 'bg-purple-50 text-purple-600',
-                      action:() => setActiveTab('family'),
-                    },
-                    {
-                      icon:  FileText,
-                      label: 'My Invoices',
-                      sub:   'Download invoices & receipts',
-                      color: 'bg-green-50 text-green-600',
-                      action:() => router.push('/user/invoices'),
-                    },
-                  ].map(({ icon: Icon, label, sub, color, action }) => (
-                    <button
-                      key={label}
-                      onClick={action}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl
-                                 hover:bg-gray-50 transition-colors group"
-                    >
-                      <div className={`w-9 h-9 rounded-xl flex items-center
-                                       justify-center flex-shrink-0 ${color}`}>
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className="text-sm font-medium text-gray-800">
-                          {label}
-                        </p>
-                        <p className="text-xs text-gray-400">{sub}</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-gray-300
-                                               group-hover:text-gray-400" />
-                    </button>
-                  ))}
-                </div>
+                {[
+                  { icon:'📅', label:'My Bookings',    sub:'View all appointments', action:() => setTab('bookings') },
+                  { icon:'👨‍👩‍👧', label:'Family Members', sub:'Manage family profiles',  action:() => setTab('family')   },
+                  { icon:'🧾', label:'My Invoices',    sub:'Download receipts',         action:() => router.push('/user/invoices') },
+                ].map(({ icon, label, sub, action }) => (
+                  <ActionRow key={label} icon={icon} label={label} sub={sub} onClick={action} />
+                ))}
               </SectionCard>
-            </motion.div>
+            </div>
           )}
 
           {/* ══ BOOKINGS TAB ══ */}
-          {activeTab === 'bookings' && (
-            <motion.div
-              key="bookings"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              {/* Filter pills */}
-              <div className="flex gap-2 overflow-x-auto pb-1">
+          {tab === 'bookings' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14, animation:'prof-in .2s ease' }}>
+              {/* Filters */}
+              <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:4 }}>
                 {[
-                  { key: 'all',              label: 'All'       },
-                  { key: 'confirmed',        label: 'Upcoming'  },
-                  { key: 'completed',        label: 'Completed' },
-                  { key: 'cancelled',        label: 'Cancelled' },
-                  { key: 'pending_payment',  label: 'Pending'   },
-                ].map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={() => {
-                      setBookingFilter(f.key)
-                      setBookingPage(1)
-                    }}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs
-                                font-medium transition-all ${
-                      bookingFilter === f.key
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-white border border-gray-200 text-gray-600'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
+                  { key:'all', label:'All' },
+                  { key:'confirmed', label:'Upcoming' },
+                  { key:'completed', label:'Completed' },
+                  { key:'cancelled', label:'Cancelled' },
+                  { key:'pending_payment', label:'Pending' },
+                ].map((f) => <FilterPill key={f.key} f={f} active={bkFilter===f.key} onClick={() => { setBkFilter(f.key); setBkPage(1) }} />)}
               </div>
 
-              {/* Bookings list */}
-              {bookingsLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="bg-white rounded-2xl border border-gray-100
-                                 p-4 h-24 animate-pulse"
-                    />
-                  ))}
+              {bkLoading ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {[1,2,3].map((i) => <div key={i} style={{ height:76, borderRadius:16, ...SHIMMER }} />)}
                 </div>
-              ) : bookings.length === 0 ? (
-                <div
-                  className="bg-white rounded-2xl border border-gray-100 p-12
-                             text-center"
-                  style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-                >
-                  <Calendar className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-gray-500">
-                    No bookings found
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Your appointments will appear here
-                  </p>
-                  <button
-                    onClick={() => router.push('/hospitals')}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl
-                               text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Book Appointment
-                  </button>
+              ) : !bookings.length ? (
+                <div style={{ background:'#fff', borderRadius:20, border:'1px solid #f1f5f9', padding:48, textAlign:'center' }}>
+                  <p style={{ fontSize:22, marginBottom:8 }}>📅</p>
+                  <p style={{ fontSize:14, fontWeight:600, color:'#64748b', margin:'0 0 6px' }}>No bookings found</p>
+                  <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 16px' }}>Your appointments will appear here</p>
+                  <PBtn onClick={() => router.push('/hospitals')} sx={{ margin:'0 auto', width:'fit-content' }}>Book Appointment</PBtn>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {bookings.map((booking, i) => (
-                    <motion.button
-                      key={booking.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.04 }}
-                      onClick={() =>
-                        router.push(`/user/bookings/${booking.id}`)
-                      }
-                      className="w-full bg-white rounded-2xl border border-gray-100
-                                 p-4 text-left hover:border-blue-200 hover:shadow-sm
-                                 transition-all group"
-                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          {/* Type icon */}
-                          <div className="w-9 h-9 rounded-xl bg-gray-50 flex
-                                          items-center justify-center flex-shrink-0
-                                          mt-0.5">
-                            <BookingTypeIcon type={booking.type} />
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 truncate">
-                              {booking.bookingId}
-                            </p>
-                            <p className="text-xs text-gray-500 capitalize mt-0.5">
-                              {booking.type === 'lab'
-                                ? 'Lab Test'
-                                : booking.type === 'online'
-                                  ? 'Online Consultation'
-                                  : 'Hospital Visit'}
-                            </p>
-                            {booking.startTime && mounted && (
-                              <p className="text-xs text-gray-400 flex items-center
-                                            gap-1 mt-1">
-                                <Clock className="w-3 h-3" />
-                                {new Date(booking.startTime).toLocaleDateString(
-                                  'en-IN',
-                                  { dateStyle: 'medium' }
-                                )}{' '}
-                                ·{' '}
-                                {new Date(booking.startTime).toLocaleTimeString(
-                                  'en-IN',
-                                  { hour: '2-digit', minute: '2-digit' }
-                                )}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1.5
-                                        flex-shrink-0">
-                          <Badge
-                            variant={getStatusVariant(booking.status)}
-                            size="sm"
-                          >
-                            {booking.status?.replace(/_/g, ' ')}
-                          </Badge>
-                          <p className="text-xs font-semibold text-gray-700">
-                            {fmtRs(booking.totalAmount)}
-                          </p>
-                        </div>
-                      </div>
-                    </motion.button>
-                  ))}
-
-                  {/* Pagination */}
+                <>
+                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                    {bookings.map((b) => (
+                      <ProfileBookingCard key={b.id} booking={b} mounted={mounted} onClick={() => router.push(`/user/bookings/${b.id}`)} />
+                    ))}
+                  </div>
                   {pagination.pages > 1 && (
-                    <div className="flex items-center justify-center gap-3 pt-2">
-                      <button
-                        onClick={() => setBookingPage((p) => Math.max(1, p - 1))}
-                        disabled={bookingPage === 1}
-                        className="px-3 py-1.5 rounded-lg border border-gray-200
-                                   text-xs font-medium text-gray-600 disabled:opacity-40
-                                   hover:bg-gray-50 transition-colors"
-                      >
-                        Previous
-                      </button>
-                      <span className="text-xs text-gray-500">
-                        {bookingPage} / {pagination.pages}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setBookingPage((p) =>
-                            Math.min(pagination.pages, p + 1)
-                          )
-                        }
-                        disabled={bookingPage === pagination.pages}
-                        className="px-3 py-1.5 rounded-lg border border-gray-200
-                                   text-xs font-medium text-gray-600 disabled:opacity-40
-                                   hover:bg-gray-50 transition-colors"
-                      >
-                        Next
-                      </button>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12 }}>
+                      <PBtn variant="secondary" onClick={() => setBkPage((p) => Math.max(1,p-1))} disabled={bkPage===1} sx={{ padding:'7px 16px', fontSize:12 }}>← Prev</PBtn>
+                      <span style={{ fontSize:12, color:'#94a3b8' }}>{bkPage} / {pagination.pages}</span>
+                      <PBtn variant="secondary" onClick={() => setBkPage((p) => Math.min(pagination.pages,p+1))} disabled={bkPage===pagination.pages} sx={{ padding:'7px 16px', fontSize:12 }}>Next →</PBtn>
                     </div>
                   )}
-                </div>
+                </>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* ══ FAMILY TAB ══ */}
-          {activeTab === 'family' && (
-            <motion.div
-              key="family"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              {/* Info banner */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl
-                              p-4 flex items-start gap-3">
-                <Users className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+          {tab === 'family' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14, animation:'prof-in .2s ease' }}>
+              <div style={{ background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.15)', borderRadius:14, padding:14, display:'flex', alignItems:'flex-start', gap:10 }}>
+                <span style={{ fontSize:18, flexShrink:0 }}>👨‍👩‍👧</span>
                 <div>
-                  <p className="text-sm font-semibold text-blue-800">
-                    Family Members
-                  </p>
-                  <p className="text-xs text-blue-600 mt-0.5">
-                    Add family members to book appointments on their behalf.
-                  </p>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#4f46e5', margin:'0 0 2px' }}>Family Members</p>
+                  <p style={{ fontSize:12, color:'#6366f1', margin:0 }}>Add family members to book appointments on their behalf.</p>
                 </div>
               </div>
 
-              {/* Add button */}
-              <button
-                onClick={() => {
-                  setEditingMember(null)
-                  setFamilyModal(true)
-                }}
-                className="w-full flex items-center justify-center gap-2 py-3
-                           border-2 border-dashed border-blue-200 rounded-2xl
-                           text-sm font-medium text-blue-600 hover:border-blue-400
-                           hover:bg-blue-50 transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                Add Family Member
-              </button>
+              <AddMemberBtn onClick={() => { setEditingMember(null); setFamilyModal(true) }} />
 
-              {/* Members list */}
-              {loadingFamily ? (
-                <div className="space-y-3">
-                  {[1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="bg-white rounded-2xl border border-gray-100
-                                 p-4 h-20 animate-pulse"
-                    />
-                  ))}
+              {familyLoading ? (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {[1,2].map((i) => <div key={i} style={{ height:72, borderRadius:16, ...SHIMMER }} />)}
                 </div>
-              ) : familyMembers.length === 0 ? (
-                <div
-                  className="bg-white rounded-2xl border border-gray-100
-                             p-10 text-center"
-                  style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-                >
-                  <Users className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-gray-500">
-                    No family members added yet
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Add your spouse, children, or parents
-                  </p>
+              ) : !familyMembers.length ? (
+                <div style={{ background:'#fff', borderRadius:20, border:'1px solid #f1f5f9', padding:40, textAlign:'center' }}>
+                  <p style={{ fontSize:22, marginBottom:8 }}>👥</p>
+                  <p style={{ fontSize:14, fontWeight:600, color:'#64748b', margin:0 }}>No family members added yet</p>
+                  <p style={{ fontSize:12, color:'#94a3b8', marginTop:4 }}>Add your spouse, children, or parents</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {familyMembers.map((member, i) => {
-                    const relation = RELATIONS.find(
-                      (r) => r.key === member.relation
-                    ) || RELATIONS[4]
-                    const RelIcon  = relation.icon
-
-                    return (
-                      <motion.div
-                        key={member.id || i}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="bg-white rounded-2xl border border-gray-100 p-4"
-                        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-                      >
-                        <div className="flex items-center gap-3">
-                          {/* Avatar */}
-                          <div className="w-10 h-10 rounded-full bg-purple-100
-                                          flex items-center justify-center
-                                          flex-shrink-0">
-                            <RelIcon className="w-5 h-5 text-purple-600" />
-                          </div>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-800">
-                              {member.name}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-gray-400 capitalize">
-                                {member.relation}
-                              </span>
-                              {member.age && (
-                                <>
-                                  <span className="text-gray-200">·</span>
-                                  <span className="text-xs text-gray-400">
-                                    {member.age} yrs
-                                  </span>
-                                </>
-                              )}
-                              {member.gender && (
-                                <>
-                                  <span className="text-gray-200">·</span>
-                                  <span className="text-xs text-gray-400 capitalize">
-                                    {member.gender}
-                                  </span>
-                                </>
-                              )}
-                              {member.bloodGroup && (
-                                <>
-                                  <span className="text-gray-200">·</span>
-                                  <span className="text-xs font-medium
-                                                   text-red-500">
-                                    {member.bloodGroup}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                            {member.notes && (
-                              <p className="text-xs text-gray-400 mt-1 truncate">
-                                📋 {member.notes}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button
-                              onClick={() => {
-                                setEditingMember(member)
-                                setFamilyModal(true)
-                              }}
-                              className="w-8 h-8 rounded-lg flex items-center
-                                         justify-center text-gray-400
-                                         hover:bg-gray-100 hover:text-gray-600
-                                         transition-colors"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteMember(member.id)}
-                              className="w-8 h-8 rounded-lg flex items-center
-                                         justify-center text-gray-400
-                                         hover:bg-red-50 hover:text-red-500
-                                         transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )
-                  })}
-                </div>
+                familyMembers.map((m, i) => {
+                  const rel = RELATIONS.find((r) => r.key === m.relation) || RELATIONS[4]
+                  return <FamilyMemberCard key={m.id||i} m={m} rel={rel} onEdit={() => { setEditingMember(m); setFamilyModal(true) }} onDelete={() => handleDeleteMember(m.id)} />
+                })
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* ══ ACCOUNT TAB ══ */}
-          {activeTab === 'account' && (
-            <motion.div
-              key="account"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-4"
-            >
-              {/* Account Status */}
+          {tab === 'account' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14, animation:'prof-in .2s ease' }}>
               <SectionCard title="Account Status">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">
-                      Account Verification
-                    </span>
-                    {user.isVerified ? (
-                      <span className="flex items-center gap-1.5 text-xs
-                                       font-medium text-emerald-600">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Verified
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-xs
-                                       font-medium text-amber-600">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        Not Verified
-                      </span>
-                    )}
+                {[
+                  { label:'Account Verification', value: user.isVerified ? '✓ Verified' : '⚠ Not Verified', color: user.isVerified?'#10b981':'#f59e0b' },
+                  { label:'Account Status',        value: user.isBlocked  ? '✕ Blocked'  : '✓ Active',        color: user.isBlocked?'#ef4444':'#10b981'  },
+                  { label:'Role',                  value: user.role?.replace(/_/g,' '), color: '#6366f1' },
+                  ...(mounted&&user.createdAt ? [{ label:'Joined', value:new Date(user.createdAt).toLocaleDateString('en-IN',{dateStyle:'long'}), color:'#64748b' }] : []),
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
+                    <span style={{ fontSize:13, color:'#64748b' }}>{label}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color }}>{value}</span>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Account Status</span>
-                    {user.isBlocked ? (
-                      <span className="flex items-center gap-1.5 text-xs
-                                       font-medium text-red-600">
-                        <XCircle className="w-3.5 h-3.5" />
-                        Blocked
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-xs
-                                       font-medium text-emerald-600">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Active
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Role</span>
-                    <span className="text-xs font-medium text-gray-700
-                                     capitalize bg-gray-100 px-2 py-0.5 rounded-full">
-                      {user.role?.replace(/_/g, ' ')}
-                    </span>
-                  </div>
-
-                  {mounted && user.createdAt && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Joined</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(user.createdAt).toLocaleDateString('en-IN', {
-                          dateStyle: 'long',
-                        })}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                ))}
               </SectionCard>
 
-              {/* Danger zone */}
               <SectionCard title="Account Actions">
-                <div className="space-y-2">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl
-                               hover:bg-red-50 transition-colors group text-left"
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-red-50 flex items-center
-                                    justify-center flex-shrink-0">
-                      <LogOut className="w-4 h-4 text-red-500" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-red-600">
-                        Sign Out
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        Sign out of your MEDLI account
-                      </p>
-                    </div>
-                  </button>
-                </div>
+                <LogoutBtn onLogout={handleLogout} />
               </SectionCard>
 
-              {/* Support */}
-              <div className="text-center py-4">
-                <p className="text-xs text-gray-400">
-                  Need help?{' '}
-                  <a
-                    href="mailto:support@medli.in"
-                    className="text-blue-600 hover:underline font-medium"
-                  >
-                    support@medli.in
-                  </a>
-                </p>
-              </div>
-            </motion.div>
+              <p style={{ textAlign:'center', fontSize:12, color:'#94a3b8' }}>
+                Need help?{' '}
+                <a href="mailto:support@medli.in" style={{ color:'#6366f1', fontWeight:600, textDecoration:'none' }}>support@medli.in</a>
+              </p>
+            </div>
           )}
+        </div>
 
-        </AnimatePresence>
+        <Footer />
+
+        {/* Modals */}
+        <EditProfileModal open={editModal} onClose={() => setEditModal(false)} user={user} onSaved={refreshUser} />
+        <FamilyModal open={familyModal} onClose={() => { setFamilyModal(false); setEditingMember(null) }} member={editingMember} onSave={handleSaveFamily} saving={familySaving} />
       </div>
+    </>
+  )
+}
 
-      <Footer />
+/* ─── Small helper components ────────────────────────────────────────── */
+function EditProfileBtn({ onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width:36, height:36, borderRadius:10, border:'none', background: h?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0, transition:'background .15s ease' }}>
+      ✏️
+    </button>
+  )
+}
 
-      {/* ── Modals ── */}
-      <EditProfileModal
-        isOpen={editProfile}
-        onClose={() => setEditProfile(false)}
-        user={user}
-        onSaved={refreshUser}
-      />
+function ActionRow({ icon, label, sub, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'10px', borderRadius:12, border:'none', background: h?'#f8fafc':'transparent', cursor:'pointer', textAlign:'left', transition:'background .12s ease' }}>
+      <div style={{ width:36, height:36, borderRadius:10, background:'rgba(99,102,241,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{icon}</div>
+      <div style={{ flex:1 }}>
+        <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{label}</p>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>{sub}</p>
+      </div>
+      <span style={{ fontSize:14, color:'#94a3b8' }}>›</span>
+    </button>
+  )
+}
 
-      <FamilyMemberModal
-        isOpen={familyModal}
-        onClose={() => {
-          setFamilyModal(false)
-          setEditingMember(null)
-        }}
-        onSave={handleSaveFamilyMember}
-        member={editingMember}
-        loading={familyLoading}
-      />
+function FilterPill({ f, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ flexShrink:0, padding:'5px 12px', borderRadius:100, border:'none', fontSize:12, fontWeight:500, cursor:'pointer', transition:'all .15s ease',
+        background: active?'linear-gradient(135deg,#6366f1,#8b5cf6)':h?'#e2e8f0':'#f1f5f9',
+        color: active?'#fff':'#64748b',
+        boxShadow: active?'0 2px 8px rgba(99,102,241,0.3)':'none',
+      }}>
+      {f.label}
+    </button>
+  )
+}
+
+function AddMemberBtn({ onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px', borderRadius:16, cursor:'pointer', transition:'all .15s ease',
+        border:`2px dashed ${h?'#6366f1':'rgba(99,102,241,0.25)'}`,
+        background: h?'rgba(99,102,241,0.05)':'transparent',
+        color: h?'#6366f1':'#94a3b8', fontSize:13, fontWeight:600,
+      }}>
+      + Add Family Member
+    </button>
+  )
+}
+
+function FamilyMemberCard({ m, rel, onEdit, onDelete }) {
+  const [editH, setEditH] = useState(false)
+  const [delH, setDelH]   = useState(false)
+  return (
+    <div style={{ background:'#fff', borderRadius:16, border:'1px solid #f1f5f9', padding:14, display:'flex', alignItems:'center', gap:12, boxShadow:'0 1px 4px rgba(0,0,0,0.04)' }}>
+      <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(139,92,246,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
+        {rel.icon}
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <p style={{ fontSize:14, fontWeight:700, color:'#1e293b', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.name}</p>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'2px 8px', marginTop:2 }}>
+          <span style={{ fontSize:11, color:'#94a3b8' }}>{m.relation}</span>
+          {m.age && <span style={{ fontSize:11, color:'#94a3b8' }}>· {m.age} yrs</span>}
+          {m.gender && <span style={{ fontSize:11, color:'#94a3b8' }}>· {m.gender}</span>}
+          {m.bloodGroup && <span style={{ fontSize:11, fontWeight:600, color:'#ef4444' }}>· {m.bloodGroup}</span>}
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:4 }}>
+        <button onMouseEnter={() => setEditH(true)} onMouseLeave={() => setEditH(false)} onClick={onEdit}
+          style={{ width:32, height:32, borderRadius:8, border:'none', background: editH?'#f1f5f9':'transparent', cursor:'pointer', fontSize:14, transition:'background .12s ease', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          ✏️
+        </button>
+        <button onMouseEnter={() => setDelH(true)} onMouseLeave={() => setDelH(false)} onClick={onDelete}
+          style={{ width:32, height:32, borderRadius:8, border:'none', background: delH?'rgba(239,68,68,0.08)':'transparent', cursor:'pointer', fontSize:14, transition:'background .12s ease', display:'flex', alignItems:'center', justifyContent:'center', color: delH?'#ef4444':'inherit' }}>
+          🗑️
+        </button>
+      </div>
     </div>
+  )
+}
+
+function LogoutBtn({ onLogout }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onLogout} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'10px', borderRadius:12, border:'none', background: h?'rgba(239,68,68,0.06)':'transparent', cursor:'pointer', textAlign:'left', transition:'background .12s ease' }}>
+      <div style={{ width:36, height:36, borderRadius:10, background:'rgba(239,68,68,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>🚪</div>
+      <div>
+        <p style={{ fontSize:13, fontWeight:600, color:'#ef4444', margin:0 }}>Sign Out</p>
+        <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Sign out of your MEDLI account</p>
+      </div>
+    </button>
   )
 }

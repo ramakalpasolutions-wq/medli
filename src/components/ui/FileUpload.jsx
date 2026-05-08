@@ -1,17 +1,15 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, X, CheckCircle, File } from 'lucide-react'
 
 export default function FileUpload({
   purpose,
   entityId,
-  accept      = 'image/*',
-  label       = 'Upload File',
+  accept    = 'image/*',
+  label     = 'Upload File',
   onSuccess,
-  maxSizeMB   = 5,
-  className   = '',
+  maxSizeMB = 5,
+  style: extraStyle = {},
 }) {
   const [dragging,  setDragging]  = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -23,12 +21,10 @@ export default function FileUpload({
 
   const handleFile = useCallback(async (file) => {
     if (!file) return
-
     if (file.size > maxSizeMB * 1024 * 1024) {
       setError(`File too large. Max ${maxSizeMB}MB.`)
       return
     }
-
     setError('')
     setUploading(true)
     setProgress(0)
@@ -36,15 +32,17 @@ export default function FileUpload({
     setDone(false)
 
     try {
-      // 1. Get presigned URL
-      const qs = new URLSearchParams({ fileType: file.type, purpose, ...(entityId ? { entityId } : {}) })
-      const presignRes = await fetch(`/api/uploads/presigned-url?${qs}`, { credentials: 'include' })
+      const qs = new URLSearchParams({
+        fileType: file.type,
+        purpose,
+        ...(entityId ? { entityId } : {}),
+      })
+      const presignRes  = await fetch(`/api/uploads/presigned-url?${qs}`, { credentials: 'include' })
       const presignJson = await presignRes.json()
       if (!presignJson.success) throw new Error(presignJson.error)
 
       const { presignedUrl, key, publicUrl } = presignJson.data
 
-      // 2. PUT to R2
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest()
         xhr.open('PUT', presignedUrl)
@@ -52,19 +50,18 @@ export default function FileUpload({
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
         }
-        xhr.onload  = () => (xhr.status === 200 ? resolve() : reject(new Error('Upload failed')))
+        xhr.onload  = () => xhr.status === 200 ? resolve() : reject(new Error('Upload failed'))
         xhr.onerror = () => reject(new Error('Upload failed'))
         xhr.send(file)
       })
 
       setProgress(100)
 
-      // 3. Confirm
-      const confirmRes = await fetch('/api/uploads/confirm', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const confirmRes  = await fetch('/api/uploads/confirm', {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ key, purpose, entityId }),
+        body:        JSON.stringify({ key, purpose, entityId }),
       })
       const confirmJson = await confirmRes.json()
       if (!confirmJson.success) throw new Error(confirmJson.error)
@@ -86,69 +83,98 @@ export default function FileUpload({
   }
 
   return (
-    <div className={className}>
-      {label && <p className="text-xs font-medium text-gray-700 mb-1.5">{label}</p>}
+    <>
+      <style>{`@keyframes prog-fill { from { width: 0% } }`}</style>
 
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        onClick={() => !uploading && inputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center p-6 cursor-pointer transition-all rounded-2xl ${
-          dragging
-            ? 'border-2 border-dashed border-blue-400 bg-blue-50'
-            : 'border-2 border-dashed border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/40'
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0])}
-        />
+      <div style={extraStyle}>
+        {label && (
+          <p style={{
+            fontSize: 12, fontWeight: 600,
+            color: '#475569', marginBottom: 8,
+          }}>
+            {label}
+          </p>
+        )}
 
-        <AnimatePresence mode="wait">
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => !uploading && inputRef.current?.click()}
+          style={{
+            border: `2px dashed ${dragging ? '#6366f1' : '#e2e8f0'}`,
+            borderRadius: 16,
+            padding: '32px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            cursor: uploading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s ease',
+            background: dragging
+              ? 'rgba(99,102,241,0.04)'
+              : '#fafafa',
+            minHeight: 140,
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            style={{ display: 'none' }}
+            onChange={(e) => handleFile(e.target.files?.[0])}
+          />
+
           {done ? (
-            <motion.div
-              key="done"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="flex flex-col items-center gap-2"
-            >
-              <CheckCircle className="w-8 h-8 text-emerald-500" />
-              <p className="text-xs text-emerald-600 font-medium">Uploaded!</p>
-              <p className="text-xs text-gray-400 truncate max-w-xs">{fileName}</p>
-            </motion.div>
+            <>
+              <div style={{ fontSize: 36 }}>✅</div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#10b981', margin: 0 }}>Uploaded!</p>
+              <p style={{
+                fontSize: 11, color: '#94a3b8', margin: 0,
+                maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{fileName}</p>
+            </>
           ) : uploading ? (
-            <motion.div key="uploading" className="w-full flex flex-col items-center gap-3">
-              <File className="w-6 h-6 text-blue-500" />
-              <p className="text-xs text-gray-500 truncate max-w-xs">{fileName}</p>
-              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                <motion.div
-                  className="h-1.5 bg-blue-600 rounded-full"
-                  initial={{ width: '0%' }}
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.3 }}
-                />
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontSize: 28 }}>📄</div>
+              <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>{fileName}</p>
+              <div style={{
+                width: '100%', maxWidth: 240,
+                height: 6, background: '#e2e8f0', borderRadius: 100, overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${progress}%`,
+                  background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                  borderRadius: 100,
+                  transition: 'width 0.3s ease',
+                }} />
               </div>
-              <p className="text-xs text-blue-600 font-medium">{progress}%</p>
-            </motion.div>
+              <p style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, margin: 0 }}>{progress}%</p>
+            </div>
           ) : (
-            <motion.div key="idle" className="flex flex-col items-center gap-2">
-              <Upload className="w-7 h-7 text-gray-300" />
-              <p className="text-sm text-gray-500">Drop file here or <span className="text-blue-600 font-medium">browse</span></p>
-              <p className="text-xs text-gray-400">Max {maxSizeMB}MB</p>
-            </motion.div>
+            <>
+              <div style={{ fontSize: 36 }}>☁️</div>
+              <p style={{ fontSize: 14, color: '#64748b', margin: 0 }}>
+                Drop file here or{' '}
+                <span style={{ color: '#6366f1', fontWeight: 600 }}>browse</span>
+              </p>
+              <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Max {maxSizeMB}MB</p>
+            </>
           )}
-        </AnimatePresence>
-      </div>
+        </div>
 
-      {error && (
-        <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
-          <X className="w-3 h-3" /> {error}
-        </p>
-      )}
-    </div>
+        {error && (
+          <p style={{
+            fontSize: 12, color: '#ef4444',
+            marginTop: 8, display: 'flex',
+            alignItems: 'center', gap: 4,
+          }}>
+            ✕ {error}
+          </p>
+        )}
+      </div>
+    </>
   )
 }

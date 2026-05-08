@@ -1,53 +1,148 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { Star, IndianRupee, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 
 export default function DoctorCard({ doctor, onClick }) {
-  const { name, avatar, specialization = [], rating, consultationFee, experience } = doctor || {}
+  const {
+    name, avatar,
+    specialization = [],
+    rating, consultationFee, experience,
+  } = doctor || {}
+
+  const [hover, setHover] = useState(false)
 
   return (
-    <motion.div
-      whileHover={{ y: -4, boxShadow: '0 12px 32px rgba(0,0,0,0.10)' }}
-      transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+    <div
       onClick={onClick}
-      className="bg-white rounded-2xl p-5 border border-gray-100 cursor-pointer"
-      style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: '#ffffff',
+        borderRadius: 20,
+        padding: 20,
+        border: '1px solid #f1f5f9',
+        cursor: 'pointer',
+        transition: 'all 0.25s ease',
+        boxShadow: hover
+          ? '0 16px 48px rgba(0,0,0,0.12)'
+          : '0 2px 8px rgba(0,0,0,0.06)',
+        transform: hover ? 'translateY(-4px)' : 'translateY(0)',
+        minWidth: 260,
+        maxWidth: 320,
+        flexShrink: 0,
+      }}
     >
-      <div className="flex items-start gap-3 mb-3">
-        {/* Avatar */}
-        <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden">
-          {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover" /> : '👨‍⚕️'}
+      {/* Avatar + info */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 16,
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15))',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 26, flexShrink: 0, overflow: 'hidden',
+          border: '2px solid rgba(99,102,241,0.1)',
+        }}>
+          {avatar
+            ? <img src={avatar} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : '👨‍⚕️'}
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-gray-900 truncate">Dr. {name}</h3>
-          <p className="text-xs text-blue-600 font-medium truncate">{specialization.slice(0, 2).join(', ') || 'General'}</p>
-          {experience && <p className="text-xs text-gray-400">{experience} years exp.</p>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{
+            fontSize: 15, fontWeight: 700, color: '#0f172a',
+            margin: '0 0 3px',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            Dr. {name}
+          </h3>
+          <p style={{
+            fontSize: 12, fontWeight: 500, color: '#6366f1',
+            margin: '0 0 2px',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {specialization.slice(0, 2).join(', ') || 'General Physician'}
+          </p>
+          {experience && (
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+              {experience} yrs experience
+            </p>
+          )}
         </div>
       </div>
 
+      {/* Rating */}
       {rating?.average > 0 && (
-        <div className="flex items-center gap-1 mb-3">
-          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-          <span className="text-xs font-semibold text-gray-700">{rating.average.toFixed(1)}</span>
-          <span className="text-xs text-gray-400">({rating.count} reviews)</span>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          marginBottom: 14,
+          padding: '6px 10px',
+          background: 'rgba(245,158,11,0.08)',
+          borderRadius: 8,
+          width: 'fit-content',
+        }}>
+          <span style={{ fontSize: 13 }}>⭐</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>
+            {rating.average.toFixed(1)}
+          </span>
+          <span style={{ fontSize: 11, color: '#92400e', opacity: 0.7 }}>
+            ({rating.count} reviews)
+          </span>
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1">
-          <IndianRupee className="w-3.5 h-3.5 text-gray-500" />
-          <span className="text-sm font-bold text-gray-800">{consultationFee?.offline || 0}</span>
-          <span className="text-xs text-gray-400">/ visit</span>
+      {/* Fee */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', marginBottom: 14,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>₹</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>
+            {consultationFee?.offline || 0}
+          </span>
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>/visit</span>
         </div>
         {consultationFee?.online > 0 && (
-          <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">Online ₹{consultationFee.online}</span>
+          <span style={{
+            fontSize: 11, fontWeight: 600,
+            background: 'rgba(99,102,241,0.1)',
+            color: '#6366f1',
+            padding: '3px 10px', borderRadius: 100,
+          }}>
+            Online ₹{consultationFee.online}
+          </span>
         )}
       </div>
 
-      <button className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-colors">
-        Book Appointment <ChevronRight className="w-3.5 h-3.5" />
-      </button>
-    </motion.div>
+      {/* Button */}
+      <BookButton hover={hover} label="Book Appointment" />
+    </div>
+  )
+}
+
+function BookButton({ hover: cardHover, label }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        width: '100%',
+        padding: '11px',
+        borderRadius: 12,
+        border: 'none',
+        background: hover
+          ? 'linear-gradient(135deg, #7c3aed, #6d28d9)'
+          : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+        color: '#fff',
+        fontSize: 13, fontWeight: 600,
+        cursor: 'pointer',
+        transition: 'all 0.18s ease',
+        boxShadow: hover
+          ? '0 8px 24px rgba(99,102,241,0.45)'
+          : '0 4px 14px rgba(99,102,241,0.3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+      }}
+    >
+      {label} →
+    </button>
   )
 }

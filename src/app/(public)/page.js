@@ -1,1259 +1,923 @@
-// src/app/(public)/page.js
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
-import HospitalCard from '@/components/public/HospitalCard'
-import LabCard from '@/components/public/LabCard'
 import { useGeoLocation } from '@/hooks/useGeoLocation'
-import {
-  Search, MapPin, Building2, FlaskConical, Stethoscope,
-  Calendar, Loader2, ArrowRight, Star, Shield, Clock,
-  Heart, CheckCircle, ChevronRight, Sparkles, Zap,
-  Video, FileText, AlertCircle, RefreshCw,
-} from 'lucide-react'
 
 const fetcher = (url) =>
-  fetch(url)
-    .then((r) => r.json())
-    .then((j) => {
-      if (!j.success) throw new Error(j.error || 'Failed to fetch')
-      return j.data
-    })
+  fetch(url).then((r) => r.json()).then((j) => {
+    if (!j.success) throw new Error(j.error || 'Failed')
+    return j.data
+  })
 
-// ── Animated counter ──────────────────────────────────────────────────────────
-function AnimatedCounter({ target, suffix = '', duration = 2000 }) {
-  const [count,   setCount]   = useState(0)
-  const [started, setStarted] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setStarted(true) },
-      { threshold: 0.3 }
-    )
-    if (ref.current) observer.observe(ref.current)
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (!started) return
-    const steps     = 60
-    const stepTime  = duration / steps
-    const increment = target / steps
-    let current     = 0
-
-    const timer = setInterval(() => {
-      current += increment
-      if (current >= target) {
-        setCount(target)
-        clearInterval(timer)
-      } else {
-        setCount(Math.floor(current))
-      }
-    }, stepTime)
-
-    return () => clearInterval(timer)
-  }, [started, target, duration])
-
-  return <span ref={ref}>{count.toLocaleString('en-IN')}{suffix}</span>
-}
-
-// ── Animated hero words ───────────────────────────────────────────────────────
+/* ─── Word Rotator ───────────────────────────────────────────────────── */
 const WORDS = ['Healthcare', 'Appointments', 'Lab Tests', 'Consultations', 'Wellness']
 
-function AnimatedHeroText() {
+function WordRotator() {
   const [idx,     setIdx]     = useState(0)
+  const [visible, setVisible] = useState(true)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    const t = setInterval(() => setIdx((i) => (i + 1) % WORDS.length), 2500)
-    return () => clearInterval(t)
+    const iv = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => { setIdx((i) => (i + 1) % WORDS.length); setVisible(true) }, 300)
+    }, 2500)
+    return () => clearInterval(iv)
   }, [])
 
   if (!mounted) {
-    return <span className="text-blue-200">Healthcare</span>
+    return (
+    
+      <span style={{
+        backgroundImage: 'linear-gradient(135deg,#c7d2fe,#a5f3fc)', // Use backgroundImage
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+      }}>
+        Healthcare
+      </span>
+    )
   }
 
   return (
-    <span className="inline-block min-w-[240px] text-transparent bg-clip-text
-                     bg-gradient-to-r from-blue-200 to-cyan-200">
-      <AnimatePresence mode="wait">
-        <motion.span
-          key={idx}
-          initial={{ opacity: 0, y: 20,  filter: 'blur(8px)' }}
-          animate={{ opacity: 1, y: 0,   filter: 'blur(0px)' }}
-          exit={{    opacity: 0, y: -20, filter: 'blur(8px)' }}
-          transition={{ duration: 0.4 }}
-          className="inline-block"
-        >
-          {WORDS[idx]}
-        </motion.span>
-      </AnimatePresence>
+   <span style={{
+  display: 'inline-block',
+  backgroundImage: 'linear-gradient(135deg,#c7d2fe,#67e8f9)', // Fixed here
+  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'translateY(0)' : 'translateY(-12px)',
+      transition: 'opacity .3s ease, transform .3s ease',
+      minWidth: 'clamp(160px,28vw,300px)',
+    }}>
+      {WORDS[idx]}
     </span>
   )
 }
 
-// ── Floating particle ─────────────────────────────────────────────────────────
-function FloatingParticle({ delay, size, left, top }) {
-  return (
-    <motion.div
-      className="absolute rounded-full bg-white/10"
-      style={{ width: size, height: size, left, top }}
-      animate={{
-        y:       [0, -30, 0],
-        x:       [0, 15, 0],
-        opacity: [0.1, 0.3, 0.1],
-        scale:   [1, 1.2, 1],
-      }}
-      transition={{
-        duration: 5 + Math.random() * 3,
-        repeat:   Infinity,
-        delay,
-        ease:     'easeInOut',
-      }}
-    />
-  )
+/* ─── Animated Counter ───────────────────────────────────────────────── */
+function AnimCounter({ target, suffix = '' }) {
+  const [count, setCount] = useState(0)
+  const ref     = useRef(null)
+  const started = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current; if (!el) return
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !started.current) {
+        started.current = true
+        let cur = 0
+        const step = target / 60
+        const t = setInterval(() => {
+          cur += step
+          if (cur >= target) { setCount(target); clearInterval(t) }
+          else setCount(Math.floor(cur))
+        }, 1000 / 60)
+      }
+    }, { threshold: 0.3 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [target])
+
+  return <span ref={ref}>{count.toLocaleString('en-IN')}{suffix}</span>
 }
 
-// ── Nearby section skeleton ───────────────────────────────────────────────────
-function NearbySkeletonRow() {
+/* ─── Float Card (hero) ──────────────────────────────────────────────── */
+function FloatCard({ style: sx, children, delay = 0 }) {
+  const [y, setY] = useState(0)
+  useEffect(() => {
+    let raf
+    const start = Date.now() + delay * 1000
+    const tick  = () => {
+      setY(Math.sin(Math.max(0, Date.now() - start) / 1200) * 8)
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [delay])
+
   return (
-    <div className="overflow-x-auto flex gap-4 pb-4">
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="flex-shrink-0 w-72 h-52 bg-gray-100 rounded-2xl animate-pulse"
-        />
-      ))}
+    <div style={{
+      position: 'absolute',
+      transform: `translateY(${y}px)`,
+      transition: 'transform .05s linear',
+      background: 'rgba(255,255,255,0.96)',
+      borderRadius: 20, padding: 20,
+      boxShadow: '0 16px 48px rgba(0,0,0,0.14)',
+      backdropFilter: 'blur(10px)',
+      ...sx,
+    }}>
+      {children}
     </div>
   )
 }
 
-// ── Nearby error state ────────────────────────────────────────────────────────
-function NearbyError({ type, onRetry }) {
+/* ─── Skeleton Row ───────────────────────────────────────────────────── */
+function SkeletonRow() {
   return (
-    <div className="flex items-center gap-3 bg-red-50 border border-red-100
-                    rounded-2xl p-4 text-sm text-red-600">
-      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-      <span className="flex-1">
-        Could not load nearby {type}. Check your location permissions.
-      </span>
-      <button
-        onClick={onRetry}
-        className="flex items-center gap-1 text-xs font-medium text-red-600
-                   hover:text-red-700"
-      >
-        <RefreshCw className="w-3.5 h-3.5" />
-        Retry
-      </button>
-    </div>
+    <>
+      <style>{`@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+      <div style={{ display: 'flex', gap: 16, overflow: 'hidden' }}>
+        {[1, 2, 3].map((i) => (
+          <div key={i} style={{
+            flexShrink: 0, width: 288, height: 220, borderRadius: 20,
+            background: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
+            backgroundSize: '200% 100%', animation: 'sk 1.5s linear infinite',
+          }} />
+        ))}
+      </div>
+    </>
   )
 }
 
-// ── Location permission prompt ────────────────────────────────────────────────
-function LocationPrompt({ onAllow }) {
+/* ─── Nearby Hospital Card ───────────────────────────────────────────── */
+function NearbyHospCard({ h, onClick }) {
+  const [hov, setHov] = useState(false)
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col sm:flex-row items-center gap-4 bg-blue-50
-                 border border-blue-200 rounded-2xl p-5"
+    <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        flexShrink: 0, width: 288, background: '#fff', borderRadius: 20,
+        overflow: 'hidden', cursor: 'pointer',
+        border: `1.5px solid ${hov ? '#c7d2fe' : '#f1f5f9'}`,
+        boxShadow: hov ? '0 16px 48px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.06)',
+        transform: hov ? 'translateY(-4px)' : 'translateY(0)',
+        transition: 'all .25s ease',
+      }}
     >
-      <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center
-                      justify-center flex-shrink-0">
-        <MapPin className="w-6 h-6 text-blue-600" />
-      </div>
-      <div className="flex-1 text-center sm:text-left">
-        <p className="text-sm font-semibold text-blue-800">
-          Enable Location Access
-        </p>
-        <p className="text-xs text-blue-600 mt-0.5">
-          Allow location to see hospitals and labs near you
-        </p>
-      </div>
-      <button
-        onClick={onAllow}
-        className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700
-                   text-white text-sm font-semibold rounded-xl transition-colors
-                   flex items-center gap-2"
-      >
-        <MapPin className="w-4 h-4" />
-        Allow Location
-      </button>
-    </motion.div>
-  )
-}
-
-// ── Distance formatter ────────────────────────────────────────────────────────
-function formatDistance(meters) {
-  if (!meters) return ''
-  if (meters < 1000) return `${Math.round(meters)}m`
-  return `${(meters / 1000).toFixed(1)}km`
-}
-
-// ── Hospital card (nearby version with distance) ──────────────────────────────
-function NearbyHospitalCard({ hospital, onClick }) {
-  const dist = formatDistance(hospital.distance)
-
-  return (
-    <motion.div
-      whileHover={{ y: -4, scale: 1.01 }}
-      onClick={onClick}
-      className="flex-shrink-0 w-72 bg-white rounded-2xl border border-gray-100
-                 overflow-hidden cursor-pointer group hover:shadow-lg
-                 hover:border-blue-100 transition-all"
-      style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
-    >
-      {/* Cover image or gradient */}
-      <div className="h-32 bg-gradient-to-br from-blue-100 to-indigo-100
-                      relative overflow-hidden">
-        {hospital.images?.cover ? (
-          <img
-            src={hospital.images.cover}
-            alt={hospital.name}
-            className="w-full h-full object-cover group-hover:scale-105
-                       transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Building2 className="w-10 h-10 text-blue-300" />
+      <div style={{ position: 'relative', height: 128, background: 'linear-gradient(135deg,#dbeafe,#c7d2fe)', overflow: 'hidden' }}>
+        {h.images?.cover
+          ? <img src={h.images.cover} alt={h.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: hov ? 'scale(1.05)' : 'scale(1)', transition: 'transform .3s ease' }} />
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>🏥</div>
+        }
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,0.2),transparent)' }} />
+        {h.distance && (
+          <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
+            📍 {(h.distance / 1000).toFixed(1)}km
           </div>
         )}
-
-        {/* Distance badge */}
-        {dist && (
-          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm
-                          rounded-full px-2.5 py-1 flex items-center gap-1
-                          text-xs font-semibold text-gray-700">
-            <MapPin className="w-3 h-3 text-blue-500" />
-            {dist}
-          </div>
-        )}
-
-        {/* Logo */}
-        {hospital.images?.logo && (
-          <div className="absolute -bottom-4 left-3 w-10 h-10 rounded-xl
-                          bg-white border-2 border-white overflow-hidden shadow-sm">
-            <img
-              src={hospital.images.logo}
-              alt=""
-              className="w-full h-full object-cover"
-            />
+        {h.images?.logo && (
+          <div style={{ position: 'absolute', bottom: -18, left: 12, width: 38, height: 38, borderRadius: 10, background: '#fff', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+            <img src={h.images.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
       </div>
 
-      <div className="p-4 pt-5">
-        <h3 className="text-sm font-bold text-gray-900 truncate">
-          {hospital.name}
-        </h3>
-
-        {hospital.address?.city && (
-          <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-            <MapPin className="w-3 h-3" />
-            {hospital.address.city}
-            {hospital.address.state ? `, ${hospital.address.state}` : ''}
-          </p>
-        )}
-
-        {/* Rating */}
-        {hospital.rating?.average > 0 && (
-          <div className="flex items-center gap-1 mt-2">
-            <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-            <span className="text-xs font-semibold text-gray-700">
-              {hospital.rating.average.toFixed(1)}
-            </span>
-            <span className="text-xs text-gray-400">
-              ({hospital.rating.count})
-            </span>
+      <div style={{ padding: '24px 14px 14px' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</h3>
+        {h.address?.city && <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>📍 {h.address.city}</p>}
+        {h.rating?.average > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+            <span>⭐</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>{h.rating.average.toFixed(1)}</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>({h.rating.count})</span>
           </div>
         )}
-
-        {/* Departments */}
-        {hospital.departments?.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {hospital.departments.slice(0, 2).map((d) => (
-              <span
-                key={d}
-                className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full"
-              >
-                {d}
-              </span>
+        {h.departments?.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+            {h.departments.slice(0, 2).map((d) => (
+              <span key={d} style={{ fontSize: 10, fontWeight: 500, background: 'rgba(99,102,241,0.09)', color: '#6366f1', padding: '2px 8px', borderRadius: 100 }}>{d}</span>
             ))}
-            {hospital.departments.length > 2 && (
-              <span className="text-xs text-gray-400">
-                +{hospital.departments.length - 2}
-              </span>
-            )}
+            {h.departments.length > 2 && <span style={{ fontSize: 10, color: '#94a3b8' }}>+{h.departments.length - 2}</span>}
           </div>
         )}
-
-        {/* Book button */}
-        <button
-          className="mt-3 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white
-                     text-xs font-semibold rounded-xl transition-colors"
-        >
-          Book Now
-        </button>
+        <NearbyBtn color="blue" label="Book Now" />
       </div>
-    </motion.div>
+    </div>
   )
 }
 
-// ── Lab card (nearby version with distance) ───────────────────────────────────
-function NearbyLabCard({ lab, onClick }) {
-  const dist = formatDistance(lab.distance)
-
+/* ─── Nearby Lab Card ────────────────────────────────────────────────── */
+function NearbyLabCard({ l, onClick }) {
+  const [hov, setHov] = useState(false)
   return (
-    <motion.div
-      whileHover={{ y: -4, scale: 1.01 }}
-      onClick={onClick}
-      className="flex-shrink-0 w-72 bg-white rounded-2xl border border-gray-100
-                 overflow-hidden cursor-pointer group hover:shadow-lg
-                 hover:border-emerald-100 transition-all"
-      style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
+    <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        flexShrink: 0, width: 288, background: '#fff', borderRadius: 20,
+        overflow: 'hidden', cursor: 'pointer',
+        border: `1.5px solid ${hov ? '#a7f3d0' : '#f1f5f9'}`,
+        boxShadow: hov ? '0 16px 48px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.06)',
+        transform: hov ? 'translateY(-4px)' : 'translateY(0)',
+        transition: 'all .25s ease',
+      }}
     >
-      {/* Cover */}
-      <div className="h-32 bg-gradient-to-br from-emerald-50 to-green-100
-                      relative overflow-hidden">
-        {lab.images?.cover ? (
-          <img
-            src={lab.images.cover}
-            alt={lab.name}
-            className="w-full h-full object-cover group-hover:scale-105
-                       transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <FlaskConical className="w-10 h-10 text-emerald-300" />
+      <div style={{ position: 'relative', height: 128, background: 'linear-gradient(135deg,#d1fae5,#a7f3d0)', overflow: 'hidden' }}>
+        {l.images?.cover
+          ? <img src={l.images.cover} alt={l.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>🧪</div>
+        }
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,0.2),transparent)' }} />
+        {l.distance && (
+          <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
+            📍 {(l.distance / 1000).toFixed(1)}km
           </div>
         )}
-
-        {/* Distance badge */}
-        {dist && (
-          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm
-                          rounded-full px-2.5 py-1 flex items-center gap-1
-                          text-xs font-semibold text-gray-700">
-            <MapPin className="w-3 h-3 text-emerald-500" />
-            {dist}
-          </div>
-        )}
-
-        {/* Home collection badge */}
-        {lab.homeCollection?.enabled && (
-          <div className="absolute top-2 left-2 bg-emerald-500 text-white
-                          rounded-full px-2.5 py-0.5 text-xs font-semibold">
+        {l.homeCollection?.enabled && (
+          <div style={{ position: 'absolute', top: 10, left: 10, background: '#10b981', color: '#fff', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>
             🏠 Home Collection
           </div>
         )}
       </div>
 
-      <div className="p-4">
-        <h3 className="text-sm font-bold text-gray-900 truncate">{lab.name}</h3>
-
-        {lab.address?.city && (
-          <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-            <MapPin className="w-3 h-3" />
-            {lab.address.city}
-          </p>
-        )}
-
-        {/* Rating */}
-        {lab.rating?.average > 0 && (
-          <div className="flex items-center gap-1 mt-2">
-            <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-            <span className="text-xs font-semibold text-gray-700">
-              {lab.rating.average.toFixed(1)}
-            </span>
-            <span className="text-xs text-gray-400">
-              ({lab.rating.count})
-            </span>
+      <div style={{ padding: 14 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</h3>
+        {l.address?.city && <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>📍 {l.address.city}</p>}
+        {l.rating?.average > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+            <span>⭐</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>{l.rating.average.toFixed(1)}</span>
           </div>
         )}
-
-        {/* Certifications */}
-        {lab.certifications?.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {lab.certifications.slice(0, 2).map((c) => (
-              <span
-                key={c}
-                className="text-xs bg-emerald-50 text-emerald-600
-                           px-2 py-0.5 rounded-full font-medium"
-              >
-                {c}
-              </span>
+        {l.certifications?.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+            {l.certifications.slice(0, 2).map((c) => (
+              <span key={c} style={{ fontSize: 10, fontWeight: 600, background: 'rgba(16,185,129,0.1)', color: '#059669', padding: '2px 8px', borderRadius: 100 }}>{c}</span>
             ))}
           </div>
         )}
-
-        <button
-          className="mt-3 w-full py-2 bg-emerald-600 hover:bg-emerald-700
-                     text-white text-xs font-semibold rounded-xl transition-colors"
-        >
-          Book Test
-        </button>
+        <NearbyBtn color="green" label="Book Test" />
       </div>
-    </motion.div>
+    </div>
   )
 }
 
-// ── Static data ───────────────────────────────────────────────────────────────
-const QUICK_ACTIONS = [
-  {
-    id:      'qa-hospitals',
-    emoji:   '🏥',
-    label:   'Find Hospitals',
-    sub:     'Book appointments nearby',
-    href:    '/hospitals',
-    gradient:'from-blue-500 to-blue-600',
-  },
-  {
-    id:      'qa-labs',
-    emoji:   '🧪',
-    label:   'Book Lab Tests',
-    sub:     'Home collection available',
-    href:    '/labs',
-    gradient:'from-emerald-500 to-green-600',
-  },
-  {
-    id:      'qa-online',
-    emoji:   '👨‍⚕️',
-    label:   'Online Consult',
-    sub:     'Video call with doctors',
-    href:    '/doctors',
-    gradient:'from-purple-500 to-violet-600',
-  },
-  {
-    id:      'qa-reports',
-    emoji:   '📋',
-    label:   'My Reports',
-    sub:     'Download lab reports',
-    href:    '/user/bookings',
-    gradient:'from-orange-500 to-amber-600',
-  },
+function NearbyBtn({ color, label }) {
+  const [h, setH] = useState(false)
+  const C = {
+    blue:  { base: 'linear-gradient(135deg,#6366f1,#8b5cf6)', hov: 'linear-gradient(135deg,#7c3aed,#6d28d9)', sh: 'rgba(99,102,241,0.35)' },
+    green: { base: 'linear-gradient(135deg,#10b981,#059669)', hov: 'linear-gradient(135deg,#059669,#047857)', sh: 'rgba(16,185,129,0.35)' },
+  }[color]
+  return (
+    <button
+      onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        width: '100%', padding: 10, borderRadius: 12, border: 'none',
+        background: h ? C.hov : C.base, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        boxShadow: `0 4px 14px ${C.sh}`, transform: h ? 'scale(1.02)' : 'scale(1)',
+        transition: 'all .18s ease',
+      }}
+    >
+      {label} →
+    </button>
+  )
+}
+
+/* ─── Quick Action ───────────────────────────────────────────────────── */
+function QuickAction({ emoji, label, sub, href, gradient }) {
+  const [h, setH] = useState(false)
+  return (
+    <a href={href} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        display: 'block', background: '#fff', borderRadius: 20,
+        padding: 'clamp(16px,3vw,24px)',
+        border: `1.5px solid ${h ? '#e0e7ff' : '#f1f5f9'}`,
+        textDecoration: 'none',
+        boxShadow: h ? '0 16px 40px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.05)',
+        transform: h ? 'translateY(-6px)' : 'translateY(0)',
+        transition: 'all .25s ease', position: 'relative', overflow: 'hidden',
+      }}
+    >
+      <div style={{ position: 'absolute', inset: 0, background: gradient, opacity: h ? 0.04 : 0, transition: 'opacity .25s ease', borderRadius: 20 }} />
+      <div style={{
+        width: 56, height: 56, borderRadius: 16, background: gradient,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 26, marginBottom: 14,
+        boxShadow: h ? '0 8px 24px rgba(0,0,0,0.2)' : '0 4px 12px rgba(0,0,0,0.15)',
+        transform: h ? 'scale(1.08)' : 'scale(1)', transition: 'all .2s ease',
+      }}>
+        {emoji}
+      </div>
+      <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>{label}</p>
+      <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{sub}</p>
+    </a>
+  )
+}
+
+/* ─── Step Card ──────────────────────────────────────────────────────── */
+function StepCard({ step, icon, title, desc, gradient, delay }) {
+  const [vis, setVis]   = useState(false)
+  const [hov, setHov]   = useState(false)
+  const ref             = useRef(null)
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) setTimeout(() => setVis(true), delay) },
+      { threshold: 0.2 }
+    )
+    if (ref.current) obs.observe(ref.current)
+    return () => obs.disconnect()
+  }, [delay])
+
+  return (
+    <div ref={ref} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        background: '#fff', borderRadius: 24, padding: 'clamp(24px,4vw,36px)',
+        border: '1.5px solid #f1f5f9',
+        boxShadow: hov ? '0 20px 60px rgba(0,0,0,0.1)' : '0 2px 12px rgba(0,0,0,0.04)',
+        transform: vis ? (hov ? 'translateY(-4px)' : 'translateY(0)') : 'translateY(24px)',
+        opacity: vis ? 1 : 0, transition: 'all .3s ease',
+      }}
+    >
+      <div style={{ position: 'relative', marginBottom: 24, width: 'fit-content' }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: 18, background: gradient,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+          transform: hov ? 'scale(1.08)' : 'scale(1)', transition: 'transform .2s ease',
+        }}>
+          {icon}
+        </div>
+        <div style={{
+          position: 'absolute', top: -8, right: -8,
+          width: 26, height: 26, borderRadius: '50%',
+          background: '#0f172a', color: '#fff', fontSize: 11, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {step}
+        </div>
+      </div>
+      <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>{title}</h3>
+      <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.7, margin: 0 }}>{desc}</p>
+    </div>
+  )
+}
+
+/* ─── Testimonial Card ───────────────────────────────────────────────── */
+function TestiCard({ name, role, avatar, text, rating, delay }) {
+  const [vis, setVis] = useState(false)
+  const [hov, setHov] = useState(false)
+  const ref           = useRef(null)
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) setTimeout(() => setVis(true), delay) },
+      { threshold: 0.2 }
+    )
+    if (ref.current) obs.observe(ref.current)
+    return () => obs.disconnect()
+  }, [delay])
+
+  return (
+    <div ref={ref} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        background: '#fff', borderRadius: 20, padding: 24,
+        border: '1.5px solid #f1f5f9',
+        boxShadow: hov ? '0 16px 48px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.04)',
+        transform: vis ? (hov ? 'translateY(-4px)' : 'translateY(0)') : 'translateY(24px)',
+        opacity: vis ? 1 : 0, transition: 'all .3s ease',
+      }}
+    >
+      <div style={{ display: 'flex', gap: 2, marginBottom: 14 }}>
+        {Array.from({ length: rating }).map((_, i) => (
+          <span key={i} style={{ fontSize: 15 }}>⭐</span>
+        ))}
+      </div>
+      <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.75, marginBottom: 20 }}>
+        &ldquo;{text}&rdquo;
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 16, borderTop: '1px solid #f8fafc' }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%',
+          background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontWeight: 700, fontSize: 15, flexShrink: 0,
+        }}>
+          {avatar}
+        </div>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>{name}</p>
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{role}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Nearby Section Wrapper ─────────────────────────────────────────── */
+function NearbySection({ title, subtitle, viewHref, viewColor, children }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <section style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)', marginBottom: 64 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 'clamp(20px,3vw,26px)', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+            {title}
+          </h2>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>{subtitle}</p>
+        </div>
+        <a href={viewHref} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+          style={{
+            fontSize: 12, fontWeight: 600, color: hov ? viewColor : '#64748b',
+            textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
+            transition: 'color .15s ease', whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          View all →
+        </a>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+/* ─── Location Prompt ────────────────────────────────────────────────── */
+function LocationPrompt({ onAllow }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+      background: 'rgba(99,102,241,0.05)', border: '1.5px solid rgba(99,102,241,0.15)',
+      borderRadius: 20, padding: 'clamp(20px,4vw,32px)', textAlign: 'center',
+    }}>
+      <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, boxShadow: '0 8px 24px rgba(99,102,241,0.35)' }}>📍</div>
+      <div>
+        <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 6px' }}>Enable Location Access</p>
+        <p style={{ fontSize: 13, color: '#64748b', margin: 0, maxWidth: 320 }}>Allow location to discover hospitals and labs near you</p>
+      </div>
+      <button onClick={onAllow} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+        style={{
+          padding: '11px 24px', borderRadius: 12, border: 'none',
+          background: hov ? 'linear-gradient(135deg,#7c3aed,#6d28d9)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          boxShadow: '0 6px 20px rgba(99,102,241,0.4)', transition: 'all .18s ease',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}
+      >
+        📍 Allow Location
+      </button>
+    </div>
+  )
+}
+
+/* ─── Error State ────────────────────────────────────────────────────── */
+function ErrorState({ type, onRetry }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 16, padding: 16 }}>
+      <span style={{ fontSize: 20 }}>⚠️</span>
+      <span style={{ fontSize: 13, color: '#ef4444', flex: 1 }}>Could not load nearby {type}.</span>
+      <button onClick={onRetry} style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', flexShrink: 0 }}>Retry</button>
+    </div>
+  )
+}
+
+/* ─── Empty Nearby ───────────────────────────────────────────────────── */
+function EmptyNearby({ type, href }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 16, padding: 20 }}>
+      <span style={{ fontSize: 28, opacity: 0.3 }}>{type === 'hospitals' ? '🏥' : '🧪'}</span>
+      <div>
+        <p style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8', margin: '0 0 4px' }}>No {type} found within 15km</p>
+        <a href={href} style={{ fontSize: 12, color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>Browse all {type} →</a>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Section Header ─────────────────────────────────────────────────── */
+function SectionHeader({ badge, title, sub }) {
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 'clamp(32px,5vw,56px)' }}>
+      {badge && (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 100, padding: '5px 16px', marginBottom: 16, fontSize: 12, fontWeight: 600, color: '#6366f1' }}>
+          {badge}
+        </div>
+      )}
+      <h2 style={{ fontSize: 'clamp(24px,4vw,36px)', fontWeight: 800, color: '#0f172a', marginBottom: 10, letterSpacing: '-0.5px' }}>
+        {title}
+      </h2>
+      {sub && <p style={{ fontSize: 14, color: '#64748b', maxWidth: 400, margin: '0 auto' }}>{sub}</p>}
+    </div>
+  )
+}
+
+/* ─── Search Submit Button ───────────────────────────────────────────── */
+function SearchSubmitBtn() {
+  const [h, setH] = useState(false)
+  return (
+    <button type="submit" onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        padding: '0 20px', borderRadius: 12, border: 'none',
+        background: h ? 'linear-gradient(135deg,#7c3aed,#6d28d9)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        minHeight: 44, flexShrink: 0,
+        boxShadow: h ? '0 6px 20px rgba(99,102,241,0.5)' : '0 4px 14px rgba(99,102,241,0.35)',
+        transition: 'all .18s ease', transform: h ? 'scale(1.02)' : 'scale(1)',
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}
+    >
+      Search →
+    </button>
+  )
+}
+
+/* ─── Stat Card ──────────────────────────────────────────────────────── */
+function StatCard({ value, suffix, label, icon, delay }) {
+  const [vis, setVis] = useState(false)
+  const [hov, setHov] = useState(false)
+  const ref           = useRef(null)
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setTimeout(() => setVis(true), delay) }, { threshold: 0.2 })
+    if (ref.current) obs.observe(ref.current)
+    return () => obs.disconnect()
+  }, [delay])
+
+  return (
+    <div ref={ref} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ textAlign: 'center', opacity: vis ? 1 : 0, transform: vis ? (hov ? 'translateY(-4px)' : 'translateY(0)') : 'translateY(20px)', transition: 'all .3s ease' }}
+    >
+      <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 14px', backdropFilter: 'blur(10px)', transform: hov ? 'scale(1.1)' : 'scale(1)', transition: 'transform .2s ease' }}>
+        {icon}
+      </div>
+      <div style={{ fontSize: 'clamp(28px,4vw,40px)', fontWeight: 900, background: 'linear-gradient(135deg,#a5b4fc,#67e8f9)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', letterSpacing: '-1px', marginBottom: 6 }}>
+        <AnimCounter target={value} suffix={suffix} />
+      </div>
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>{label}</div>
+    </div>
+  )
+}
+
+/* ─── CTA Block ──────────────────────────────────────────────────────── */
+function CtaBlock() {
+  const [h1, setH1] = useState(false)
+  const [h2, setH2] = useState(false)
+  return (
+    <div style={{ background: 'linear-gradient(135deg,#4f46e5,#2563eb)', borderRadius: 28, padding: 'clamp(32px,5vw,56px) clamp(24px,4vw,48px)', textAlign: 'center', position: 'relative', overflow: 'hidden', boxShadow: '0 24px 80px rgba(79,70,229,0.3)' }}>
+      <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: -40, left: -40, width: 150, height: 150, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <h2 style={{ fontSize: 'clamp(22px,4vw,36px)', fontWeight: 800, color: '#fff', marginBottom: 12, letterSpacing: '-0.5px' }}>
+          Ready to Book Your First Appointment?
+        </h2>
+        <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.75)', maxWidth: 440, margin: '0 auto 32px', lineHeight: 1.7 }}>
+          Join 50,000+ patients who trust MEDLI. Takes less than 2 minutes.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+          <a href="/hospitals" onMouseEnter={() => setH1(true)} onMouseLeave={() => setH1(false)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 28px', borderRadius: 14, background: h1 ? '#f0f4ff' : '#fff', color: '#4f46e5', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'all .18s ease', transform: h1 ? 'scale(1.02)' : 'scale(1)', boxShadow: h1 ? '0 8px 24px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.1)' }}>
+            🏥 Find Hospitals
+          </a>
+          <a href="/auth/register" onMouseEnter={() => setH2(true)} onMouseLeave={() => setH2(false)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 28px', borderRadius: 14, background: h2 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'all .18s ease', backdropFilter: 'blur(10px)' }}>
+            Create Account →
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════════════════════════════ */
+const KF = `
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  @keyframes hero-pulse{0%,100%{opacity:.06}50%{opacity:.12}}
+  @keyframes spin-ring{to{transform:rotate(360deg)}}
+  @keyframes dot-ping{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.2);opacity:0}}
+`
+
+const QUICK = [
+  { emoji:'🏥', label:'Find Hospitals', sub:'Book appointments nearby',   href:'/hospitals',      gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
+  { emoji:'🧪', label:'Book Lab Tests', sub:'Home collection available',  href:'/labs',           gradient:'linear-gradient(135deg,#10b981,#059669)' },
+  { emoji:'👨‍⚕️', label:'Online Consult', sub:'Video call with doctors',    href:'/doctors',        gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+  { emoji:'📋', label:'My Reports',     sub:'Download lab reports',       href:'/user/bookings',  gradient:'linear-gradient(135deg,#f59e0b,#f97316)' },
 ]
 
 const STEPS = [
-  {
-    id:    'step-1',
-    step:  '01',
-    icon:  Search,
-    title: 'Search & Discover',
-    desc:  'Find top-rated hospitals, labs and doctors near you with real-time availability.',
-    color: 'from-blue-500 to-blue-600',
-  },
-  {
-    id:    'step-2',
-    step:  '02',
-    icon:  Calendar,
-    title: 'Book Instantly',
-    desc:  'Select your preferred date, time slot and book in seconds. No waiting.',
-    color: 'from-purple-500 to-violet-600',
-  },
-  {
-    id:    'step-3',
-    step:  '03',
-    icon:  Shield,
-    title: 'Pay Securely',
-    desc:  'Pay via 1Pay gateway. Get instant confirmation and smart reminders.',
-    color: 'from-emerald-500 to-green-600',
-  },
+  { step:'01', icon:'🔍', title:'Search & Discover', desc:'Find top-rated hospitals, labs and doctors near you with real-time availability.', gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
+  { step:'02', icon:'📅', title:'Book Instantly',    desc:'Select your preferred date, time slot and book in seconds. No waiting.',          gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+  { step:'03', icon:'🛡️', title:'Pay Securely',      desc:'Pay via 1Pay gateway. Get instant confirmation and smart reminders.',             gradient:'linear-gradient(135deg,#10b981,#059669)' },
 ]
 
 const STATS = [
-  { id: 's1', value: 500,   suffix: '+', label: 'Hospitals',       icon: Building2,    color: 'from-blue-500    to-blue-600'    },
-  { id: 's2', value: 200,   suffix: '+', label: 'Labs',            icon: FlaskConical, color: 'from-emerald-500 to-green-600'   },
-  { id: 's3', value: 2000,  suffix: '+', label: 'Doctors',         icon: Stethoscope,  color: 'from-purple-500  to-violet-600'  },
-  { id: 's4', value: 50000, suffix: '+', label: 'Patients Served', icon: Heart,        color: 'from-rose-500    to-pink-600'    },
+  { value:500,   suffix:'+', label:'Hospitals',       icon:'🏥' },
+  { value:200,   suffix:'+', label:'Labs',            icon:'🧪' },
+  { value:2000,  suffix:'+', label:'Doctors',         icon:'👨‍⚕️' },
+  { value:50000, suffix:'+', label:'Patients Served', icon:'❤️' },
 ]
 
-const TRUST_BADGES = [
-  { id: 'tb1', icon: Shield,      label: 'Verified Providers'  },
-  { id: 'tb2', icon: Clock,       label: 'Instant Booking'     },
-  { id: 'tb3', icon: Star,        label: '4.8★ Average Rating' },
-  { id: 'tb4', icon: CheckCircle, label: 'Secure Payments'     },
+const TESTI = [
+  { name:'Priya Sharma',    role:'Patient',              avatar:'P', rating:5, text:'Booked a cardiologist in 2 minutes. The doctor was amazing and the platform is so smooth!' },
+  { name:'Rajesh Kumar',    role:'Father of 2',          avatar:'R', rating:5, text:'Lab test with home collection was super convenient. Got reports same day. Highly recommend.' },
+  { name:'Ananya Patel',    role:'Working Professional', avatar:'A', rating:5, text:'Online consultation saved me a hospital trip. Great video quality and very helpful doctor.' },
 ]
 
-const TESTIMONIALS = [
-  {
-    id:     't1',
-    name:   'Priya Sharma',
-    role:   'Patient',
-    avatar: 'P',
-    text:   'Booked a cardiologist in 2 minutes. The doctor was amazing and the platform is so smooth!',
-    rating: 5,
-  },
-  {
-    id:     't2',
-    name:   'Rajesh Kumar',
-    role:   'Father of 2',
-    avatar: 'R',
-    text:   'Lab test with home collection was super convenient. Got reports same day. Highly recommend.',
-    rating: 5,
-  },
-  {
-    id:     't3',
-    name:   'Ananya Patel',
-    role:   'Working Professional',
-    avatar: 'A',
-    text:   'Online consultation saved me a hospital trip. Great video quality and very helpful doctor.',
-    rating: 5,
-  },
-]
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════════════════
+   MAIN PAGE COMPONENT
+═══════════════════════════════════════════════════════════════════════ */
 export default function HomePage() {
   const router = useRouter()
   const geo    = useGeoLocation()
 
-  const [query,   setQuery]   = useState('')
-  const [mounted, setMounted] = useState(false)
-  const [retryKey, setRetryKey] = useState(0)
+  const [query,         setQuery]         = useState('')
+  const [mounted,       setMounted]       = useState(false)
+  const [retryKey,      setRetryKey]      = useState(0)
+  const [searchFocused, setSearchFocused] = useState(false)
 
-  const heroRef = useRef(null)
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  })
-  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0])
-  const heroY       = useTransform(scrollYProgress, [0, 1], [0, 60])
+  const heroRef       = useRef(null)
+  const [heroY,  setHeroY]  = useState(0)
+  const [heroOp, setHeroOp] = useState(1)
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+    const handler = () => {
+      if (!heroRef.current) return
+      const sy = window.scrollY
+      setHeroY(sy * 0.35)
+      setHeroOp(Math.max(0, 1 - sy / 600))
+    }
+    window.addEventListener('scroll', handler, { passive: true })
+    return () => window.removeEventListener('scroll', handler)
+  }, [])
 
-  // ── Nearby API URLs ─────────────────────────────────────────────────────────
-  const nearbyHospitalsUrl = geo.lat && geo.lng
-    ? `/api/hospitals/nearby?lat=${geo.lat}&lng=${geo.lng}&radius=15000&_r=${retryKey}`
-    : null
+  const nearbyHospUrl = geo.lat && geo.lng ? `/api/hospitals/nearby?lat=${geo.lat}&lng=${geo.lng}&radius=15000&_r=${retryKey}` : null
+  const nearbyLabUrl  = geo.lat && geo.lng ? `/api/labs/nearby?lat=${geo.lat}&lng=${geo.lng}&radius=15000&_r=${retryKey}`  : null
 
-  const nearbyLabsUrl = geo.lat && geo.lng
-    ? `/api/labs/nearby?lat=${geo.lat}&lng=${geo.lng}&radius=15000&_r=${retryKey}`
-    : null
-
-  const {
-    data: nearbyHospitals,
-    error: hospitalsError,
-    isLoading: hospitalsLoading,
-  } = useSWR(nearbyHospitalsUrl, fetcher, {
-    revalidateOnFocus: false,
-    shouldRetryOnError: false,
-  })
-
-  const {
-    data: nearbyLabs,
-    error: labsError,
-    isLoading: labsLoading,
-  } = useSWR(nearbyLabsUrl, fetcher, {
-    revalidateOnFocus: false,
-    shouldRetryOnError: false,
-  })
+  const { data: nearbyHosp, error: hospErr, isLoading: hospLoad } = useSWR(nearbyHospUrl, fetcher, { revalidateOnFocus:false, shouldRetryOnError:false })
+  const { data: nearbyLab,  error: labErr,  isLoading: labLoad  } = useSWR(nearbyLabUrl,  fetcher, { revalidateOnFocus:false, shouldRetryOnError:false })
 
   const handleSearch = (e) => {
     e.preventDefault()
-    if (query.trim()) {
-      router.push(`/search?q=${encodeURIComponent(query.trim())}`)
-    }
+    if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`)
   }
 
   const handleAllowLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          // Reload to trigger geo hook
-          window.location.reload()
-        },
-        (err) => {
-          alert('Could not get location. Please allow in browser settings.')
-        }
-      )
-    }
+    navigator.geolocation?.getCurrentPosition(
+      () => window.location.reload(),
+      () => alert('Please allow location in browser settings.')
+    )
   }
 
-  // Show nearby section if: loading, has data, or has error (to show error state)
-  const showNearby = geo.loading || geo.lat || (!geo.loading && !geo.lat)
-
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
-      <Navbar />
+    <>
+      <style>{KF}</style>
+      <div style={{ minHeight: '100vh', background: '#f8fafc', overflowX: 'hidden' }}>
+        <Navbar />
 
-      {/* ══════════════════════════════════════════════════════════════════
-          HERO
-          ══════════════════════════════════════════════════════════════════ */}
-      <motion.section
-        ref={heroRef}
-        style={{ opacity: heroOpacity, y: heroY }}
-        className="relative min-h-[680px] flex items-center pt-16 overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600
-                        via-blue-700 to-indigo-900" />
-
-        <div className="absolute inset-0"
-          style={{
-            background: `
-              radial-gradient(ellipse at 20% 50%, rgba(59,130,246,0.3) 0%, transparent 50%),
-              radial-gradient(ellipse at 80% 20%, rgba(99,102,241,0.4) 0%, transparent 50%)
-            `,
-          }}
-        />
-
-        {/* Particles */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {mounted && (
-            <>
-              <FloatingParticle delay={0}   size={60} left="10%" top="20%" />
-              <FloatingParticle delay={0.5} size={40} left="25%" top="60%" />
-              <FloatingParticle delay={1}   size={80} left="45%" top="30%" />
-              <FloatingParticle delay={1.5} size={50} left="65%" top="70%" />
-              <FloatingParticle delay={2}   size={70} left="80%" top="25%" />
-              <FloatingParticle delay={2.5} size={45} left="90%" top="55%" />
-            </>
-          )}
-        </div>
-
-        {/* Grid overlay */}
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '60px 60px',
-          }}
-        />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-
-            {/* Left */}
-            <div>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm
-                           border border-white/20 rounded-full px-4 py-1.5 mb-6"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                <span className="text-xs font-medium text-blue-100">
-                  Trusted by 50,000+ patients across India
-                </span>
-              </motion.div>
-
-              <motion.h1
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="text-4xl sm:text-5xl lg:text-6xl font-extrabold
-                           text-white leading-[1.1] mb-6"
-              >
-                Book Your
-                <br />
-                <AnimatedHeroText />
-                <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r
-                                 from-cyan-300 to-blue-300">
-                  Without the Wait
-                </span>
-              </motion.h1>
-
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="text-blue-100/90 text-lg mb-8 max-w-lg leading-relaxed"
-              >
-                India&apos;s trusted platform for hospital appointments, lab tests
-                and online doctor consultations — all in one place.
-              </motion.p>
-
-              {/* Search */}
-              <motion.form
-                onSubmit={handleSearch}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="bg-white rounded-2xl p-2 flex gap-2 max-w-lg"
-                style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}
-              >
-                <div className="flex items-center gap-2 flex-1 px-3">
-                  <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search hospitals, labs, doctors..."
-                    className="flex-1 text-sm text-gray-700 placeholder-gray-400
-                               focus:outline-none bg-transparent"
-                    style={{ minHeight: 44 }}
-                  />
-                </div>
-                <div className="hidden sm:flex items-center gap-1.5 px-3
-                                border-l border-gray-200">
-                  {geo.loading
-                    ? <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
-                    : <MapPin  className="w-4 h-4 text-blue-500" />}
-                  <span className="text-xs text-gray-500 max-w-[80px] truncate">
-                    {geo.address
-                      ? geo.address.split(',')[0]
-                      : geo.loading
-                        ? 'Detecting...'
-                        : 'Near me'}
-                  </span>
-                </div>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white
-                             text-sm font-semibold rounded-xl transition-all
-                             flex-shrink-0 flex items-center gap-2"
-                  style={{ minHeight: 44 }}
-                >
-                  Search <ArrowRight className="w-4 h-4" />
-                </button>
-              </motion.form>
-
-              {/* Trust badges */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
-                className="flex flex-wrap items-center gap-4 mt-6"
-              >
-                {TRUST_BADGES.map((badge) => (
-                  <div
-                    key={badge.id}
-                    className="flex items-center gap-1.5 text-blue-200/80"
-                  >
-                    <badge.icon className="w-3.5 h-3.5" />
-                    <span className="text-xs font-medium">{badge.label}</span>
-                  </div>
-                ))}
-              </motion.div>
-            </div>
-
-            {/* Right: floating cards */}
-            <motion.div
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              className="hidden lg:block relative h-[440px]"
-            >
-              <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute top-0 right-0 bg-white/95 rounded-2xl p-5 w-64"
-                style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.12)' }}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex
-                                  items-center justify-center">
-                    <Building2 className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">500+ Hospitals</p>
-                    <p className="text-xs text-gray-400">Verified and rated</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {[1,2,3,4,5].map((s) => (
-                    <Star key={s} className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                  ))}
-                  <span className="text-xs text-gray-500 ml-1">4.8 avg</span>
-                </div>
-              </motion.div>
-
-              <motion.div
-                animate={{ y: [0, 10, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }}
-                className="absolute top-32 left-0 bg-white/95 rounded-2xl p-5 w-60"
-                style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.12)' }}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex
-                                  items-center justify-center">
-                    <FlaskConical className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">Home Collection</p>
-                    <p className="text-xs text-gray-400">Lab tests at your door</p>
-                  </div>
-                </div>
-                <div className="bg-emerald-50 rounded-xl px-3 py-2 text-xs
-                                text-emerald-700 font-medium">
-                  ✓ Free pickup · Same-day reports
-                </div>
-              </motion.div>
-
-              <motion.div
-                animate={{ y: [0, -6, 0] }}
-                transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-                className="absolute bottom-0 right-8 bg-white/95 rounded-2xl p-5 w-56"
-                style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.12)' }}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 flex
-                                  items-center justify-center">
-                    <Video className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">Video Consult</p>
-                    <p className="text-xs text-gray-400">Talk to doctors live</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-xs text-gray-500">2,000+ doctors online</span>
-                </div>
-              </motion.div>
-            </motion.div>
-          </div>
-        </div>
-      </motion.section>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          QUICK ACTIONS
-          ══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10
-                          relative z-10 mb-20">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {QUICK_ACTIONS.map((item, i) => (
-            <motion.a
-              key={item.id}
-              href={item.href}
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.08 }}
-              whileHover={{ y: -6, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="bg-white rounded-2xl p-6 border border-gray-100
-                         cursor-pointer block group relative overflow-hidden"
-              style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
-            >
-              <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient}
-                               opacity-0 group-hover:opacity-[0.03]
-                               transition-opacity duration-300`} />
-              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br
-                               ${item.gradient} flex items-center justify-center
-                               mb-4 shadow-lg text-2xl`}>
-                {item.emoji}
-              </div>
-              <p className="text-sm font-bold text-gray-800 mb-1">{item.label}</p>
-              <p className="text-xs text-gray-400 mb-3">{item.sub}</p>
-              <div className="flex items-center gap-1 text-xs font-medium
-                              text-blue-600 opacity-0 group-hover:opacity-100
-                              transition-opacity">
-                Explore <ChevronRight className="w-3 h-3" />
-              </div>
-            </motion.a>
-          ))}
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          NEARBY HOSPITALS
-          ══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          {/* Section header */}
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-2xl font-extrabold text-gray-900 flex
-                             items-center gap-2">
-                <span className="text-2xl">🏥</span>
-                Hospitals Near You
-              </h2>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {geo.lat
-                  ? 'Top-rated hospitals within 15km of your location'
-                  : 'Allow location to see nearby hospitals'}
-              </p>
-            </div>
-            <a
-              href="/hospitals"
-              className="flex items-center gap-1.5 text-sm text-blue-600
-                         font-semibold hover:text-blue-700 transition-colors"
-            >
-              View all <ArrowRight className="w-4 h-4" />
-            </a>
-          </div>
-
-          {/* States */}
-          {!mounted || geo.loading ? (
-            // Loading location
-            <div className="flex items-center gap-3 bg-blue-50 rounded-2xl p-4">
-              <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
-              <span className="text-sm text-blue-600">
-                Detecting your location...
-              </span>
-            </div>
-          ) : !geo.lat ? (
-            // No location permission
-            <LocationPrompt onAllow={handleAllowLocation} />
-          ) : hospitalsLoading ? (
-            // Loading hospitals
-            <NearbySkeletonRow />
-          ) : hospitalsError ? (
-            // Error
-            <NearbyError
-              type="hospitals"
-              onRetry={() => setRetryKey((k) => k + 1)}
-            />
-          ) : !nearbyHospitals || nearbyHospitals.length === 0 ? (
-            // No hospitals found
-            <div className="flex items-center gap-3 bg-gray-50 border
-                            border-gray-100 rounded-2xl p-5">
-              <Building2 className="w-8 h-8 text-gray-200 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-gray-500">
-                  No hospitals found within 15km
-                </p>
-                <a
-                  href="/hospitals"
-                  className="text-xs text-blue-600 hover:underline mt-0.5 block"
-                >
-                  Browse all hospitals →
-                </a>
-              </div>
-            </div>
-          ) : (
-            // Show hospitals
-            <div className="overflow-x-auto -mx-2 px-2">
-              <div className="flex gap-4 pb-4" style={{ minWidth: 'max-content' }}>
-                {nearbyHospitals.map((h, idx) => (
-                  <NearbyHospitalCard
-                    key={h.id || `h-${idx}`}
-                    hospital={h}
-                    onClick={() => router.push(`/hospitals/${h.id}`)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </motion.div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          NEARBY LABS
-          ══════════════════════════════════════════════════════════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-2xl font-extrabold text-gray-900 flex
-                             items-center gap-2">
-                <span className="text-2xl">🧪</span>
-                Labs Near You
-              </h2>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {geo.lat
-                  ? 'Trusted labs with home collection within 15km'
-                  : 'Allow location to see nearby labs'}
-              </p>
-            </div>
-            <a
-              href="/labs"
-              className="flex items-center gap-1.5 text-sm text-emerald-600
-                         font-semibold hover:text-emerald-700 transition-colors"
-            >
-              View all <ArrowRight className="w-4 h-4" />
-            </a>
-          </div>
-
-          {!mounted || geo.loading ? (
-            <div className="flex items-center gap-3 bg-emerald-50 rounded-2xl p-4">
-              <Loader2 className="w-5 h-5 text-emerald-500 animate-spin flex-shrink-0" />
-              <span className="text-sm text-emerald-600">
-                Detecting your location...
-              </span>
-            </div>
-          ) : !geo.lat ? (
-            <LocationPrompt onAllow={handleAllowLocation} />
-          ) : labsLoading ? (
-            <NearbySkeletonRow />
-          ) : labsError ? (
-            <NearbyError
-              type="labs"
-              onRetry={() => setRetryKey((k) => k + 1)}
-            />
-          ) : !nearbyLabs || nearbyLabs.length === 0 ? (
-            <div className="flex items-center gap-3 bg-gray-50 border
-                            border-gray-100 rounded-2xl p-5">
-              <FlaskConical className="w-8 h-8 text-gray-200 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-gray-500">
-                  No labs found within 15km
-                </p>
-                <a
-                  href="/labs"
-                  className="text-xs text-emerald-600 hover:underline mt-0.5 block"
-                >
-                  Browse all labs →
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div className="overflow-x-auto -mx-2 px-2">
-              <div className="flex gap-4 pb-4" style={{ minWidth: 'max-content' }}>
-                {nearbyLabs.map((l, idx) => (
-                  <NearbyLabCard
-                    key={l.id || `l-${idx}`}
-                    lab={l}
-                    onClick={() => router.push(`/labs/${l.id}`)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </motion.div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          HOW IT WORKS
-          ══════════════════════════════════════════════════════════════════ */}
-      <section className="relative py-24 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-gray-50 to-white" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px]
-                        h-[600px] rounded-full bg-blue-50/60 blur-3xl" />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-14"
-          >
-            <div className="inline-flex items-center gap-2 bg-blue-50 rounded-full
-                            px-4 py-1.5 mb-4">
-              <Zap className="w-3.5 h-3.5 text-blue-600" />
-              <span className="text-xs font-semibold text-blue-600">
-                Simple Process
-              </span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">
-              How MEDLI Works
-            </h2>
-            <p className="text-gray-500 text-base max-w-md mx-auto">
-              Book your healthcare in 3 simple steps
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            <div className="hidden md:block absolute top-14 left-[18%]
-                            right-[18%] h-0.5 bg-gradient-to-r
-                            from-blue-200 via-purple-200 to-emerald-200" />
-
-            {STEPS.map((s, i) => {
-              const Icon = s.icon
-              return (
-                <motion.div
-                  key={s.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.15 }}
-                  viewport={{ once: true }}
-                >
-                  <div className="bg-white rounded-3xl p-8 border border-gray-100
-                                  hover:shadow-lg transition-all group"
-                    style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-                  >
-                    <div className="relative mb-6">
-                      <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br
-                                       ${s.color} flex items-center justify-center
-                                       shadow-lg group-hover:scale-110 transition-all`}>
-                        <Icon className="w-7 h-7 text-white" />
-                      </div>
-                      <span className="absolute -top-2 -right-2 w-7 h-7 rounded-full
-                                       bg-gray-900 text-white text-xs font-bold
-                                       flex items-center justify-center">
-                        {s.step}
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">{s.title}</h3>
-                    <p className="text-sm text-gray-500 leading-relaxed">{s.desc}</p>
-                  </div>
-                </motion.div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          STATS
-          ══════════════════════════════════════════════════════════════════ */}
-      <section className="py-20 bg-gradient-to-br from-gray-900 to-blue-900
-                          relative overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/10
-                        rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/10
-                        rounded-full blur-3xl" />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl font-extrabold text-white mb-2">
-              Numbers That Speak
-            </h2>
-            <p className="text-gray-400">Growing every day with your trust</p>
-          </motion.div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {STATS.map((s, i) => {
-              const Icon = s.icon
-              return (
-                <motion.div
-                  key={s.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  viewport={{ once: true }}
-                  className="text-center"
-                >
-                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br
-                                   ${s.color} flex items-center justify-center
-                                   mx-auto mb-4 shadow-lg`}>
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
-                  <p className="text-3xl sm:text-4xl font-extrabold text-white mb-1">
-                    <AnimatedCounter
-                      target={s.value}
-                      suffix={s.suffix}
-                      duration={2500}
-                    />
-                  </p>
-                  <p className="text-sm text-gray-400 font-medium">{s.label}</p>
-                </motion.div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════
-          TESTIMONIALS
-          ══════════════════════════════════════════════════════════════════ */}
-      <section className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-14"
-          >
-            <div className="inline-flex items-center gap-2 bg-purple-50
-                            rounded-full px-4 py-1.5 mb-4">
-              <Heart className="w-3.5 h-3.5 text-purple-600" />
-              <span className="text-xs font-semibold text-purple-600">
-                Patient Stories
-              </span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">
-              What Our Patients Say
-            </h2>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((t, i) => (
-              <motion.div
-                key={t.id}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ y: -4 }}
-                className="bg-white rounded-2xl p-6 border border-gray-100
-                           hover:shadow-lg transition-all"
-                style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-              >
-                <div className="flex items-center gap-0.5 mb-4">
-                  {Array.from({ length: t.rating }).map((_, s) => (
-                    <Star key={s}
-                      className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-gray-600 leading-relaxed mb-6">
-                  &ldquo;{t.text}&rdquo;
-                </p>
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-50">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br
-                                  from-blue-500 to-purple-600 flex items-center
-                                  justify-center text-white font-bold text-sm">
-                    {t.avatar}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{t.name}</p>
-                    <p className="text-xs text-gray-400">{t.role}</p>
-                  </div>
-                </div>
-              </motion.div>
+        {/* ══════════ HERO ══════════ */}
+        <section ref={heroRef} style={{
+          position: 'relative',
+          minHeight: 'clamp(580px,85vh,780px)',
+          display: 'flex', alignItems: 'center',
+          overflow: 'hidden',
+          background: 'linear-gradient(135deg,#1e1b4b 0%,#312e81 35%,#1e40af 70%,#164e63 100%)',
+          transform: `translateY(${heroY}px)`,
+          opacity: heroOp,
+        }}>
+          {/* Orbs */}
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {[
+              { top:'15%',left:'8%',  w:'clamp(200px,30vw,400px)', dur:'6s', delay:'0s'  },
+              { top:'auto',bottom:'15%',right:'8%', w:'clamp(150px,25vw,320px)', dur:'8s', delay:'2s'  },
+              { top:'45%',left:'45%', w:'clamp(100px,20vw,250px)', dur:'5s', delay:'1s'  },
+            ].map((orb, i) => (
+              <div key={i} style={{
+                position: 'absolute', ...orb,
+                width: orb.w, height: orb.w, borderRadius: '50%',
+                background: ['radial-gradient(circle,rgba(99,102,241,0.3),transparent 70%)','radial-gradient(circle,rgba(6,182,212,0.25),transparent 70%)','radial-gradient(circle,rgba(139,92,246,0.2),transparent 70%)'][i],
+                filter: 'blur(60px)',
+                animation: `hero-pulse ${orb.dur} ease infinite ${orb.delay}`,
+              }} />
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          CTA
-          ══════════════════════════════════════════════════════════════════ */}
-      <section className="py-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="relative bg-gradient-to-br from-blue-600 to-indigo-700
-                       rounded-3xl p-10 sm:p-14 text-center overflow-hidden"
-            style={{ boxShadow: '0 20px 60px rgba(37,99,235,0.25)' }}
-          >
-            <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full
-                            bg-white/5 pointer-events-none" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full
-                            bg-white/5 pointer-events-none" />
+          {/* Grid */}
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)', backgroundSize: '60px 60px' }} />
 
-            <div className="relative">
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4">
-                Ready to Book Your First Appointment?
-              </h2>
-              <p className="text-blue-100 text-base mb-8 max-w-lg mx-auto">
-                Join 50,000+ patients who trust MEDLI. Takes less than 2 minutes.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center
-                              justify-center gap-4">
-                <a href="/hospitals"
-                  className="px-8 py-3.5 bg-white text-blue-600 rounded-xl
-                             text-sm font-bold hover:bg-blue-50 transition-all
-                             flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  Find Hospitals
-                </a>
-                <a href="/auth/register"
-                  className="px-8 py-3.5 bg-white/10 border border-white/30
-                             text-white rounded-xl text-sm font-bold
-                             hover:bg-white/20 transition-all flex items-center gap-2">
-                  Create Account
-                  <ArrowRight className="w-4 h-4" />
-                </a>
+          {/* Content grid */}
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: 'clamp(48px,8vw,96px) clamp(16px,3vw,32px)', width: '100%', position: 'relative', zIndex: 1 }}>
+            <style>{`@media(min-width:1024px){.hg{grid-template-columns:1fr 1fr!important}}`}</style>
+            <div className="hg" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 40, alignItems: 'center' }}>
+
+              {/* Left col */}
+              <div>
+                {/* Badge */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 100, padding: '6px 16px', marginBottom: 28 }}>
+                  <span style={{ fontSize: 13 }}>✨</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.85)' }}>Trusted by 50,000+ patients across India</span>
+                </div>
+
+                {/* Headline */}
+                <h1 style={{ fontSize: 'clamp(32px,5vw,60px)', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: 24, letterSpacing: '-1px' }}>
+                  Book Your<br />
+                  <WordRotator /><br />
+                  <span style={{ background: 'linear-gradient(135deg,#67e8f9,#a5f3fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                    Without the Wait
+                  </span>
+                </h1>
+
+                <p style={{ fontSize: 'clamp(14px,2vw,17px)', color: 'rgba(255,255,255,0.7)', lineHeight: 1.75, marginBottom: 32, maxWidth: 520 }}>
+                  India&apos;s trusted platform for hospital appointments, lab tests and online doctor consultations — all in one place.
+                </p>
+
+                {/* Search */}
+                <form onSubmit={handleSearch} style={{
+                  background: 'rgba(255,255,255,0.97)', borderRadius: 16, padding: 6,
+                  display: 'flex', gap: 6, maxWidth: 540,
+                  boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+                  border: `1.5px solid ${searchFocused ? 'rgba(99,102,241,0.5)' : 'transparent'}`,
+                  transition: 'border-color .2s ease', marginBottom: 24,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, padding: '6px 10px' }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>🔍</span>
+                    <input
+                      type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+                      onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
+                      placeholder="Search hospitals, labs, doctors..."
+                      style={{ flex: 1, fontSize: 14, color: '#0f172a', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'inherit', minHeight: 36 }}
+                    />
+                  </div>
+
+                  {/* Location pill */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', borderLeft: '1.5px solid #f1f5f9', minWidth: 0 }}
+                    className="hide-xs"
+                  >
+                    <style>{`@media(max-width:480px){.hide-xs{display:none!important}}`}</style>
+                    <span style={{ fontSize: 14 }}>{geo.loading ? '⏳' : '📍'}</span>
+                    <span style={{ fontSize: 11, color: '#94a3b8', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {geo.address ? geo.address.split(',')[0] : geo.loading ? 'Detecting...' : 'Near me'}
+                    </span>
+                  </div>
+
+                  <SearchSubmitBtn />
+                </form>
+
+                {/* Trust pills */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  {[
+                    { icon:'🛡️', label:'Verified Providers' },
+                    { icon:'⚡', label:'Instant Booking'    },
+                    { icon:'⭐', label:'4.8★ Avg Rating'    },
+                    { icon:'🔒', label:'Secure Payments'    },
+                  ].map((b) => (
+                    <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 500 }}>
+                      <span style={{ fontSize: 13 }}>{b.icon}</span>{b.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right col — floating cards (desktop only) */}
+              <div style={{ position: 'relative', height: 440, display: 'none' }} className="hero-cards">
+                <style>{`@media(min-width:1024px){.hero-cards{display:block!important}}`}</style>
+
+                <FloatCard delay={0} style={{ top: 0, right: 0, width: 240 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🏥</div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>500+ Hospitals</p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Verified and rated</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 2 }}>
+                    {[1,2,3,4,5].map((s) => <span key={s} style={{ fontSize: 12 }}>⭐</span>)}
+                    <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 4 }}>4.8 avg</span>
+                  </div>
+                </FloatCard>
+
+                <FloatCard delay={0.8} style={{ top: 130, left: 0, width: 228 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🧪</div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>Home Collection</p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Lab tests at your door</p>
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, padding: '6px 12px', fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                    ✓ Free pickup · Same-day reports
+                  </div>
+                </FloatCard>
+
+                <FloatCard delay={1.5} style={{ bottom: 0, right: 20, width: 220 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎥</div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>Video Consult</p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Talk to doctors live</p>
+                    </div>
+                  </div>
+                  {/* ✅ FIXED: removed stray quote after 10 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ position: 'relative', width: 10, height: 10 }}>
+                      <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#10b981', animation: 'dot-ping 1.5s ease infinite' }} />
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981', position: 'relative' }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: '#64748b' }}>2,000+ doctors online</span>
+                  </div>
+                </FloatCard>
               </div>
             </div>
-          </motion.div>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      <Footer />
-    </div>
+        {/* ══════════ QUICK ACTIONS ══════════ */}
+        <section style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)', marginTop: -40, position: 'relative', zIndex: 10, marginBottom: 64 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 16 }}>
+            {QUICK.map((q) => <QuickAction key={q.label} {...q} />)}
+          </div>
+        </section>
+
+        {/* ══════════ NEARBY HOSPITALS ══════════ */}
+        <NearbySection title="🏥 Hospitals Near You" subtitle={geo.lat ? 'Top-rated hospitals within 15km' : 'Allow location to see nearby hospitals'} viewHref="/hospitals" viewColor="#6366f1">
+          {!mounted || geo.loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.1)', borderRadius: 16, padding: 16 }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'spin-ring .8s linear infinite' }} />
+              <span style={{ fontSize: 13, color: '#6366f1' }}>Detecting your location...</span>
+            </div>
+          ) : !geo.lat ? (
+            <LocationPrompt onAllow={handleAllowLocation} />
+          ) : hospLoad ? (
+            <SkeletonRow />
+          ) : hospErr ? (
+            <ErrorState type="hospitals" onRetry={() => setRetryKey((k) => k + 1)} />
+          ) : !nearbyHosp?.length ? (
+            <EmptyNearby type="hospitals" href="/hospitals" />
+          ) : (
+            <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
+              <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
+                {nearbyHosp.map((h, i) => (
+                  <NearbyHospCard key={h.id || i} h={h} onClick={() => router.push(`/hospitals/${h.id}`)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </NearbySection>
+
+        {/* ══════════ NEARBY LABS ══════════ */}
+        <NearbySection title="🧪 Labs Near You" subtitle={geo.lat ? 'Trusted labs with home collection within 15km' : 'Allow location to see nearby labs'} viewHref="/labs" viewColor="#10b981">
+          {!mounted || geo.loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.1)', borderRadius: 16, padding: 16 }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #10b981', borderTopColor: 'transparent', animation: 'spin-ring .8s linear infinite' }} />
+              <span style={{ fontSize: 13, color: '#10b981' }}>Detecting your location...</span>
+            </div>
+          ) : !geo.lat ? (
+            <LocationPrompt onAllow={handleAllowLocation} />
+          ) : labLoad ? (
+            <SkeletonRow />
+          ) : labErr ? (
+            <ErrorState type="labs" onRetry={() => setRetryKey((k) => k + 1)} />
+          ) : !nearbyLab?.length ? (
+            <EmptyNearby type="labs" href="/labs" />
+          ) : (
+            <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
+              <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
+                {nearbyLab.map((l, i) => (
+                  <NearbyLabCard key={l.id || i} l={l} onClick={() => router.push(`/labs/${l.id}`)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </NearbySection>
+
+        {/* ══════════ HOW IT WORKS ══════════ */}
+        <section style={{ background: 'linear-gradient(180deg,#f8fafc,#fff)', padding: 'clamp(48px,8vw,96px) 0', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'clamp(300px,50vw,600px)', height: 'clamp(300px,50vw,600px)', borderRadius: '50%', background: 'radial-gradient(circle,rgba(99,102,241,0.05),transparent 70%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)', position: 'relative', zIndex: 1 }}>
+            <SectionHeader badge="⚡ Simple Process" title="How MEDLI Works" sub="Book your healthcare in 3 simple steps" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 24 }}>
+              {STEPS.map((s, i) => <StepCard key={s.step} {...s} delay={i * 150} />)}
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════ STATS ══════════ */}
+        <section style={{ background: 'linear-gradient(135deg,#0f172a,#1e1b4b,#1e3a8a)', padding: 'clamp(48px,8vw,96px) 0', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: '30%', left: '20%', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle,rgba(99,102,241,0.15),transparent 70%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: '20%', right: '20%', width: 250, height: 250, borderRadius: '50%', background: 'radial-gradient(circle,rgba(6,182,212,0.1),transparent 70%)', filter: 'blur(50px)', pointerEvents: 'none' }} />
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)', position: 'relative', zIndex: 1 }}>
+            <div style={{ textAlign: 'center', marginBottom: 48 }}>
+              <h2 style={{ fontSize: 'clamp(24px,4vw,36px)', fontWeight: 800, color: '#fff', marginBottom: 8, letterSpacing: '-0.5px' }}>Numbers That Speak</h2>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>Growing every day with your trust</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 'clamp(16px,3vw,32px)' }}>
+              {STATS.map((s, i) => <StatCard key={s.label} {...s} delay={i * 100} />)}
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════ TESTIMONIALS ══════════ */}
+        <section style={{ padding: 'clamp(48px,8vw,96px) 0', background: '#fff' }}>
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)' }}>
+            <SectionHeader badge="❤️ Patient Stories" title="What Our Patients Say" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 20 }}>
+              {TESTI.map((t, i) => <TestiCard key={t.name} {...t} delay={i * 100} />)}
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════ CTA ══════════ */}
+        <section style={{ padding: 'clamp(32px,6vw,72px) 0' }}>
+          <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)' }}>
+            <CtaBlock />
+          </div>
+        </section>
+
+        <Footer />
+      </div>
+    </>
   )
 }

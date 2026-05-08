@@ -1,14 +1,12 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { use, useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
-import Button from '@/components/ui/Button'
 import EmptyState from '@/components/ui/EmptyState'
-import { Star, MapPin, IndianRupee, Video, User } from 'lucide-react'
+import { SkeletonCard } from '@/components/ui/Skeleton'
 
 const fetcher = (url) => fetch(url).then((r) => r.json()).then((j) => j.data)
 
@@ -18,27 +16,173 @@ function generateDates(count = 14) {
   })
 }
 
-const colorClass = {
-  green:  'bg-emerald-50 text-emerald-700 text-xs px-2 py-1 rounded-full font-medium',
-  yellow: 'bg-amber-50 text-amber-700 text-xs px-2 py-1 rounded-full font-medium',
-  red:    'bg-red-50 text-red-700 text-xs px-2 py-1 rounded-full font-medium',
-  grey:   'bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full font-medium',
+const SLOT_STATUS = {
+  green:  { bg:'rgba(16,185,129,0.1)',  color:'#059669', label:'Available'   },
+  yellow: { bg:'rgba(245,158,11,0.1)',  color:'#d97706', label:'Filling Fast' },
+  red:    { bg:'rgba(239,68,68,0.1)',   color:'#dc2626', label:'Almost Full'  },
+  grey:   { bg:'rgba(100,116,139,0.1)', color:'#64748b', label:'Few Slots'    },
+}
+
+function ConsultTypeBtn({ label, icon, fee, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4,
+        padding:'14px 8px',borderRadius:16,
+        border:`2px solid ${active?'#6366f1':h?'#e0e7ff':'#e2e8f0'}`,
+        background: active?'rgba(99,102,241,0.08)':h?'rgba(99,102,241,0.03)':'#fff',
+        color: active?'#6366f1':'#64748b',
+        cursor:'pointer',transition:'all .18s ease',
+      }}
+    >
+      <span style={{ fontSize:24 }}>{icon}</span>
+      <span style={{ fontSize:12,fontWeight:600 }}>{label}</span>
+      {fee > 0 && <span style={{ fontSize:11,opacity:0.8 }}>₹{fee}</span>}
+    </button>
+  )
+}
+
+function DateBtn({ date, active, onClick }) {
+  const [h, setH] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
+  const ds    = date.toISOString().split('T')[0]
+  const isToday = ds === today
+
+  return (
+    <button
+      onClick={() => onClick(ds)}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        display:'flex',flexDirection:'column',alignItems:'center',
+        minWidth:52,padding:'8px 6px',borderRadius:12,flexShrink:0,
+        border:`1.5px solid ${active?'#6366f1':isToday?'rgba(99,102,241,0.3)':'#f1f5f9'}`,
+        background: active
+          ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+          : isToday ? 'rgba(99,102,241,0.05)' : h ? '#f8fafc' : '#fff',
+        color: active ? '#fff' : isToday ? '#6366f1' : '#334155',
+        cursor:'pointer',transition:'all .15s ease',minHeight:56,
+        boxShadow: active ? '0 4px 14px rgba(99,102,241,0.35)' : 'none',
+      }}
+    >
+      <span style={{ fontSize:10,fontWeight:600,opacity:active?0.85:0.6 }}>
+        {date.toLocaleDateString('en',{weekday:'short'})}
+      </span>
+      <span style={{ fontSize:18,fontWeight:800,lineHeight:1.2 }}>
+        {date.getDate()}
+      </span>
+      <span style={{ fontSize:9,opacity:active?0.75:0.5 }}>
+        {date.toLocaleDateString('en',{month:'short'})}
+      </span>
+    </button>
+  )
+}
+
+function SlotBtn({ slot, selected, onClick }) {
+  const [h, setH] = useState(false)
+  const booked = slot.isBooked
+
+  return (
+    <button
+      disabled={booked}
+      onClick={() => !booked && onClick(slot.startTime)}
+      onMouseEnter={() => !booked && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        padding:'8px 4px',borderRadius:10,
+        fontSize:11,fontWeight:500,textAlign:'center',
+        border:`1.5px solid ${
+          booked ? '#f1f5f9'
+          : selected ? '#6366f1'
+          : h ? '#c4b5fd'
+          : '#e2e8f0'
+        }`,
+        background: booked ? '#f8fafc'
+          : selected ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+          : h ? 'rgba(99,102,241,0.06)' : '#fff',
+        color: booked ? '#cbd5e1' : selected ? '#fff' : '#334155',
+        cursor: booked ? 'not-allowed' : 'pointer',
+        transition:'all .15s ease',
+        minHeight:36,
+        boxShadow: selected ? '0 2px 8px rgba(99,102,241,0.35)' : 'none',
+      }}
+    >
+      {slot.startTime}
+    </button>
+  )
+}
+
+function StickyBookBar({ slot, date, consultType, fee, onBook }) {
+  const [h, setH] = useState(false)
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setShow(!!slot), 50)
+    return () => clearTimeout(t)
+  }, [slot])
+
+  if (!slot) return null
+
+  return (
+    <div style={{
+      position:'fixed',bottom:0,left:0,right:0,zIndex:200,
+      background:'rgba(255,255,255,0.97)',borderTop:'1px solid #f1f5f9',
+      padding:'12px clamp(16px,3vw,32px)',
+      display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,
+      boxShadow:'0 -8px 32px rgba(0,0,0,0.1)',backdropFilter:'blur(20px)',
+      transform: show ? 'translateY(0)' : 'translateY(100%)',
+      transition:'transform .3s cubic-bezier(0.34,1.56,0.64,1)',
+    }}>
+      <div>
+        <p style={{ fontSize:11,color:'#94a3b8',margin:0 }}>Selected appointment</p>
+        <p style={{ fontSize:13,fontWeight:700,color:'#0f172a',margin:'2px 0' }}>
+          {date} · {slot} · {consultType}
+        </p>
+        <p style={{ fontSize:13,fontWeight:700,color:'#6366f1',margin:0 }}>₹{fee || 0}</p>
+      </div>
+      <button
+        onClick={onBook}
+        onMouseEnter={() => setH(true)}
+        onMouseLeave={() => setH(false)}
+        style={{
+          padding:'12px 28px',borderRadius:13,border:'none',
+          background: h
+            ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
+            : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',
+          boxShadow: h ? '0 8px 24px rgba(99,102,241,0.5)' : '0 4px 14px rgba(99,102,241,0.35)',
+          transition:'all .18s ease',
+          transform: h ? 'scale(1.02)' : 'scale(1)',
+          flexShrink:0,
+        }}
+      >
+        Continue →
+      </button>
+    </div>
+  )
 }
 
 export default function DoctorPage({ params }) {
   const { id } = use(params)
   const router = useRouter()
-  const [consultType, setConsultType] = useState('offline')
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
-  const [selectedSlot, setSelectedSlot] = useState(null)
+  const [consultType,   setConsultType]   = useState('offline')
+  const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
+  const [selectedSlot,  setSelectedSlot]  = useState(null)
   const dates = generateDates()
 
   const { data: doctor } = useSWR(`/api/doctors/${id}`, fetcher)
   const { data: slotsData, isLoading: slotsLoading } = useSWR(
-    selectedDate ? `/api/doctors/${id}/slots?date=${selectedDate}` : null, fetcher
+    selectedDate ? `/api/doctors/${id}/slots?date=${selectedDate}` : null,
+    fetcher
   )
 
-  const fee = consultType === 'online' ? doctor?.consultationFee?.online : doctor?.consultationFee?.offline
+  const fee = consultType === 'online'
+    ? doctor?.consultationFee?.online
+    : doctor?.consultationFee?.offline
 
   const handleBook = () => {
     if (!selectedSlot) return
@@ -46,133 +190,167 @@ export default function DoctorPage({ params }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
-      <Navbar />
+    <>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+      <div style={{ minHeight:'100vh',background:'#f8fafc',paddingBottom: selectedSlot?80:0 }}>
+        <Navbar />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8">
-        {/* Doctor Info */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 mb-6" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-          <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-indigo-100 flex items-center justify-center text-4xl flex-shrink-0 overflow-hidden">
-              {doctor?.avatar ? <img src={doctor.avatar} alt="" className="w-full h-full object-cover" /> : '👨‍⚕️'}
+        <div style={{ maxWidth:720,margin:'0 auto',padding:'clamp(80px,10vw,96px) clamp(16px,3vw,32px) 40px' }}>
+
+          {/* Doctor info card */}
+          <div style={{
+            background:'#fff',borderRadius:24,padding:24,
+            border:'1.5px solid #f1f5f9',
+            boxShadow:'0 4px 20px rgba(0,0,0,0.06)',
+            marginBottom:20,
+            display:'flex',alignItems:'flex-start',gap:16,
+            flexWrap:'wrap',
+          }}>
+            <div style={{
+              width:80,height:80,borderRadius:20,
+              background:'linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1))',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:38,flexShrink:0,overflow:'hidden',
+            }}>
+              {doctor?.avatar
+                ? <img src={doctor.avatar} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
+                : '👨‍⚕️'}
             </div>
-            <div className="flex-1">
-              <h1 className="text-lg font-bold text-gray-900">Dr. {doctor?.name || '—'}</h1>
-              <p className="text-blue-600 text-sm font-medium">{(doctor?.specialization || []).join(', ')}</p>
-              <p className="text-gray-400 text-xs mt-0.5">{(doctor?.qualifications || []).join(', ')}</p>
-              {doctor?.experience && <p className="text-xs text-gray-400">{doctor.experience} years experience</p>}
-              {doctor?.rating?.average > 0 && (
-                <div className="flex items-center gap-1 mt-1.5">
-                  <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                  <span className="text-xs font-semibold">{doctor.rating.average.toFixed(1)}</span>
-                  <span className="text-xs text-gray-400">({doctor.rating.count})</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Consultation type toggle */}
-        <div className="flex gap-3 mb-6">
-          {[
-            { key: 'offline', label: 'In-Person', icon: <User className="w-4 h-4" />, fee: doctor?.consultationFee?.offline },
-            { key: 'online', label: 'Video Call', icon: <Video className="w-4 h-4" />, fee: doctor?.consultationFee?.online },
-          ].filter((t) => t.fee > 0 || t.key === 'offline').map((t) => (
-            <motion.button key={t.key} whileTap={{ scale: 0.97 }} onClick={() => { setConsultType(t.key); setSelectedSlot(null) }}
-              className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-2xl border-2 transition-all ${consultType === t.key ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}>
-              {t.icon}
-              <span className="text-xs font-semibold">{t.label}</span>
-              {t.fee > 0 && <span className="text-xs">₹{t.fee}</span>}
-            </motion.button>
-          ))}
-        </div>
-
-        {/* Date strip */}
-        <div className="overflow-x-auto flex gap-2 pb-3 mb-4">
-          {dates.map((d) => {
-            const ds = d.toISOString().split('T')[0]
-            const isToday = ds === new Date().toISOString().split('T')[0]
-            const active = ds === selectedDate
-            return (
-              <button key={ds} onClick={() => { setSelectedDate(ds); setSelectedSlot(null) }}
-                className={`flex flex-col items-center min-w-[52px] px-2 py-2 rounded-xl text-xs transition-colors flex-shrink-0 ${active ? 'bg-blue-600 text-white' : isToday ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-white text-gray-600 border border-gray-100 hover:bg-gray-50'}`}
-                style={{ minHeight: 44 }}>
-                <span className="font-semibold">{d.toLocaleDateString('en', { weekday: 'short' })}</span>
-                <span className="text-lg font-bold">{d.getDate()}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Slot picker */}
-        {slotsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : slotsData?.exception ? (
-          <EmptyState title="Doctor unavailable" message={slotsData.reason} />
-        ) : !slotsData?.hourBlocks?.length ? (
-          <EmptyState title="No slots available" message="Try another date" />
-        ) : (
-          <div className="space-y-4">
-            {slotsData.hourBlocks.map((block) => (
-              <div key={block.hour} className="bg-white rounded-2xl p-4 border border-gray-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm font-semibold text-gray-700">{block.hourLabel}</span>
-                  <span className={colorClass[block.availabilityColor] || colorClass.grey}>
-                    {block.availabilityLabel}
+            <div style={{ flex:1,minWidth:0 }}>
+              <h1 style={{ fontSize:'clamp(16px,3vw,22px)',fontWeight:800,color:'#0f172a',margin:'0 0 4px' }}>
+                Dr. {doctor?.name || '—'}
+              </h1>
+              <p style={{ fontSize:13,fontWeight:600,color:'#6366f1',margin:'0 0 2px' }}>
+                {(doctor?.specialization||[]).join(', ')}
+              </p>
+              <p style={{ fontSize:12,color:'#94a3b8',margin:'0 0 8px' }}>
+                {(doctor?.qualifications||[]).join(', ')}
+              </p>
+              <div style={{ display:'flex',flexWrap:'wrap',gap:12 }}>
+                {doctor?.experience && (
+                  <span style={{ fontSize:12,color:'#64748b' }}>
+                    🏆 {doctor.experience} yrs exp
                   </span>
-                </div>
-                <div className="grid grid-cols-6 gap-2">
-                  {block.slots.map((slot) => {
-                    const isSelected = selectedSlot === slot.startTime
-                    return (
-                      <button key={slot.startTime}
-                        disabled={slot.isBooked}
-                        onClick={() => setSelectedSlot(isSelected ? null : slot.startTime)}
-                        className={`py-2 rounded-lg text-xs text-center transition-all ${
-                          slot.isBooked
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : isSelected
-                              ? 'bg-blue-600 text-white font-semibold'
-                              : 'bg-white border border-gray-200 hover:border-blue-500 text-gray-700 cursor-pointer'
-                        }`}
-                        style={{ minHeight: 36 }}
-                      >
-                        {slot.startTime}
-                      </button>
-                    )
-                  })}
-                </div>
+                )}
+                {doctor?.rating?.average > 0 && (
+                  <span style={{ fontSize:12,color:'#64748b' }}>
+                    ⭐ {doctor.rating.average.toFixed(1)} ({doctor.rating.count} reviews)
+                  </span>
+                )}
               </div>
+            </div>
+          </div>
+
+          {/* Consult type */}
+          <div style={{ display:'flex',gap:10,marginBottom:20 }}>
+            <ConsultTypeBtn
+              label="In-Person"
+              icon="🏥"
+              fee={doctor?.consultationFee?.offline}
+              active={consultType === 'offline'}
+              onClick={() => { setConsultType('offline'); setSelectedSlot(null) }}
+            />
+            {doctor?.consultationFee?.online > 0 && (
+              <ConsultTypeBtn
+                label="Video Call"
+                icon="🎥"
+                fee={doctor?.consultationFee?.online}
+                active={consultType === 'online'}
+                onClick={() => { setConsultType('online'); setSelectedSlot(null) }}
+              />
+            )}
+          </div>
+
+          {/* Date strip */}
+          <div style={{
+            display:'flex',gap:8,overflowX:'auto',
+            paddingBottom:10,marginBottom:20,
+            scrollbarWidth:'none',
+          }}>
+            {dates.map((d) => (
+              <DateBtn
+                key={d.toISOString()}
+                date={d}
+                active={d.toISOString().split('T')[0] === selectedDate}
+                onClick={(ds) => { setSelectedDate(ds); setSelectedSlot(null) }}
+              />
             ))}
           </div>
-        )}
-      </div>
 
-      {/* Sticky footer when slot selected */}
-      <AnimatePresence>
-        {selectedSlot && (
-          <motion.div
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-30"
-            style={{ boxShadow: '0 -4px 24px rgba(0,0,0,0.08)' }}
-          >
-            <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-gray-500">Selected slot</p>
-                <p className="text-sm font-bold text-gray-800">{selectedDate} · {selectedSlot} · {consultType}</p>
-                <p className="text-xs text-blue-600 font-semibold">₹{fee || 0}</p>
+          {/* Slots */}
+          <div style={{
+            background:'#fff',borderRadius:20,padding:20,
+            border:'1.5px solid #f1f5f9',
+            boxShadow:'0 2px 12px rgba(0,0,0,0.05)',
+          }}>
+            <h3 style={{ fontSize:14,fontWeight:700,color:'#1e293b',marginBottom:16 }}>
+              Available Slots — {new Date(selectedDate).toLocaleDateString('en',{weekday:'long',month:'long',day:'numeric'})}
+            </h3>
+
+            {slotsLoading ? (
+              <div style={{ display:'flex',alignItems:'center',justifyContent:'center',padding:40,gap:10 }}>
+                <div style={{
+                  width:20,height:20,borderRadius:'50%',
+                  border:'2.5px solid #6366f1',borderTopColor:'transparent',
+                  animation:'spin .8s linear infinite',
+                }} />
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                <span style={{ fontSize:13,color:'#6366f1' }}>Loading slots…</span>
               </div>
-              <Button variant="primary" size="md" onClick={handleBook}>Continue</Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            ) : slotsData?.exception ? (
+              <EmptyState title="Doctor unavailable" message={slotsData.reason} />
+            ) : !slotsData?.hourBlocks?.length ? (
+              <EmptyState title="No slots available" message="Try another date" />
+            ) : (
+              <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
+                {slotsData.hourBlocks.map((block) => {
+                  const status = SLOT_STATUS[block.availabilityColor] || SLOT_STATUS.grey
+                  return (
+                    <div key={block.hour}>
+                      <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:10 }}>
+                        <span style={{ fontSize:13,fontWeight:600,color:'#334155' }}>
+                          {block.hourLabel}
+                        </span>
+                        <span style={{
+                          fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:100,
+                          background: status.bg,color: status.color,
+                        }}>
+                          {block.availabilityLabel}
+                        </span>
+                      </div>
+                      <div style={{
+                        display:'grid',
+                        gridTemplateColumns:'repeat(auto-fill,minmax(72px,1fr))',
+                        gap:8,
+                      }}>
+                        {block.slots.map((slot) => (
+                          <SlotBtn
+                            key={slot.startTime}
+                            slot={slot}
+                            selected={selectedSlot === slot.startTime}
+                            onClick={(t) => setSelectedSlot(selectedSlot===t ? null : t)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
-      <Footer />
-    </div>
+        {/* Sticky booking bar */}
+        <StickyBookBar
+          slot={selectedSlot}
+          date={selectedDate}
+          consultType={consultType}
+          fee={fee}
+          onBook={handleBook}
+        />
+
+        <Footer />
+      </div>
+    </>
   )
 }

@@ -1,79 +1,98 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
-import { forwardRef } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useState, forwardRef } from 'react'
 
-const Select = forwardRef(function Select(
-  {
-    label,
-    error,
-    hint,
-    className    = '',
-    wrapperClass = '',
-    children,
-    placeholder,
-    required,
-    ...props
-  },
-  ref
-) {
-  const base =
-    'w-full rounded-xl border bg-white px-3 py-2.5 text-sm focus:outline-none transition-all appearance-none cursor-pointer pr-9'
-  const normal =
-    'border-gray-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-gray-900'
-  const errCls =
-    'border-red-400 focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-gray-900'
+const Select = forwardRef(function Select({
+  label,
+  error,
+  hint,
+  style: extraStyle = {},
+  wrapperStyle = {},
+  children,
+  placeholder,
+  required,
+  ...props
+}, ref) {
+  const [focused, setFocused] = useState(false)
+
+  const borderColor = error
+    ? '#ef4444'
+    : focused
+      ? '#6366f1'
+      : '#e2e8f0'
+
+  const ringColor = error
+    ? 'rgba(239,68,68,0.15)'
+    : focused
+      ? 'rgba(99,102,241,0.15)'
+      : 'transparent'
 
   return (
-    <div className={`flex flex-col gap-1.5 ${wrapperClass}`}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, ...wrapperStyle }}>
       {label && (
-        <label className="text-xs font-medium text-gray-700">
+        <label style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: '#475569',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+        }}>
           {label}
-          {required && <span className="text-red-500 ml-0.5">*</span>}
+          {required && <span style={{ color: '#ef4444', fontSize: 13 }}>*</span>}
         </label>
       )}
-      <div className="relative">
+
+      <div style={{ position: 'relative' }}>
         <select
           ref={ref}
-          className={`${base} ${error ? errCls : normal} ${className}`}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            width: '100%',
+            padding: '11px 38px 11px 14px',
+            fontSize: 14,
+            fontFamily: 'inherit',
+            borderRadius: 12,
+            border: `1.5px solid ${borderColor}`,
+            background: '#ffffff',
+            color: '#0f172a',
+            outline: 'none',
+            appearance: 'none',
+            cursor: 'pointer',
+            transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+            boxShadow: `0 0 0 3px ${ringColor}, 0 1px 3px rgba(0,0,0,0.06)`,
+            boxSizing: 'border-box',
+            ...extraStyle,
+          }}
           {...props}
         >
           {placeholder && (
-            <option value="" disabled>
-              {placeholder}
-            </option>
+            <option value="" disabled>{placeholder}</option>
           )}
           {children}
         </select>
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-          <ChevronDown className="w-4 h-4" />
-        </div>
+
+        {/* Chevron icon */}
+        <span style={{
+          position: 'absolute',
+          right: 12,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          pointerEvents: 'none',
+          color: '#94a3b8',
+          fontSize: 12,
+        }}>
+          ▼
+        </span>
       </div>
-      <AnimatePresence mode="wait">
-        {error && (
-          <motion.p
-            key="error"
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{    opacity: 0, y: -5 }}
-            transition={{ duration: 0.15 }}
-            className="text-xs text-red-500 flex items-center gap-1"
-          >
-            <span>⚠</span> {error}
-          </motion.p>
-        )}
-        {hint && !error && (
-          <motion.p
-            key="hint"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-xs text-gray-400"
-          >
-            {hint}
-          </motion.p>
-        )}
-      </AnimatePresence>
+
+      {error && (
+        <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>⚠ {error}</p>
+      )}
+      {hint && !error && (
+        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{hint}</p>
+      )}
     </div>
   )
 })

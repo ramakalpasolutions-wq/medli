@@ -1,407 +1,910 @@
-// src/components/public/Navbar.jsx
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import {
-  Menu, X, ChevronDown, User, Calendar,
-  FileText, LogOut, Users, LayoutDashboard,
-} from 'lucide-react'
 
+/* ─── Hooks ──────────────────────────────────────────────────────────────── */
 function useMounted() {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
-  return mounted
+  const [m, setM] = useState(false)
+  useEffect(() => setM(true), [])
+  return m
 }
 
-export default function Navbar() {
-  const { user, loading, logout } = useAuth()
-  const mounted      = useMounted()
-  const [mobileOpen,   setMobileOpen]   = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
+function useScrolled(threshold = 8) {
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > threshold)
+    fn()
+    window.addEventListener('scroll', fn, { passive: true })
+    return () => window.removeEventListener('scroll', fn)
+  }, [threshold])
+  return scrolled
+}
 
-  const navLinks = [
-    { label: 'Hospitals', href: '/hospitals' },
-    { label: 'Labs',      href: '/labs'      },
-    { label: 'Doctors',   href: '/doctors'   },
-    { label: 'Search',    href: '/search'    },
-  ]
+function useClickOutside(ref, cb) {
+  useEffect(() => {
+    const fn = (e) => { if (ref.current && !ref.current.contains(e.target)) cb() }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [ref, cb])
+}
 
-  // ── Dropdown menu items ───────────────────────────────────────────────────
-  const userMenuItems = [
-    {
-      icon:  <LayoutDashboard className="w-4 h-4" />,
-      label: 'Dashboard',
-      href:  '/user/dashboard',
-    },
-    {
-      icon:  <Calendar className="w-4 h-4" />,
-      label: 'My Bookings',
-      href:  '/user/bookings',
-    },
-    {
-      icon:  <User className="w-4 h-4" />,
-      label: 'My Profile',
-      href:  '/user/profile',
-    },
-    {
-      icon:  <Users className="w-4 h-4" />,
-      label: 'Family Members',
-      href:  '/user/profile?tab=family',
-    },
-    {
-      icon:  <FileText className="w-4 h-4" />,
-      label: 'Invoices',
-      href:  '/user/invoices',
-    },
-  ]
+function useActiveLink() {
+  const [path, setPath] = useState('')
+  useEffect(() => {
+    setPath(window.location.pathname)
+    const fn = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', fn)
+    return () => window.removeEventListener('popstate', fn)
+  }, [])
+  return path
+}
 
-  // ── Auth slot renderer ────────────────────────────────────────────────────
-  const renderAuthSlot = () => {
-    // Before mount — placeholder (prevents hydration mismatch)
-    if (!mounted) {
-      return <div className="w-8 h-8 rounded-full bg-gray-100" />
-    }
+/* ─── Constants ──────────────────────────────────────────────────────────── */
+const NAV_LINKS = [
+  { label: 'Hospitals', href: '/hospitals', icon: '🏥' },
+  { label: 'Labs',      href: '/labs',      icon: '🧪' },
+  { label: 'Doctors',   href: '/doctors',   icon: '👨‍⚕️' },
+  { label: 'Search',    href: '/search',    icon: '🔍' },
+]
 
-    // Loading
-    if (loading) {
-      return (
-        <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
-      )
-    }
+const USER_MENU = [
+  { icon: '📊', label: 'Dashboard',      href: '/user/dashboard'         },
+  { icon: '📅', label: 'My Bookings',    href: '/user/bookings'          },
+  { icon: '👤', label: 'My Profile',     href: '/user/profile'           },
+  { icon: '👨‍👩‍👧', label: 'Family Members', href: '/user/profile?tab=family' },
+  { icon: '🧾', label: 'Invoices',       href: '/user/invoices'          },
+]
 
-    // Logged in
-    if (user) {
-      const initials = user.name
-        ?.split(' ')
-        .map((w) => w[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2) || 'U'
+/* ─── Styles ─────────────────────────────────────────────────────────────── */
+const KF = `
+  @keyframes nb-slideDown  { from { opacity:0; transform:translateY(-6px) scale(.97) } to { opacity:1; transform:translateY(0) scale(1) } }
+  @keyframes nb-slideRight { from { transform:translateX(100%) } to { transform:translateX(0) } }
+  @keyframes nb-fadeIn     { from { opacity:0 } to { opacity:1 } }
+  @keyframes nb-shimmer    { 0%,100%{opacity:.4} 50%{opacity:1} }
+  @keyframes nb-ping       { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2);opacity:0} }
 
-      return (
-        <div className="relative">
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl
-                       hover:bg-gray-50 transition-colors"
-          >
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center
-                            justify-center text-blue-700 text-sm font-bold
-                            flex-shrink-0">
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-            <span className="text-sm font-medium text-gray-700
-                             max-w-[100px] truncate hidden sm:block">
-              {user.name?.split(' ')[0]}
-            </span>
-            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform
-                                     ${dropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
+  * { box-sizing: border-box; }
 
-          {/* Dropdown */}
-          <AnimatePresence>
-            {dropdownOpen && (
-              <>
-                {/* Backdrop */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setDropdownOpen(false)}
-                />
+  .nb-link {
+    color: #475569;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 10px;
+    transition: all .18s ease;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .nb-link:hover       { color: #6366f1; background: rgba(99,102,241,.07); }
+  .nb-link.nb-active   { color: #6366f1; background: rgba(99,102,241,.09); font-weight: 600; }
 
-                <motion.div
-                  initial={{ opacity: 0, y: 8,  scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0,  scale: 1    }}
-                  exit={{    opacity: 0, y: 8,  scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-2 w-52 bg-white rounded-2xl
-                             border border-gray-100 overflow-hidden z-20"
-                  style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.10)' }}
-                >
-                  {/* User info header */}
-                  <div className="px-4 py-3 bg-gradient-to-br from-blue-50
-                                  to-indigo-50 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-800 truncate">
-                      {user.name}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">
-                      {user.phone
-                        ? `+91 ${user.phone}`
-                        : user.email || ''}
-                    </p>
-                  </div>
+  .nb-drop-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 10px;
+    font-size: 13px; font-weight: 500; color: #334155;
+    text-decoration: none; transition: all .12s ease;
+    cursor: pointer; border: none; background: transparent;
+    width: 100%; text-align: left;
+  }
+  .nb-drop-item:hover { background: rgba(99,102,241,.07); color: #6366f1; }
+  .nb-drop-item.nb-danger { color: #ef4444; }
+  .nb-drop-item.nb-danger:hover { background: rgba(239,68,68,.07); }
 
-                  {/* Menu items */}
-                  <div className="py-1">
-                    {userMenuItems.map((item) => (
-                      <a
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm
-                                   text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        <span className="text-gray-400 flex-shrink-0">
-                          {item.icon}
-                        </span>
-                        {item.label}
-                      </a>
-                    ))}
-                  </div>
-
-                  {/* Sign out */}
-                  <div className="border-t border-gray-100 py-1">
-                    <button
-                      onClick={() => {
-                        logout()
-                        setDropdownOpen(false)
-                      }}
-                      className="flex items-center gap-3 w-full px-4 py-2.5
-                                 text-sm text-red-500 hover:bg-red-50
-                                 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4 flex-shrink-0" />
-                      Sign out
-                    </button>
-                  </div>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
-      )
-    }
-
-    // Logged out
-    return (
-      <>
-        <a
-          href="/auth/login"
-          className="px-4 py-2 text-sm font-medium text-gray-700
-                     hover:text-blue-600 transition-colors"
-        >
-          Log in
-        </a>
-        <a
-          href="/auth/register"
-          className="px-4 py-2 text-sm font-semibold bg-blue-600
-                     hover:bg-blue-700 text-white rounded-xl transition-colors"
-        >
-          Sign up
-        </a>
-      </>
-    )
+  .nb-mob-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border-radius: 13px;
+    font-size: 14px; font-weight: 500; color: #334155;
+    text-decoration: none; transition: all .15s ease;
+    min-height: 48px; position: relative; overflow: hidden;
+    border: 1px solid transparent;
+  }
+  .nb-mob-link:hover  { background: rgba(99,102,241,.07); color: #6366f1; border-color: rgba(99,102,241,.1); }
+  .nb-mob-link.nb-active {
+    background: linear-gradient(135deg,rgba(99,102,241,.12),rgba(139,92,246,.08));
+    color: #6366f1; font-weight: 600;
+    border-color: rgba(99,102,241,.15);
   }
 
+  .nb-icon-btn {
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; cursor: pointer;
+    border-radius: 10px; transition: all .15s ease;
+  }
+  .nb-icon-btn:hover { background: #f1f5f9; }
+
+  .nb-footer-link { color: #475569; text-decoration: none; font-size: 13px; transition: color .15s; }
+  .nb-footer-link:hover { color: #ffffff; }
+
+  /* Responsive breakpoints */
+  @media (max-width: 767px) {
+    .nb-desktop { display: none !important; }
+    .nb-mobile  { display: flex !important; }
+  }
+  @media (min-width: 768px) {
+    .nb-desktop { display: flex !important; }
+    .nb-mobile  { display: none !important; }
+  }
+`
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NAVBAR
+═══════════════════════════════════════════════════════════════════════════ */
+export default function Navbar() {
+  const { user, loading, logout } = useAuth()
+  const mounted  = useMounted()
+  const scrolled = useScrolled()
+  const path     = useActiveLink()
+
+  const [drawerOpen,   setDrawerOpen]   = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [drawerClosing, setDrawerClosing] = useState(false)
+
+  const dropRef = useRef(null)
+  useClickOutside(dropRef, () => setDropdownOpen(false))
+
+  /* Lock body when drawer open */
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [drawerOpen])
+
+  const closeDrawer = useCallback(() => {
+    setDrawerClosing(true)
+    setTimeout(() => { setDrawerOpen(false); setDrawerClosing(false) }, 280)
+  }, [])
+
+  const initials = user?.name
+    ?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || 'U'
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95
-                    backdrop-blur-sm border-b border-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+    <>
+      <style>{KF}</style>
+
+      {/* ── Bar ── */}
+      <nav style={{
+        position:       'fixed',
+        top: 0, left: 0, right: 0,
+        zIndex:         900,
+        height:         64,
+        background:     scrolled ? 'rgba(255,255,255,.98)' : 'rgba(255,255,255,.94)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom:   scrolled ? '1px solid rgba(0,0,0,.09)' : '1px solid transparent',
+        boxShadow:      scrolled ? '0 4px 32px rgba(0,0,0,.07)' : 'none',
+        transition:     'all .3s ease',
+      }}>
+        <div style={{
+          maxWidth:       1280,
+          margin:         '0 auto',
+          padding:        '0 clamp(16px,3vw,32px)',
+          height:         '100%',
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'space-between',
+          gap:            12,
+        }}>
 
           {/* Logo */}
-          <a href="/" className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-2xl">🏥</span>
-            <span className="text-blue-600 font-bold text-xl">MEDLI</span>
-          </a>
+          <Logo />
 
-          {/* Desktop nav links */}
-          <div className="hidden md:flex items-center gap-6">
-            {navLinks.map((l) => (
+          {/* Desktop center links */}
+          <div className="nb-desktop" style={{
+            alignItems:     'center',
+            gap:            2,
+            flex:           1,
+            justifyContent: 'center',
+          }}>
+            {NAV_LINKS.map((l) => (
               <a
                 key={l.href}
                 href={l.href}
-                className="text-sm text-gray-600 hover:text-blue-600
-                           font-medium transition-colors"
+                className={`nb-link${path === l.href ? ' nb-active' : ''}`}
               >
                 {l.label}
+                {path === l.href && (
+                  <span style={{
+                    position:     'absolute',
+                    bottom:       0,
+                    left:         '50%',
+                    transform:    'translateX(-50%)',
+                    width:        20,
+                    height:       2.5,
+                    borderRadius: 2,
+                    background:   'linear-gradient(90deg,#6366f1,#8b5cf6)',
+                  }} />
+                )}
               </a>
             ))}
           </div>
 
-          {/* Desktop auth slot */}
-          <div className="hidden md:flex items-center gap-3">
-            {renderAuthSlot()}
+          {/* Desktop auth */}
+          <div className="nb-desktop" style={{ alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {!mounted || loading
+              ? <AuthSkeleton />
+              : user
+                ? (
+                  <div ref={dropRef} style={{ position: 'relative' }}>
+                    <AvatarButton
+                      user={user}
+                      initials={initials}
+                      open={dropdownOpen}
+                      onClick={() => setDropdownOpen((o) => !o)}
+                    />
+                    {dropdownOpen && (
+                      <UserDropdown
+                        user={user}
+                        initials={initials}
+                        onClose={() => setDropdownOpen(false)}
+                        onLogout={() => { logout(); setDropdownOpen(false) }}
+                      />
+                    )}
+                  </div>
+                )
+                : <GuestButtons />
+            }
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Hamburger */}
           <button
-            onClick={() => setMobileOpen(true)}
-            className="md:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
-            style={{ minHeight: 44, minWidth: 44 }}
+            className="nb-mobile nb-icon-btn"
+            onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
+            style={{
+              width: 42, height: 42,
+              border:  '1.5px solid #f1f5f9',
+              background: '#fff',
+              flexShrink: 0,
+            }}
           >
-            <Menu className="w-5 h-5 text-gray-600" />
+            <svg width="20" height="16" viewBox="0 0 20 16" fill="none">
+              <rect y="0"  width="20" height="2.5" rx="1.25" fill="#475569"/>
+              <rect y="6.5" width="14" height="2.5" rx="1.25" fill="#6366f1"/>
+              <rect y="13" width="17" height="2.5" rx="1.25" fill="#475569"/>
+            </svg>
           </button>
+        </div>
+      </nav>
+
+      {/* ── Spacer ── */}
+      <div style={{ height: 64, flexShrink: 0 }} />
+
+      {/* ── Mobile Drawer ── */}
+      {drawerOpen && (
+        <MobileDrawer
+          user={mounted ? user : null}
+          loading={loading}
+          mounted={mounted}
+          path={path}
+          closing={drawerClosing}
+          onClose={closeDrawer}
+          onLogout={() => { logout(); closeDrawer() }}
+        />
+      )}
+    </>
+  )
+}
+
+/* ─── Logo ───────────────────────────────────────────────────────────────── */
+function Logo() {
+  const [h, setH] = useState(false)
+  return (
+    <a
+      href="/"
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        display:        'flex',
+        alignItems:     'center',
+        gap:            9,
+        textDecoration: 'none',
+        flexShrink:     0,
+        transform:      h ? 'scale(1.04)' : 'scale(1)',
+        transition:     'transform .2s ease',
+      }}
+    >
+      <div style={{
+        width:          38,
+        height:         38,
+        borderRadius:   11,
+        background:     'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        fontSize:       20,
+        boxShadow:      '0 4px 14px rgba(99,102,241,.35)',
+        flexShrink:     0,
+      }}>
+        🏥
+      </div>
+      <div style={{ lineHeight: 1 }}>
+        <div style={{
+          fontWeight:           900,
+          fontSize:             21,
+          background:           'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor:  'transparent',
+          backgroundClip:       'text',
+          letterSpacing:        '-0.6px',
+        }}>
+          MEDLI
+        </div>
+        <div style={{ fontSize: 9, color: '#94a3b8', letterSpacing: '1.5px', fontWeight: 600 }}>
+          HEALTHCARE
+        </div>
+      </div>
+    </a>
+  )
+}
+
+/* ─── Auth skeleton ──────────────────────────────────────────────────────── */
+function AuthSkeleton() {
+  return (
+    <div style={{
+      width:          130,
+      height:         36,
+      borderRadius:   12,
+      background:     'linear-gradient(90deg,#f1f5f9 0%,#e2e8f0 50%,#f1f5f9 100%)',
+      backgroundSize: '200% 100%',
+      animation:      'nb-shimmer 1.4s ease infinite',
+    }}/>
+  )
+}
+
+/* ─── Avatar button ──────────────────────────────────────────────────────── */
+function AvatarButton({ user, initials, open, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      aria-expanded={open}
+      style={{
+        display:     'flex',
+        alignItems:  'center',
+        gap:         8,
+        padding:     '5px 10px 5px 5px',
+        borderRadius: 13,
+        border:      `1.5px solid ${open ? '#a5b4fc' : h ? '#ddd6fe' : '#f1f5f9'}`,
+        background:  open ? '#faf5ff' : h ? '#fafafa' : '#fff',
+        cursor:      'pointer',
+        transition:  'all .18s ease',
+        outline:     'none',
+        boxShadow:   open ? '0 0 0 3px rgba(99,102,241,.12)' : 'none',
+      }}
+    >
+      <div style={{
+        width:          36,
+        height:         36,
+        borderRadius:   10,
+        background:     'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'center',
+        fontSize:       13,
+        fontWeight:     700,
+        color:          '#fff',
+        flexShrink:     0,
+        overflow:       'hidden',
+        boxShadow:      '0 2px 8px rgba(99,102,241,.3)',
+      }}>
+        {user.avatar
+          ? <img src={user.avatar} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
+          : initials}
+      </div>
+      <div style={{ textAlign: 'left', minWidth: 0 }}>
+        <div style={{
+          fontSize:     13,
+          fontWeight:   700,
+          color:        '#1e293b',
+          maxWidth:     96,
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace:   'nowrap',
+          lineHeight:   1.2,
+        }}>
+          {user.name?.split(' ')[0]}
+        </div>
+        <div style={{ fontSize: 10, color: '#94a3b8', lineHeight: 1.2 }}>
+          {user.role?.replace(/_/g,' ')}
+        </div>
+      </div>
+      <span style={{
+        fontSize:   9,
+        color:      '#94a3b8',
+        transform:  open ? 'rotate(180deg)' : 'rotate(0)',
+        transition: 'transform .2s ease',
+        flexShrink: 0,
+        marginLeft: 2,
+      }}>▼</span>
+    </button>
+  )
+}
+
+/* ─── User dropdown ──────────────────────────────────────────────────────── */
+function UserDropdown({ user, initials, onClose, onLogout }) {
+  return (
+    <div style={{
+      position:     'absolute',
+      top:          'calc(100% + 10px)',
+      right:        0,
+      width:        248,
+      background:   '#fff',
+      borderRadius: 20,
+      border:       '1.5px solid #f1f5f9',
+      boxShadow:    '0 20px 64px rgba(0,0,0,.13)',
+      overflow:     'hidden',
+      zIndex:       100,
+      animation:    'nb-slideDown .2s cubic-bezier(.34,1.56,.64,1)',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding:    '14px 16px',
+        background: 'linear-gradient(135deg,rgba(99,102,241,.07),rgba(139,92,246,.05))',
+        borderBottom: '1px solid #f1f5f9',
+        display:    'flex',
+        alignItems: 'center',
+        gap:        10,
+      }}>
+        <div style={{
+          width:          42,
+          height:         42,
+          borderRadius:   12,
+          background:     'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'center',
+          color:          '#fff',
+          fontWeight:     700,
+          fontSize:       15,
+          flexShrink:     0,
+          overflow:       'hidden',
+        }}>
+          {user.avatar
+            ? <img src={user.avatar} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
+            : initials}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize:     14,
+            fontWeight:   700,
+            color:        '#1e293b',
+            overflow:     'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace:   'nowrap',
+          }}>
+            {user.name}
+          </div>
+          <div style={{
+            fontSize:     11,
+            color:        '#94a3b8',
+            overflow:     'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace:   'nowrap',
+            marginTop:    2,
+          }}>
+            {user.phone ? `+91 ${user.phone}` : user.email}
+          </div>
         </div>
       </div>
 
-      {/* ── Mobile menu ── */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/40 z-40 md:hidden"
-              onClick={() => setMobileOpen(false)}
+      {/* Items */}
+      <div style={{ padding: '6px' }}>
+        {USER_MENU.map((item) => (
+          <a
+            key={item.href}
+            href={item.href}
+            onClick={onClose}
+            className="nb-drop-item"
+          >
+            <span style={{ fontSize: 16, width: 22, textAlign: 'center', flexShrink: 0 }}>
+              {item.icon}
+            </span>
+            {item.label}
+            <span style={{ marginLeft:'auto', fontSize:11, color:'#c4b5fd', opacity:0 }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity=1}
+              onMouseLeave={(e) => e.currentTarget.style.opacity=0}
+            >›</span>
+          </a>
+        ))}
+      </div>
+
+      <div style={{ height: 1, background: '#f8fafc', margin: '0 6px' }} />
+
+      <div style={{ padding: '6px' }}>
+        <button onClick={onLogout} className="nb-drop-item nb-danger">
+          <span style={{ fontSize:16, width:22, textAlign:'center', flexShrink:0 }}>🚪</span>
+          Sign out
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Guest buttons ──────────────────────────────────────────────────────── */
+function GuestButtons() {
+  const [lh, setLh] = useState(false)
+  const [sh, setSh] = useState(false)
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+      <a
+        href="/auth/login"
+        onMouseEnter={() => setLh(true)}
+        onMouseLeave={() => setLh(false)}
+        style={{
+          padding:        '8px 18px',
+          borderRadius:   10,
+          fontSize:       13,
+          fontWeight:     500,
+          color:          lh ? '#6366f1' : '#475569',
+          textDecoration: 'none',
+          border:         `1.5px solid ${lh ? '#a5b4fc' : '#e2e8f0'}`,
+          background:     lh ? '#faf5ff' : '#fff',
+          transition:     'all .15s ease',
+        }}
+      >
+        Log in
+      </a>
+      <a
+        href="/auth/register"
+        onMouseEnter={() => setSh(true)}
+        onMouseLeave={() => setSh(false)}
+        style={{
+          padding:        '8px 18px',
+          borderRadius:   10,
+          fontSize:       13,
+          fontWeight:     600,
+          color:          '#fff',
+          textDecoration: 'none',
+          background:     sh
+            ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
+            : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          boxShadow:      sh
+            ? '0 6px 22px rgba(99,102,241,.5)'
+            : '0 4px 14px rgba(99,102,241,.3)',
+          transform:      sh ? 'scale(1.02)' : 'scale(1)',
+          transition:     'all .18s ease',
+        }}
+      >
+        Sign up →
+      </a>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE DRAWER
+═══════════════════════════════════════════════════════════════════════════ */
+function MobileDrawer({ user, loading, mounted, path, closing, onClose, onLogout }) {
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position:       'fixed',
+          inset:          0,
+          zIndex:         950,
+          background:     'rgba(10,10,20,.6)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          animation:      closing
+            ? 'nb-fadeIn .28s ease reverse'
+            : 'nb-fadeIn .22s ease forwards',
+        }}
+      />
+
+      {/* Panel */}
+      <div style={{
+        position:       'fixed',
+        top:            0,
+        right:          0,
+        bottom:         0,
+        zIndex:         960,
+        width:          'min(340px,90vw)',
+        background:     '#fff',
+        display:        'flex',
+        flexDirection:  'column',
+        boxShadow:      '-12px 0 60px rgba(0,0,0,.18)',
+        animation:      closing
+          ? 'nb-slideRight .28s ease reverse'
+          : 'nb-slideRight .3s cubic-bezier(.34,1.56,.64,1)',
+        overflowY:      'hidden',
+      }}>
+
+        {/* Header */}
+        <DrawerHeader onClose={onClose} />
+
+        {/* User strip */}
+        {mounted && user && <DrawerUserInfo user={user} />}
+        {mounted && !user && loading && <DrawerSkeleton />}
+
+        {/* Links */}
+        <div style={{ flex:1, overflowY:'auto', padding:'10px 10px 0' }}>
+
+          <SectionTitle>Explore</SectionTitle>
+          {NAV_LINKS.map((l) => (
+            <DrawerLink
+              key={l.href}
+              href={l.href}
+              icon={l.icon}
+              label={l.label}
+              active={path === l.href}
+              onClick={onClose}
             />
+          ))}
 
-            {/* Drawer */}
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="fixed right-0 top-0 h-screen w-72 bg-white z-50
-                         flex flex-col md:hidden"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-4
-                              border-b border-gray-100">
-                <span className="text-blue-600 font-bold text-lg">
-                  🏥 MEDLI
-                </span>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="p-2 rounded-xl hover:bg-gray-100"
-                  style={{ minHeight: 44, minWidth: 44 }}
-                  aria-label="Close menu"
-                >
-                  <X className="w-5 h-5 text-gray-600" />
-                </button>
-              </div>
+          {mounted && user && (
+            <>
+              <div style={{ height:1, background:'#f1f5f9', margin:'10px 4px' }}/>
+              <SectionTitle>My Account</SectionTitle>
+              {USER_MENU.map((l) => (
+                <DrawerLink
+                  key={l.href}
+                  href={l.href}
+                  icon={l.icon}
+                  label={l.label}
+                  active={path === l.href}
+                  onClick={onClose}
+                />
+              ))}
+            </>
+          )}
+        </div>
 
-              {/* User info in mobile (after mount only) */}
-              {mounted && user && (
-                <div className="px-4 py-3 bg-gradient-to-br from-blue-50
-                                to-indigo-50 border-b border-gray-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex
-                                    items-center justify-center text-blue-700
-                                    font-bold text-sm flex-shrink-0">
-                      {user.name?.charAt(0)?.toUpperCase() || 'U'}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">
-                        {user.name}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {user.phone
-                          ? `+91 ${user.phone}`
-                          : user.email || ''}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+        {/* Bottom */}
+        <DrawerBottom
+          user={mounted ? user : null}
+          mounted={mounted}
+          onClose={onClose}
+          onLogout={onLogout}
+        />
+      </div>
+    </>
+  )
+}
 
-              {/* Nav links */}
-              <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-                {/* Public nav links */}
-                <p className="text-xs font-semibold text-gray-400 uppercase
-                              tracking-wide px-3 mb-2">
-                  Explore
-                </p>
-                {navLinks.map((l) => (
-                  <a
-                    key={l.href}
-                    href={l.href}
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center px-3 py-3 rounded-xl text-sm
-                               font-medium text-gray-700 hover:bg-blue-50
-                               hover:text-blue-600 transition-colors"
-                    style={{ minHeight: 44 }}
-                  >
-                    {l.label}
-                  </a>
-                ))}
+function DrawerHeader({ onClose }) {
+  const [h, setH] = useState(false)
+  return (
+    <div style={{
+      display:        'flex',
+      alignItems:     'center',
+      justifyContent: 'space-between',
+      padding:        '0 16px',
+      height:         64,
+      borderBottom:   '1px solid #f1f5f9',
+      flexShrink:     0,
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+        <div style={{
+          width:34, height:34, borderRadius:9,
+          background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          display:'flex', alignItems:'center', justifyContent:'center', fontSize:17,
+        }}>🏥</div>
+        <div>
+          <div style={{
+            fontWeight:900, fontSize:18,
+            background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
+            WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+            backgroundClip:'text', letterSpacing:'-0.5px',
+          }}>MEDLI</div>
+          <div style={{ fontSize:8, color:'#94a3b8', letterSpacing:'1.5px', fontWeight:600 }}>HEALTHCARE</div>
+        </div>
+      </div>
+      <button
+        onClick={onClose}
+        onMouseEnter={() => setH(true)}
+        onMouseLeave={() => setH(false)}
+        aria-label="Close menu"
+        style={{
+          width:38, height:38, borderRadius:10,
+          border:`1px solid ${h?'#ddd6fe':'#f1f5f9'}`,
+          background: h?'#faf5ff':'#fafafa',
+          cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:18, color:'#64748b', transition:'all .15s ease',
+        }}
+      >✕</button>
+    </div>
+  )
+}
 
-                {/* User links (after mount only) */}
-                {mounted && user && (
-                  <>
-                    <div className="border-t border-gray-100 my-3" />
-                    <p className="text-xs font-semibold text-gray-400 uppercase
-                                  tracking-wide px-3 mb-2">
-                      My Account
-                    </p>
+function DrawerUserInfo({ user }) {
+  return (
+    <div style={{
+      padding:      '14px 16px',
+      background:   'linear-gradient(135deg,rgba(99,102,241,.07),rgba(139,92,246,.05))',
+      borderBottom: '1px solid #f1f5f9',
+      display:      'flex',
+      alignItems:   'center',
+      gap:          12,
+      flexShrink:   0,
+    }}>
+      <div style={{
+        width:46, height:46, borderRadius:14,
+        background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        display:'flex', alignItems:'center', justifyContent:'center',
+        color:'#fff', fontWeight:700, fontSize:17, flexShrink:0,
+        overflow:'hidden', boxShadow:'0 4px 14px rgba(99,102,241,.3)',
+        position:'relative',
+      }}>
+        {user.avatar
+          ? <img src={user.avatar} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
+          : user.name?.charAt(0)?.toUpperCase() || 'U'}
+        {/* Online dot */}
+        <div style={{
+          position:'absolute', bottom:2, right:2,
+          width:9, height:9, borderRadius:'50%',
+          background:'#10b981', border:'1.5px solid #fff',
+        }}/>
+      </div>
+      <div style={{ minWidth:0, flex:1 }}>
+        <div style={{
+          fontSize:13, fontWeight:700, color:'#1e293b',
+          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+        }}>{user.name}</div>
+        <div style={{
+          fontSize:11, color:'#94a3b8', marginTop:2,
+          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+        }}>
+          {user.phone ? `+91 ${user.phone}` : user.email}
+        </div>
+      </div>
+      <div style={{
+        padding:'3px 8px', borderRadius:100,
+        background:'rgba(16,185,129,.1)', color:'#059669',
+        fontSize:10, fontWeight:700,
+      }}>Online</div>
+    </div>
+  )
+}
 
-                    {userMenuItems.map((item) => (
-                      <a
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMobileOpen(false)}
-                        className="flex items-center gap-3 px-3 py-3 rounded-xl
-                                   text-sm font-medium text-gray-700
-                                   hover:bg-blue-50 hover:text-blue-600
-                                   transition-colors"
-                        style={{ minHeight: 44 }}
-                      >
-                        <span className="text-gray-400">{item.icon}</span>
-                        {item.label}
-                      </a>
-                    ))}
-                  </>
-                )}
-              </div>
+function DrawerSkeleton() {
+  return (
+    <div style={{
+      padding:'12px 16px', borderBottom:'1px solid #f1f5f9',
+      display:'flex', alignItems:'center', gap:12, flexShrink:0,
+    }}>
+      <div style={{
+        width:46, height:46, borderRadius:14, flexShrink:0,
+        background:'linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9)',
+        backgroundSize:'200% 100%', animation:'nb-shimmer 1.4s ease infinite',
+      }}/>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ height:12, width:'60%', borderRadius:100, background:'#f1f5f9' }}/>
+        <div style={{ height:10, width:'40%', borderRadius:100, background:'#f8fafc' }}/>
+      </div>
+    </div>
+  )
+}
 
-              {/* Bottom auth buttons */}
-              <div className="p-4 border-t border-gray-100">
-                {!mounted ? (
-                  <div className="h-11 rounded-xl bg-gray-100 animate-pulse" />
-                ) : user ? (
-                  <button
-                    onClick={() => {
-                      logout()
-                      setMobileOpen(false)
-                    }}
-                    className="w-full flex items-center justify-center gap-2
-                               py-3 rounded-xl text-sm font-medium text-red-500
-                               border border-red-200 hover:bg-red-50
-                               transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sign out
-                  </button>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <a
-                      href="/auth/login"
-                      onClick={() => setMobileOpen(false)}
-                      className="w-full py-3 text-center rounded-xl text-sm
-                                 font-medium text-gray-700 border border-gray-200
-                                 hover:bg-gray-50 transition-colors"
-                    >
-                      Log in
-                    </a>
-                    <a
-                      href="/auth/register"
-                      onClick={() => setMobileOpen(false)}
-                      className="w-full py-3 text-center rounded-xl text-sm
-                                 font-semibold bg-blue-600 text-white
-                                 hover:bg-blue-700 transition-colors"
-                    >
-                      Sign up
-                    </a>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </nav>
+function SectionTitle({ children }) {
+  return (
+    <p style={{
+      fontSize:10, fontWeight:700, color:'#94a3b8',
+      textTransform:'uppercase', letterSpacing:'1.2px',
+      padding:'8px 14px 4px', margin:0,
+    }}>{children}</p>
+  )
+}
+
+function DrawerLink({ href, icon, label, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <a
+      href={href}
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      className={`nb-mob-link${active?' nb-active':''}`}
+      style={{ marginBottom:2 }}
+    >
+      {/* Active indicator */}
+      {active && (
+        <div style={{
+          position:'absolute', left:0, top:'18%', bottom:'18%',
+          width:3.5, borderRadius:'0 3px 3px 0',
+          background:'linear-gradient(180deg,#6366f1,#8b5cf6)',
+        }}/>
+      )}
+      <span style={{
+        fontSize:20, width:26, textAlign:'center',
+        flexShrink:0,
+        filter: active||h ? 'none' : 'grayscale(30%)',
+        transition:'filter .15s ease',
+      }}>{icon}</span>
+      <span style={{ flex:1 }}>{label}</span>
+      {(active||h) && (
+        <span style={{
+          fontSize:14, color: active?'#6366f1':'#94a3b8',
+          transition:'opacity .15s ease',
+        }}>›</span>
+      )}
+    </a>
+  )
+}
+
+function DrawerBottom({ user, mounted, onClose, onLogout }) {
+  const [lh, setLh] = useState(false)
+  const [sh, setSh] = useState(false)
+  const [oh, setOh] = useState(false)
+
+  return (
+    <div style={{
+      padding:'12px 14px',
+      borderTop:'1px solid #f1f5f9',
+      flexShrink:0,
+      background:'linear-gradient(180deg,#fafafa,#f8fafc)',
+    }}>
+      {!mounted ? (
+        <div style={{
+          height:46, borderRadius:13,
+          background:'linear-gradient(90deg,#f1f5f9,#e2e8f0,#f1f5f9)',
+          backgroundSize:'200% 100%',
+          animation:'nb-shimmer 1.4s ease infinite',
+        }}/>
+      ) : user ? (
+        <button
+          onClick={onLogout}
+          onMouseEnter={() => setOh(true)}
+          onMouseLeave={() => setOh(false)}
+          style={{
+            width:'100%', padding:'12px 16px',
+            borderRadius:13, cursor:'pointer',
+            border:`1.5px solid ${oh?'#fca5a5':'#fee2e2'}`,
+            background: oh?'rgba(239,68,68,.07)':'rgba(239,68,68,.03)',
+            color:'#ef4444', fontSize:14, fontWeight:600,
+            display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            transition:'all .15s ease', minHeight:48,
+          }}
+        >
+          🚪 Sign out
+        </button>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          <a
+            href="/auth/login"
+            onClick={onClose}
+            onMouseEnter={() => setLh(true)}
+            onMouseLeave={() => setLh(false)}
+            style={{
+              display:'block', textAlign:'center',
+              padding:'12px', borderRadius:13, minHeight:48, lineHeight:'24px',
+              border:`1.5px solid ${lh?'#a5b4fc':'#e2e8f0'}`,
+              fontSize:14, fontWeight:500,
+              color: lh?'#6366f1':'#334155',
+              textDecoration:'none',
+              background: lh?'#faf5ff':'#fff',
+              transition:'all .15s ease',
+            }}
+          >Log in</a>
+          <a
+            href="/auth/register"
+            onClick={onClose}
+            onMouseEnter={() => setSh(true)}
+            onMouseLeave={() => setSh(false)}
+            style={{
+              display:'block', textAlign:'center',
+              padding:'12px', borderRadius:13, minHeight:48, lineHeight:'24px',
+              background: sh
+                ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
+                : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+              fontSize:14, fontWeight:700, color:'#fff',
+              textDecoration:'none',
+              boxShadow: sh
+                ? '0 8px 28px rgba(99,102,241,.5)'
+                : '0 4px 16px rgba(99,102,241,.3)',
+              transform: sh?'scale(1.01)':'scale(1)',
+              transition:'all .18s ease',
+            }}
+          >Create Free Account →</a>
+        </div>
+      )}
+    </div>
   )
 }

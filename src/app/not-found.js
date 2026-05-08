@@ -1,46 +1,132 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useRouter } from 'next/navigation'
 
 export default function NotFound() {
-  const router = useRouter()
-
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
+      padding: '20px',
+      textAlign: 'center',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Background orbs */}
+      <div style={{
+        position: 'absolute', top: '15%', left: '10%',
+        width: 300, height: 300, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%)',
+        filter: 'blur(40px)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '15%', right: '10%',
+        width: 250, height: 250, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)',
+        filter: 'blur(40px)',
+        pointerEvents: 'none',
+      }} />
+
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="text-center max-w-sm"
+        transition={{ duration: 0.6 }}
+        style={{ zIndex: 1 }}
       >
+        {/* 404 number */}
+        <div style={{
+          fontSize: 120,
+          fontWeight: 900,
+          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          lineHeight: 1,
+          marginBottom: 8,
+          letterSpacing: '-4px',
+        }}>
+          404
+        </div>
+
+        {/* Icon */}
         <motion.div
-          animate={{ y: [0, -8, 0] }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="text-7xl mb-6"
+          animate={{ y: [0, -10, 0] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ fontSize: 60, marginBottom: 24 }}
         >
-          🔍
+          🏥
         </motion.div>
 
-        <h1 className="text-6xl font-bold text-gray-200 mb-2">404</h1>
-        <h2 className="text-xl font-semibold text-gray-800 mb-2">Page Not Found</h2>
-        <p className="text-sm text-gray-500 mb-8">
-          The page you&apos;re looking for doesn&apos;t exist or has been moved.
+        <h1 style={{
+          fontSize: 28,
+          fontWeight: 700,
+          color: '#ffffff',
+          marginBottom: 12,
+          letterSpacing: '-0.5px',
+        }}>
+          Page Not Found
+        </h1>
+
+        <p style={{
+          fontSize: 15,
+          color: 'rgba(255,255,255,0.5)',
+          maxWidth: 380,
+          lineHeight: 1.7,
+          marginBottom: 40,
+        }}>
+          The page you're looking for doesn't exist or has been moved. 
+          Let's get you back to health.
         </p>
 
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={() => router.back()}
-            className="px-4 py-2.5 text-sm font-medium bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <motion.a
+            href="/"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '14px 28px',
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: '#ffffff',
+              fontWeight: 600,
+              fontSize: 14,
+              textDecoration: 'none',
+              boxShadow: '0 8px 32px rgba(99,102,241,0.35)',
+            }}
           >
-            Go Back
-          </button>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+            🏠 Go Home
+          </motion.a>
+
+          <motion.a
+            href="/search"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '14px 28px',
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              color: 'rgba(255,255,255,0.8)',
+              fontWeight: 600,
+              fontSize: 14,
+              textDecoration: 'none',
+              backdropFilter: 'blur(8px)',
+            }}
           >
-            Go Home
-          </button>
+            🔍 Search
+          </motion.a>
         </div>
       </motion.div>
     </div>

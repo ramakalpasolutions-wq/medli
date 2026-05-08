@@ -1,4 +1,3 @@
-// src/app/(doctor)/layout.js
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
@@ -9,6 +8,10 @@ import DoctorSidebar from '@/components/admin/DoctorSidebar'
 
 const ALLOWED_ROLES = ['doctor', 'super_admin']
 
+const KF = `
+  @keyframes dl-spin { to{transform:rotate(360deg)} }
+`
+
 function DoctorGuard({ children }) {
   const { user, loading } = useAuth()
   const router            = useRouter()
@@ -16,47 +19,69 @@ function DoctorGuard({ children }) {
   const timerRef          = useRef(null)
 
   useEffect(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
     if (loading) return
-
     if (!user) {
       timerRef.current = setTimeout(() => {
         router.replace('/auth/login?redirect=/doctor/dashboard')
       }, 150)
       return
     }
-
     if (!ALLOWED_ROLES.includes(user.role)) {
       router.replace(getDashboardForRole(user.role))
       return
     }
-
     setReady(true)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [user, loading, router])
 
   if (loading || !ready) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <>
+        <style>{KF}</style>
+        <div style={{
+          height: '100vh', display: 'flex', alignItems: 'center',
+          justifyContent: 'center',
+          background: 'linear-gradient(135deg,#0f0f1a,#1e1b4b)',
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%',
+              border: '3px solid rgba(99,102,241,0.3)',
+              borderTopColor: '#6366f1',
+              animation: 'dl-spin .8s linear infinite',
+              margin: '0 auto 14px',
+            }} />
+            <div style={{
+              fontSize: 14, fontWeight: 600,
+              backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>
+              Loading...
+            </div>
+          </div>
+        </div>
+      </>
     )
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <DoctorSidebar />
-      <main className="flex-1 overflow-auto lg:ml-64">
-        <div className="p-6">{children}</div>
-      </main>
-    </div>
+    <>
+      <style>{KF}</style>
+      <div style={{
+        display: 'flex', height: '100vh',
+        background: '#f8fafc', overflow: 'hidden',
+      }}>
+        <DoctorSidebar />
+        <main style={{
+          flex: 1, overflowY: 'auto',
+          padding: 'clamp(16px,3vw,28px)',
+        }}>
+          {children}
+        </main>
+      </div>
+    </>
   )
 }
 

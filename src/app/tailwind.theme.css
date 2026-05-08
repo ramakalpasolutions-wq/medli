@@ -1,21 +1,29 @@
 @theme {
-  /* ─── Primary Colors ─────────────────────────────────────── */
-  --color-primary-50:  #eef9ff;
-  --color-primary-100: #d8f1ff;
-  --color-primary-200: #b9e8ff;
-  --color-primary-300: #89daff;
-  --color-primary-400: #52c3ff;
-  --color-primary-500: #2aa5ff;
-  --color-primary-600: #1286f5;
-  --color-primary-700: #0b6de1;
-  --color-primary-800: #1058b6;
-  --color-primary-900: #134d8f;
-  --color-primary-950: #0f3060;
-  --color-primary:     #1286f5;
+  /* ─── Brand Colors ───────────────────────────────────────── */
+  --color-primary:     #6366f1;
+  --color-primary-50:  #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+  --color-primary-950: #1e1b4b;
 
-  /* ─── Box Shadows ────────────────────────────────────────── */
-  --shadow-card:  0 2px 12px 0 rgba(0,0,0,0.08), 0 1px 3px 0 rgba(0,0,0,0.05);
-  --shadow-modal: 0 20px 60px 0 rgba(0,0,0,0.18), 0 8px 24px 0 rgba(0,0,0,0.10);
+  --color-accent:      #8b5cf6;
+  --color-accent-2:    #06b6d4;
+  --color-success:     #10b981;
+  --color-warning:     #f59e0b;
+  --color-danger:      #ef4444;
+
+  /* ─── Shadows ────────────────────────────────────────────── */
+  --shadow-card:  0 2px 12px 0 rgba(0,0,0,0.06), 0 1px 3px 0 rgba(0,0,0,0.04);
+  --shadow-modal: 0 24px 80px 0 rgba(0,0,0,0.18), 0 8px 24px 0 rgba(0,0,0,0.10);
+  --shadow-glow:  0 8px 32px 0 rgba(99,102,241,0.35);
+
 
   /* ─── Animations ─────────────────────────────────────────── */
   --animate-shimmer:  shimmer 2s infinite linear;

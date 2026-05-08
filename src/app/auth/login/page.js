@@ -1,20 +1,14 @@
-// src/app/auth/login/page.js
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth, getDashboardForRole } from '@/context/AuthContext'
-import Input from '@/components/ui/Input'
-import Button from '@/components/ui/Button'
-import { Eye, EyeOff, Phone, Mail, ArrowRight, Lock } from 'lucide-react'
 
-// ── Safe redirect helper ──────────────────────────────────────────────────────
+/* ─── Safe redirect ──────────────────────────────────────────────────── */
 function getSafeRedirect(role, redirectParam) {
   const defaultDash = getDashboardForRole(role)
   if (!redirectParam) return defaultDash
-
-  const allowedPrefixes = {
+  const allowed = {
     super_admin:      ['/super-admin'],
     regional_manager: ['/regional'],
     hospital_admin:   ['/hospital-admin'],
@@ -22,13 +16,20 @@ function getSafeRedirect(role, redirectParam) {
     doctor:           ['/doctor'],
     user:             ['/user', '/hospitals', '/labs', '/doctors', '/search', '/'],
   }
-
-  const prefixes = allowedPrefixes[role] || ['/']
-  const safe     = prefixes.some((p) => redirectParam.startsWith(p))
-  return safe ? redirectParam : defaultDash
+  const prefixes = allowed[role] || ['/']
+  return prefixes.some((p) => redirectParam.startsWith(p)) ? redirectParam : defaultDash
 }
 
-// ── 6-digit OTP input boxes ───────────────────────────────────────────────────
+/* ─── Keyframes ──────────────────────────────────────────────────────── */
+const KF = `
+  @keyframes auth-spin { to { transform: rotate(360deg); } }
+  @keyframes auth-in   { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes auth-shake{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 60%{transform:translateX(6px)} }
+  @keyframes auth-slide-in  { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
+  @keyframes auth-slide-out { from { opacity:1; transform:translateX(0); }    to { opacity:0; transform:translateX(-16px); } }
+`
+
+/* ─── OTP Boxes ──────────────────────────────────────────────────────── */
 function OtpBoxes({ value, onChange, idPrefix = 'otp' }) {
   const digits = value.padEnd(6, '').split('').slice(0, 6)
 
@@ -49,48 +50,188 @@ function OtpBoxes({ value, onChange, idPrefix = 'otp' }) {
   }
 
   const handlePaste = (e) => {
+    e.preventDefault()
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
     if (pasted.length === 6) {
       onChange(pasted)
       document.getElementById(`${idPrefix}-5`)?.focus()
     }
-    e.preventDefault()
   }
 
   return (
-    <div className="flex gap-2 justify-center" onPaste={handlePaste}>
+    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }} onPaste={handlePaste}>
       {Array.from({ length: 6 }).map((_, idx) => (
-        <input
+        <OtpBox
           key={idx}
           id={`${idPrefix}-${idx}`}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
           value={digits[idx] || ''}
-          onChange={(e) => handleChange(e.target.value, idx)}
+          onChange={(val) => handleChange(val, idx)}
           onKeyDown={(e) => handleKeyDown(e, idx)}
-          className="w-12 h-12 text-center text-lg font-bold border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+          filled={!!digits[idx]}
         />
       ))}
     </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+function OtpBox({ id, value, onChange, onKeyDown, filled }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="numeric"
+      maxLength={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        width: 46, height: 52,
+        textAlign: 'center',
+        fontSize: 20, fontWeight: 700,
+        fontFamily: 'inherit',
+        borderRadius: 12,
+        border: `2px solid ${focused ? '#6366f1' : filled ? '#a5b4fc' : '#e2e8f0'}`,
+        background: filled ? 'rgba(99,102,241,0.05)' : '#fff',
+        color: '#0f172a',
+        outline: 'none',
+        transition: 'all .15s ease',
+        boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.15)' : 'none',
+      }}
+    />
+  )
+}
 
+/* ─── Labeled Input ──────────────────────────────────────────────────── */
+function AuthInput({ label, icon, rightElement, ...props }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {label && (
+        <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+          {label}
+        </label>
+      )}
+      <div style={{ position: 'relative' }}>
+        {icon && (
+          <span style={{
+            position: 'absolute', left: 12, top: '50%',
+            transform: 'translateY(-50%)',
+            color: focused ? '#6366f1' : '#94a3b8',
+            display: 'flex', alignItems: 'center',
+            pointerEvents: 'none', transition: 'color .15s ease',
+          }}>
+            {icon}
+          </span>
+        )}
+        <input
+          {...props}
+          onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
+          onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
+          style={{
+            width: '100%',
+            padding: icon ? '11px 14px 11px 40px' : '11px 14px',
+            paddingRight: rightElement ? 44 : 14,
+            fontSize: 14, fontFamily: 'inherit',
+            borderRadius: 12,
+            border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
+            background: '#fff', color: '#0f172a', outline: 'none',
+            boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.12)' : '0 1px 3px rgba(0,0,0,0.06)',
+            transition: 'all .15s ease', boxSizing: 'border-box',
+          }}
+        />
+        {rightElement && (
+          <div style={{
+            position: 'absolute', right: 12, top: '50%',
+            transform: 'translateY(-50%)',
+          }}>
+            {rightElement}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Primary Button ─────────────────────────────────────────────────── */
+function AuthBtn({ children, loading: isLoading, disabled, onClick, type = 'button', style: sx }) {
+  const [h, setH] = useState(false)
+  const isDisabled = disabled || isLoading
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={isDisabled}
+      onMouseEnter={() => !isDisabled && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        width: '100%', padding: '13px',
+        borderRadius: 12, border: 'none',
+        background: isDisabled
+          ? '#e2e8f0'
+          : h
+            ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
+            : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        color: isDisabled ? '#94a3b8' : '#fff',
+        fontSize: 14, fontWeight: 600, cursor: isDisabled ? 'not-allowed' : 'pointer',
+        boxShadow: isDisabled ? 'none' : h ? '0 8px 24px rgba(99,102,241,0.45)' : '0 4px 14px rgba(99,102,241,0.3)',
+        transition: 'all .18s ease',
+        transform: h && !isDisabled ? 'scale(1.01)' : 'scale(1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        ...sx,
+      }}
+    >
+      {isLoading ? (
+        <span style={{
+          width: 16, height: 16, borderRadius: '50%',
+          border: '2px solid rgba(255,255,255,0.3)',
+          borderTopColor: '#fff',
+          animation: 'auth-spin .7s linear infinite',
+          display: 'inline-block',
+        }} />
+      ) : children}
+    </button>
+  )
+}
+
+/* ─── Error Banner ───────────────────────────────────────────────────── */
+function ErrorBanner({ error }) {
+  if (!error) return null
+  return (
+    <div style={{
+      background: 'rgba(239,68,68,0.08)',
+      border: '1px solid rgba(239,68,68,0.2)',
+      borderRadius: 12, padding: '10px 14px',
+      fontSize: 13, color: '#ef4444',
+      marginBottom: 16,
+      animation: 'auth-shake .4s ease',
+    }}>
+      ⚠ {error}
+    </div>
+  )
+}
+
+/* ─── Spinner page ───────────────────────────────────────────────────── */
+function SpinnerPage() {
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+      <style>{`@keyframes auth-spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #6366f1', borderTopColor: 'transparent', animation: 'auth-spin .8s linear infinite' }} />
+      <p style={{ fontSize: 13, color: '#94a3b8' }}>Loading...</p>
+    </div>
+  )
+}
+
+/* ─── Login Content ──────────────────────────────────────────────────── */
 function LoginContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const {
-    login,
-    loginWithOtp,
-    user,
-    loading: authLoading,
-  } = useAuth()
+  const { login, loginWithOtp, user, loading: authLoading } = useAuth()
 
   const redirectParam = searchParams.get('redirect') || ''
 
-  // 'phone' | 'email_otp' | 'email_pass'
   const [tab,       setTab]       = useState('phone')
   const [phone,     setPhone]     = useState('')
   const [email,     setEmail]     = useState('')
@@ -103,461 +244,375 @@ function LoginContent() {
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState('')
   const [countdown, setCountdown] = useState(0)
+  const [visible,   setVisible]   = useState(false)
 
-  // ── Redirect if already logged in ─────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 50)
+    return () => clearTimeout(t)
+  }, [])
+
   useEffect(() => {
     if (!authLoading && user) {
       router.replace(getSafeRedirect(user.role, redirectParam))
     }
   }, [user, authLoading, redirectParam, router])
 
-  // ── Countdown ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (countdown <= 0) return
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000)
     return () => clearTimeout(t)
   }, [countdown])
 
+  if (authLoading) return <SpinnerPage />
+
   const resetOtpState = () => {
-    setOtpSent(false)
-    setPhoneOtp('')
-    setEmailOtp('')
-    setError('')
-    setCountdown(0)
+    setOtpSent(false); setPhoneOtp(''); setEmailOtp(''); setError(''); setCountdown(0)
   }
 
-  // ── Send OTP ──────────────────────────────────────────────────────────────
+  const switchTab = (newTab) => {
+    setTab(newTab); resetOtpState(); setPassword(''); setPhone(''); setEmail('')
+  }
+
   const sendOtp = async () => {
-    setSending(true)
-    setError('')
+    setSending(true); setError('')
     try {
       const body = tab === 'phone'
         ? { phone: phone.replace(/\D/g, '') }
         : { email: email.trim().toLowerCase() }
-
       const res  = await fetch('/api/auth/otp/send', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(body),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
       const json = await res.json()
-
-      if (json.success) {
-        setOtpSent(true)
-        setCountdown(30)
-      } else {
-        setError(json.error || 'Failed to send OTP')
-      }
-    } catch {
-      setError('Network error. Please try again.')
-    } finally {
-      setSending(false)
-    }
+      if (json.success) { setOtpSent(true); setCountdown(30) }
+      else setError(json.error || 'Failed to send OTP')
+    } catch { setError('Network error. Please try again.') }
+    finally { setSending(false) }
   }
 
-  // ── Verify phone OTP ──────────────────────────────────────────────────────
   const verifyPhoneOtp = async () => {
     if (phoneOtp.length !== 6) { setError('Enter the 6-digit OTP'); return }
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const result = await loginWithOtp(phone.replace(/\D/g, ''), phoneOtp)
-      if (result.success) {
-        router.replace(getSafeRedirect(result.user.role, redirectParam))
-      } else {
-        setError(result.error || 'Invalid OTP')
-        setPhoneOtp('')
-      }
-    } catch {
-      setError('Network error')
-    } finally {
-      setLoading(false)
-    }
+      if (result.success) router.replace(getSafeRedirect(result.user.role, redirectParam))
+      else { setError(result.error || 'Invalid OTP'); setPhoneOtp('') }
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
   }
 
-  // ── Verify email OTP ──────────────────────────────────────────────────────
   const verifyEmailOtp = async () => {
     if (emailOtp.length !== 6) { setError('Enter the 6-digit OTP'); return }
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const res  = await fetch('/api/auth/otp/verify', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          email: email.trim().toLowerCase(),
-          otp:   emailOtp,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), otp: emailOtp }),
       })
       const json = await res.json()
-
       if (json.success) {
         const { user: u, accessToken, refreshToken } = json.data
-        // Use preloadedData path in loginWithOtp to update context
         await loginWithOtp(null, null, { user: u, accessToken, refreshToken })
         router.replace(getSafeRedirect(u.role, redirectParam))
-      } else {
-        setError(json.error || 'Invalid OTP')
-        setEmailOtp('')
-      }
-    } catch {
-      setError('Network error')
-    } finally {
-      setLoading(false)
-    }
+      } else { setError(json.error || 'Invalid OTP'); setEmailOtp('') }
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
   }
 
-  // ── Email + Password login ────────────────────────────────────────────────
   const loginWithEmail = async (e) => {
     e.preventDefault()
-    if (!email.trim() || !password) {
-      setError('Email and password are required')
-      return
-    }
-    setLoading(true)
-    setError('')
+    if (!email.trim() || !password) { setError('Email and password are required'); return }
+    setLoading(true); setError('')
     try {
-      const result = await login({
-        email:    email.trim().toLowerCase(),
-        password,
-      })
-      if (result.success) {
-        router.replace(getSafeRedirect(result.user.role, redirectParam))
-      } else {
-        setError(result.error || 'Login failed')
-      }
-    } catch {
-      setError('Network error')
-    } finally {
-      setLoading(false)
-    }
+      const result = await login({ email: email.trim().toLowerCase(), password })
+      if (result.success) router.replace(getSafeRedirect(result.user.role, redirectParam))
+      else setError(result.error || 'Login failed')
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
   }
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  const tabs = [
-    { key: 'phone',      label: 'Phone OTP', icon: <Phone className="w-3.5 h-3.5" /> },
-    { key: 'email_otp',  label: 'Email OTP', icon: <Mail  className="w-3.5 h-3.5" /> },
-    { key: 'email_pass', label: 'Password',  icon: <Lock  className="w-3.5 h-3.5" /> },
+  const TABS = [
+    { key: 'phone',      label: 'Phone OTP', icon: '📱' },
+    { key: 'email_otp',  label: 'Email OTP', icon: '📧' },
+    { key: 'email_pass', label: 'Password',  icon: '🔒' },
   ]
 
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-md"
-      >
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-3">
-            <span className="text-4xl">🏥</span>
-            <span className="text-3xl font-bold text-blue-600">MEDLI</span>
-          </div>
-          <p className="text-gray-500 text-sm">Healthcare made simple</p>
-        </div>
+    <>
+      <style>{KF}</style>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg,#0f0f1a 0%,#1a1a2e 50%,#16213e 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 'clamp(16px,4vw,32px)',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        {/* Background orbs */}
+        <div style={{ position:'absolute',top:'10%',left:'10%',width:350,height:350,borderRadius:'50%',background:'radial-gradient(circle,rgba(99,102,241,0.12),transparent 70%)',filter:'blur(60px)',pointerEvents:'none' }} />
+        <div style={{ position:'absolute',bottom:'10%',right:'10%',width:280,height:280,borderRadius:'50%',background:'radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%)',filter:'blur(50px)',pointerEvents:'none' }} />
 
         {/* Card */}
-        <div
-          className="bg-white rounded-3xl p-8 border border-gray-100"
-          style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
-        >
-          <h1 className="text-xl font-bold text-gray-900 mb-1">Welcome back</h1>
-          <p className="text-gray-400 text-sm mb-6">Sign in to your account</p>
-
-          {/* 3-tab toggle */}
-          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6">
-            {tabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => {
-                  setTab(t.key)
-                  resetOtpState()
-                  setPassword('')
-                  setPhone('')
-                  setEmail('')
-                }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium transition-all ${
-                  tab === t.key
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {t.icon}
-                <span>{t.label}</span>
-              </button>
-            ))}
+        <div style={{
+          width: '100%', maxWidth: 420,
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'translateY(0)' : 'translateY(20px)',
+          transition: 'opacity .4s ease, transform .4s ease',
+        }}>
+          {/* Logo */}
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 13,
+                background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 22, boxShadow: '0 6px 20px rgba(99,102,241,0.4)',
+              }}>🏥</div>
+              <span style={{
+                fontSize: 26, fontWeight: 800,
+                backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text', letterSpacing: '-0.5px',
+              }}>
+                MEDLI
+              </span>
+            </div>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>
+              Healthcare made simple
+            </p>
           </div>
 
-          {/* Error banner */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4"
-              >
-                {error}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Glass card */}
+          <div style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 24, padding: 'clamp(24px,5vw,36px)',
+            backdropFilter: 'blur(24px)',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.3)',
+          }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+              Welcome back
+            </h1>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 24 }}>
+              Sign in to your account
+            </p>
 
-          <AnimatePresence mode="wait">
+            {/* Tab switcher */}
+            <div style={{
+              display: 'flex', gap: 3,
+              background: 'rgba(255,255,255,0.06)',
+              borderRadius: 12, padding: 3, marginBottom: 24,
+            }}>
+              {TABS.map((t) => (
+                <LoginTabBtn
+                  key={t.key}
+                  label={t.label}
+                  icon={t.icon}
+                  active={tab === t.key}
+                  onClick={() => switchTab(t.key)}
+                />
+              ))}
+            </div>
 
-            {/* ══ Tab: Phone OTP ══ */}
+            {/* Error */}
+            <ErrorBanner error={error} />
+
+            {/* ── Phone OTP tab ── */}
             {tab === 'phone' && (
-              <motion.div
-                key="phone"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-4"
-              >
+              <div style={{ animation: 'auth-slide-in .2s ease' }}>
                 {!otpSent ? (
-                  <>
-                    <Input
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <AuthInput
                       label="Phone Number"
                       type="tel"
                       value={phone}
-                      onChange={(e) => {
-                        setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
-                        setError('')
-                      }}
+                      onChange={(e) => { setPhone(e.target.value.replace(/\D/g,'').slice(0,10)); setError('') }}
                       placeholder="10-digit mobile number"
-                      leftIcon={<Phone className="w-4 h-4" />}
+                      icon={<span style={{ fontSize:16 }}>📱</span>}
                       maxLength={10}
                     />
-                    <Button
-                      className="w-full"
+                    <AuthBtn
                       onClick={sendOtp}
                       loading={sending}
                       disabled={phone.length !== 10 || sending}
-                      rightIcon={<ArrowRight className="w-4 h-4" />}
                     >
-                      Send OTP
-                    </Button>
-                  </>
+                      Send OTP →
+                    </AuthBtn>
+                  </div>
                 ) : (
-                  <>
-                    <div className="text-center space-y-1 mb-2">
-                      <p className="text-sm font-medium text-gray-700">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>
                         OTP sent to +91 {phone}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
                         Enter the 6-digit code below
                       </p>
                     </div>
-                    <OtpBoxes
-                      value={phoneOtp}
-                      onChange={setPhoneOtp}
-                      idPrefix="ph-otp"
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={verifyPhoneOtp}
-                      loading={loading}
-                      disabled={phoneOtp.length !== 6 || loading}
-                    >
+                    <OtpBoxes value={phoneOtp} onChange={setPhoneOtp} idPrefix="ph-otp" />
+                    <AuthBtn onClick={verifyPhoneOtp} loading={loading} disabled={phoneOtp.length !== 6 || loading}>
                       Verify & Sign In
-                    </Button>
-                    <div className="flex items-center justify-between text-sm">
-                      <button
-                        onClick={resetOtpState}
-                        className="text-gray-500 hover:text-gray-700 transition-colors"
-                      >
-                        ← Change number
-                      </button>
-                      {countdown > 0 ? (
-                        <span className="text-gray-400 text-xs">
-                          Resend in {countdown}s
-                        </span>
-                      ) : (
-                        <button
-                          onClick={sendOtp}
-                          disabled={sending}
-                          className="text-blue-600 font-medium hover:text-blue-700 disabled:opacity-50 transition-colors"
-                        >
-                          Resend OTP
-                        </button>
-                      )}
-                    </div>
-                  </>
+                    </AuthBtn>
+                    <ResendRow countdown={countdown} onResend={sendOtp} sending={sending} onBack={resetOtpState} backLabel="← Change number" />
+                  </div>
                 )}
-              </motion.div>
+              </div>
             )}
 
-            {/* ══ Tab: Email OTP ══ */}
+            {/* ── Email OTP tab ── */}
             {tab === 'email_otp' && (
-              <motion.div
-                key="email_otp"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-4"
-              >
+              <div style={{ animation: 'auth-slide-in .2s ease' }}>
                 {!otpSent ? (
-                  <>
-                    <Input
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <AuthInput
                       label="Email Address"
                       type="email"
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); setError('') }}
                       placeholder="you@example.com"
-                      leftIcon={<Mail className="w-4 h-4" />}
+                      icon={<span style={{ fontSize:16 }}>📧</span>}
                       autoComplete="email"
                     />
-                    <Button
-                      className="w-full"
-                      onClick={sendOtp}
-                      loading={sending}
-                      disabled={
-                        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || sending
-                      }
-                      rightIcon={<ArrowRight className="w-4 h-4" />}
-                    >
-                      Send OTP to Email
-                    </Button>
-                  </>
+                    <AuthBtn onClick={sendOtp} loading={sending} disabled={!isValidEmail || sending}>
+                      Send OTP to Email →
+                    </AuthBtn>
+                  </div>
                 ) : (
-                  <>
-                    <div className="text-center space-y-1 mb-2">
-                      <p className="text-sm font-medium text-gray-700">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>
                         OTP sent to {email}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
                         Check inbox and spam/junk folder
                       </p>
                     </div>
-                    <OtpBoxes
-                      value={emailOtp}
-                      onChange={setEmailOtp}
-                      idPrefix="em-otp"
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={verifyEmailOtp}
-                      loading={loading}
-                      disabled={emailOtp.length !== 6 || loading}
-                    >
+                    <OtpBoxes value={emailOtp} onChange={setEmailOtp} idPrefix="em-otp" />
+                    <AuthBtn onClick={verifyEmailOtp} loading={loading} disabled={emailOtp.length !== 6 || loading}>
                       Verify & Sign In
-                    </Button>
-                    <div className="flex items-center justify-between text-sm">
-                      <button
-                        onClick={resetOtpState}
-                        className="text-gray-500 hover:text-gray-700 transition-colors"
-                      >
-                        ← Change email
-                      </button>
-                      {countdown > 0 ? (
-                        <span className="text-gray-400 text-xs">
-                          Resend in {countdown}s
-                        </span>
-                      ) : (
-                        <button
-                          onClick={sendOtp}
-                          disabled={sending}
-                          className="text-blue-600 font-medium hover:text-blue-700 disabled:opacity-50 transition-colors"
-                        >
-                          Resend OTP
-                        </button>
-                      )}
-                    </div>
-                  </>
+                    </AuthBtn>
+                    <ResendRow countdown={countdown} onResend={sendOtp} sending={sending} onBack={resetOtpState} backLabel="← Change email" />
+                  </div>
                 )}
-              </motion.div>
+              </div>
             )}
 
-            {/* ══ Tab: Email + Password ══ */}
+            {/* ── Email + Password tab ── */}
             {tab === 'email_pass' && (
-              <motion.div
-                key="email_pass"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                <form onSubmit={loginWithEmail} className="space-y-4">
-                  <Input
+              <div style={{ animation: 'auth-slide-in .2s ease' }}>
+                <form onSubmit={loginWithEmail} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <AuthInput
                     label="Email Address"
                     type="email"
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError('') }}
                     placeholder="you@example.com"
-                    leftIcon={<Mail className="w-4 h-4" />}
+                    icon={<span style={{ fontSize:16 }}>📧</span>}
                     autoComplete="email"
                   />
-                  <div className="relative">
-                    <Input
-                      label="Password"
-                      type={showPass ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => { setPassword(e.target.value); setError('') }}
-                      placeholder="Your password"
-                      autoComplete="current-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPass((p) => !p)}
-                      className="absolute right-3 top-[34px] text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showPass
-                        ? <EyeOff className="w-4 h-4" />
-                        : <Eye    className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    loading={loading}
-                    disabled={!email || !password || loading}
-                    rightIcon={<ArrowRight className="w-4 h-4" />}
-                  >
-                    Sign In
-                  </Button>
+                  <AuthInput
+                    label="Password"
+                    type={showPass ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setError('') }}
+                    placeholder="Your password"
+                    autoComplete="current-password"
+                    rightElement={
+                      <button
+                        type="button"
+                        onClick={() => setShowPass((p) => !p)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, display: 'flex', alignItems: 'center' }}
+                      >
+                        {showPass ? '🙈' : '👁️'}
+                      </button>
+                    }
+                  />
+                  <AuthBtn type="submit" loading={loading} disabled={!email || !password || loading}>
+                    Sign In →
+                  </AuthBtn>
                 </form>
-              </motion.div>
+              </div>
             )}
 
-          </AnimatePresence>
-
-          {/* Register link */}
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Don&apos;t have an account?{' '}
-            <a
-              href="/auth/register"
-              className="text-blue-600 font-medium hover:underline"
-            >
-              Create one
-            </a>
-          </p>
+            {/* Register link */}
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 24, marginBottom: 0 }}>
+              Don&apos;t have an account?{' '}
+              <a href="/auth/register" style={{ color: '#818cf8', fontWeight: 600, textDecoration: 'none' }}>
+                Create one
+              </a>
+            </p>
+          </div>
         </div>
-      </motion.div>
+      </div>
+    </>
+  )
+}
+
+/* ─── Sub-components ─────────────────────────────────────────────────── */
+function LoginTabBtn({ label, icon, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        padding: '8px 4px', borderRadius: 9, border: 'none',
+        background: active
+          ? 'rgba(255,255,255,0.12)'
+          : h ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: active ? '#fff' : 'rgba(255,255,255,0.45)',
+        fontSize: 12, fontWeight: active ? 600 : 500, cursor: 'pointer',
+        boxShadow: active ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
+        transition: 'all .15s ease',
+      }}
+    >
+      <span style={{ fontSize: 14 }}>{icon}</span>
+      <span>{label}</span>
+    </button>
+  )
+}
+
+function ResendRow({ countdown, onResend, sending, onBack, backLabel }) {
+  const [h, setH] = useState(false)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <button
+        onClick={onBack}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.4)', padding: 0 }}
+      >
+        {backLabel}
+      </button>
+      {countdown > 0 ? (
+        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
+          Resend in {countdown}s
+        </span>
+      ) : (
+        <button
+          onClick={onResend}
+          disabled={sending}
+          onMouseEnter={() => setH(true)}
+          onMouseLeave={() => setH(false)}
+          style={{
+            background: 'none', border: 'none', cursor: sending ? 'not-allowed' : 'pointer',
+            fontSize: 13, fontWeight: 600,
+            color: sending ? 'rgba(255,255,255,0.25)' : h ? '#a5b4fc' : '#818cf8',
+            padding: 0, transition: 'color .15s ease',
+          }}
+        >
+          Resend OTP
+        </button>
+      )}
     </div>
   )
 }
 
+/* ─── Page export ────────────────────────────────────────────────────── */
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<SpinnerPage />}>
       <LoginContent />
     </Suspense>
   )

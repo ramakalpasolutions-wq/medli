@@ -1,110 +1,85 @@
-// src/components/ui/Skeleton.jsx
 'use client'
 
-// ── Shimmer style ─────────────────────────────────────────────────────────────
-const shimmerStyle = {
-  background:     'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
+const SHIMMER = {
+  background: 'linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%)',
   backgroundSize: '200% 100%',
-  animation:      'shimmer 1.5s infinite linear',
+  animation: 'sk-shimmer 1.6s linear infinite',
 }
 
-// ── Keyframe injected once via a singleton style tag ──────────────────────────
-// We use a plain <style> at module level so it's injected only once
-const ShimmerStyle = () => (
-  <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-)
-
-// ── Pre-defined widths — NO Math.random() — deterministic on server + client ──
-// 8 rows × 8 columns — covers any table up to 8 cols wide
 const FIXED_WIDTHS = [
-  ['72%', '85%', '60%', '78%', '65%', '55%', '90%', '70%'],
-  ['55%', '90%', '70%', '62%', '80%', '72%', '65%', '88%'],
-  ['80%', '65%', '88%', '74%', '58%', '90%', '78%', '62%'],
-  ['68%', '75%', '82%', '90%', '72%', '58%', '84%', '76%'],
-  ['76%', '58%', '94%', '66%', '84%', '70%', '60%', '80%'],
-  ['63%', '88%', '75%', '92%', '68%', '55%', '82%', '74%'],
-  ['85%', '62%', '78%', '54%', '96%', '70%', '86%', '60%'],
-  ['70%', '80%', '65%', '88%', '75%', '92%', '58%', '84%'],
+  ['72%','85%','60%','78%','65%','55%','90%','70%'],
+  ['55%','90%','70%','62%','80%','72%','65%','88%'],
+  ['80%','65%','88%','74%','58%','90%','78%','62%'],
+  ['68%','75%','82%','90%','72%','58%','84%','76%'],
+  ['76%','58%','94%','66%','84%','70%','60%','80%'],
+  ['63%','88%','75%','92%','68%','55%','82%','74%'],
+  ['85%','62%','78%','54%','96%','70%','86%','60%'],
+  ['70%','80%','65%','88%','75%','92%','58%','84%'],
 ]
 
-// ── SkeletonBox — generic shimmer block ───────────────────────────────────────
-export function SkeletonBox({ className = '', style = {} }) {
+const KF = () => (
+  <style>{`@keyframes sk-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+)
+
+export function SkeletonBox({ style = {} }) {
   return (
     <>
-      <ShimmerStyle />
-      <div
-        className={`rounded-lg ${className}`}
-        style={{ ...shimmerStyle, ...style }}
-      />
+      <KF />
+      <div style={{ borderRadius: 8, ...SHIMMER, ...style }} />
     </>
   )
 }
 
-// ── SkeletonText — paragraph lines ───────────────────────────────────────────
-// Fixed widths per line — no randomness
-const TEXT_WIDTHS = ['100%', '92%', '85%', '78%', '60%', '95%', '88%']
-
-export function SkeletonText({ lines = 3, className = '' }) {
+export function SkeletonText({ lines = 3, style: extraStyle = {} }) {
+  const WIDTHS = ['100%','92%','85%','78%','60%','95%','88%']
   return (
     <>
-      <ShimmerStyle />
-      <div className={`space-y-2 ${className}`}>
+      <KF />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, ...extraStyle }}>
         {Array.from({ length: lines }).map((_, i) => (
-          <div
-            key={i}
-            className="h-3 rounded-full"
-            style={{
-              ...shimmerStyle,
-              // Last line always shorter — use fixed pattern otherwise
-              width: i === lines - 1 ? '60%' : TEXT_WIDTHS[i % TEXT_WIDTHS.length],
-            }}
-          />
+          <div key={i} style={{
+            height: 12, borderRadius: 100,
+            width: i === lines - 1 ? '55%' : WIDTHS[i % WIDTHS.length],
+            ...SHIMMER,
+          }} />
         ))}
       </div>
     </>
   )
 }
 
-// ── SkeletonCard — card with avatar + text ────────────────────────────────────
-export function SkeletonCard({ className = '' }) {
+export function SkeletonCard({ style: extraStyle = {} }) {
   return (
     <>
-      <ShimmerStyle />
-      <div
-        className={`bg-white rounded-2xl border border-gray-100 overflow-hidden ${className}`}
-        style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-      >
-        {/* Cover */}
-        <div className="h-36 w-full" style={shimmerStyle} />
-
-        {/* Body */}
-        <div className="p-4 space-y-3">
-          {/* Avatar + title row */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full flex-shrink-0" style={shimmerStyle} />
-            <div className="flex-1 space-y-2">
-              <div className="h-3 rounded-full" style={{ ...shimmerStyle, width: '60%' }} />
-              <div className="h-2.5 rounded-full" style={{ ...shimmerStyle, width: '40%' }} />
+      <KF />
+      <div style={{
+        background: '#fff',
+        borderRadius: 20,
+        border: '1px solid #f1f5f9',
+        overflow: 'hidden',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        ...extraStyle,
+      }}>
+        <div style={{ height: 140, width: '100%', ...SHIMMER }} />
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, ...SHIMMER }} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ height: 12, borderRadius: 100, width: '60%', ...SHIMMER }} />
+              <div style={{ height: 10, borderRadius: 100, width: '40%', ...SHIMMER }} />
             </div>
           </div>
-
-          {/* Text lines */}
-          <div className="space-y-2">
-            <div className="h-3 rounded-full" style={{ ...shimmerStyle, width: '100%' }} />
-            <div className="h-3 rounded-full" style={{ ...shimmerStyle, width: '85%'  }} />
-            <div className="h-3 rounded-full" style={{ ...shimmerStyle, width: '60%'  }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ height: 11, borderRadius: 100, width: '100%', ...SHIMMER }} />
+            <div style={{ height: 11, borderRadius: 100, width: '85%',  ...SHIMMER }} />
           </div>
-
-          {/* Tag pills */}
-          <div className="flex gap-2 pt-1">
-            <div className="h-5 w-16 rounded-full" style={shimmerStyle} />
-            <div className="h-5 w-20 rounded-full" style={shimmerStyle} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ height: 22, width: 60, borderRadius: 100, ...SHIMMER }} />
+            <div style={{ height: 22, width: 76, borderRadius: 100, ...SHIMMER }} />
           </div>
-
-          {/* Footer row */}
-          <div className="flex items-center justify-between pt-1">
-            <div className="h-3 w-24 rounded-full" style={shimmerStyle} />
-            <div className="h-8 w-24 rounded-xl"   style={shimmerStyle} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ height: 11, width: 80, borderRadius: 100, ...SHIMMER }} />
+            <div style={{ height: 32, width: 90, borderRadius: 12,  ...SHIMMER }} />
           </div>
         </div>
       </div>
@@ -112,21 +87,19 @@ export function SkeletonCard({ className = '' }) {
   )
 }
 
-// ── SkeletonTableRow — table skeleton row ─────────────────────────────────────
-// ✅ rowIndex makes widths deterministic — eliminates hydration mismatch
 export function SkeletonTableRow({ cols = 5, rowIndex = 0 }) {
   const widths = FIXED_WIDTHS[rowIndex % FIXED_WIDTHS.length]
-
   return (
     <>
-      <ShimmerStyle />
-      <tr className="border-b border-gray-50">
+      <KF />
+      <tr style={{ borderBottom: '1px solid #f8fafc' }}>
         {Array.from({ length: cols }).map((_, i) => (
-          <td key={i} className="px-4 py-3">
-            <div
-              className="h-3 rounded-full"
-              style={{ ...shimmerStyle, width: widths[i % widths.length] }}
-            />
+          <td key={i} style={{ padding: '12px 16px' }}>
+            <div style={{
+              height: 12, borderRadius: 100,
+              width: widths[i % widths.length],
+              ...SHIMMER,
+            }} />
           </td>
         ))}
       </tr>
@@ -134,24 +107,30 @@ export function SkeletonTableRow({ cols = 5, rowIndex = 0 }) {
   )
 }
 
-// ── SkeletonStats — stats card grid ──────────────────────────────────────────
-export function SkeletonStats({ count = 4, className = '' }) {
+export function SkeletonStats({ count = 4, style: extraStyle = {} }) {
   return (
     <>
-      <ShimmerStyle />
-      <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 ${className}`}>
+      <KF />
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: 16,
+        ...extraStyle,
+      }}>
         {Array.from({ length: count }).map((_, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-2xl border border-gray-100 p-5"
-            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="h-3 w-20 rounded-full" style={shimmerStyle} />
-              <div className="w-9 h-9 rounded-xl"   style={shimmerStyle} />
+          <div key={i} style={{
+            background: '#fff',
+            borderRadius: 20,
+            border: '1px solid #f1f5f9',
+            padding: 20,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ height: 12, width: 80, borderRadius: 100, ...SHIMMER }} />
+              <div style={{ width: 40, height: 40, borderRadius: 12, ...SHIMMER }} />
             </div>
-            <div className="h-7 w-24 rounded-lg mb-2" style={shimmerStyle} />
-            <div className="h-3 w-16 rounded-full"    style={shimmerStyle} />
+            <div style={{ height: 28, width: 96, borderRadius: 10, marginBottom: 8, ...SHIMMER }} />
+            <div style={{ height: 11, width: 64, borderRadius: 100, ...SHIMMER }} />
           </div>
         ))}
       </div>
@@ -159,30 +138,36 @@ export function SkeletonStats({ count = 4, className = '' }) {
   )
 }
 
-// ── SkeletonList — vertical list of rows ─────────────────────────────────────
-export function SkeletonList({ rows = 4, className = '' }) {
+export function SkeletonList({ rows = 4, style: extraStyle = {} }) {
   return (
     <>
-      <ShimmerStyle />
-      <div className={`space-y-3 ${className}`}>
+      <KF />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, ...extraStyle }}>
         {Array.from({ length: rows }).map((_, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-4"
-            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-          >
-            <div className="w-10 h-10 rounded-full flex-shrink-0" style={shimmerStyle} />
-            <div className="flex-1 space-y-2">
-              <div
-                className="h-3 rounded-full"
-                style={{ ...shimmerStyle, width: FIXED_WIDTHS[i % FIXED_WIDTHS.length][0] }}
-              />
-              <div
-                className="h-2.5 rounded-full"
-                style={{ ...shimmerStyle, width: FIXED_WIDTHS[i % FIXED_WIDTHS.length][1] }}
-              />
+          <div key={i} style={{
+            background: '#fff',
+            borderRadius: 16,
+            border: '1px solid #f1f5f9',
+            padding: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, ...SHIMMER }} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{
+                height: 12, borderRadius: 100,
+                width: FIXED_WIDTHS[i % FIXED_WIDTHS.length][0],
+                ...SHIMMER,
+              }} />
+              <div style={{
+                height: 10, borderRadius: 100,
+                width: FIXED_WIDTHS[i % FIXED_WIDTHS.length][1],
+                ...SHIMMER,
+              }} />
             </div>
-            <div className="h-6 w-16 rounded-full flex-shrink-0" style={shimmerStyle} />
+            <div style={{ height: 24, width: 60, borderRadius: 100, flexShrink: 0, ...SHIMMER }} />
           </div>
         ))}
       </div>
@@ -190,5 +175,4 @@ export function SkeletonList({ rows = 4, className = '' }) {
   )
 }
 
-// ── Default export ────────────────────────────────────────────────────────────
 export default SkeletonBox

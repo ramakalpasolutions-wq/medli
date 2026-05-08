@@ -1,29 +1,54 @@
-// src/app/auth/register/page.js
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth, getDashboardForRole } from '@/context/AuthContext'
-import Input from '@/components/ui/Input'
-import Button from '@/components/ui/Button'
-import {
-  User, Phone, Mail, Lock, Eye, EyeOff,
-  ArrowRight, Check, ChevronLeft,
-} from 'lucide-react'
 
-// ── 6-digit OTP input boxes ───────────────────────────────────────────────────
-function OtpBoxes({ value, onChange, idPrefix = 'reg-otp' }) {
+/* ─── Keyframes ──────────────────────────────────────────────────────── */
+const KF = `
+  @keyframes auth-spin  { to { transform: rotate(360deg); } }
+  @keyframes auth-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 60%{transform:translateX(6px)} }
+  @keyframes auth-in    { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes auth-step  { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+`
+
+/* ─── OTP Box ────────────────────────────────────────────────────────── */
+function OtpBox({ id, value, onChange, onKeyDown }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="numeric"
+      maxLength={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        width: 46, height: 52,
+        textAlign: 'center', fontSize: 20, fontWeight: 700, fontFamily: 'inherit',
+        borderRadius: 12,
+        border: `2px solid ${focused ? '#6366f1' : value ? '#a5b4fc' : 'rgba(255,255,255,0.15)'}`,
+        background: value ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.06)',
+        color: '#fff', outline: 'none',
+        boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.2)' : 'none',
+        transition: 'all .15s ease',
+      }}
+    />
+  )
+}
+
+/* ─── OTP Boxes ──────────────────────────────────────────────────────── */
+function OtpBoxes({ value, onChange, idPrefix = 'otp' }) {
   const digits = value.padEnd(6, '').split('').slice(0, 6)
 
   const handleChange = (val, idx) => {
     const clean = val.replace(/\D/g, '').slice(-1)
-    const next  = [...digits]
-    next[idx]   = clean
+    const next  = [...digits]; next[idx] = clean
     onChange(next.join(''))
-    if (clean && idx < 5) {
-      document.getElementById(`${idPrefix}-${idx + 1}`)?.focus()
-    }
+    if (clean && idx < 5) document.getElementById(`${idPrefix}-${idx + 1}`)?.focus()
   }
 
   const handleKeyDown = (e, idx) => {
@@ -33,53 +58,207 @@ function OtpBoxes({ value, onChange, idPrefix = 'reg-otp' }) {
   }
 
   const handlePaste = (e) => {
+    e.preventDefault()
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
     if (pasted) {
       onChange(pasted.padEnd(6, '').slice(0, 6))
       document.getElementById(`${idPrefix}-${Math.min(pasted.length, 5)}`)?.focus()
     }
-    e.preventDefault()
   }
 
   return (
-    <div className="flex gap-2 justify-center" onPaste={handlePaste}>
+    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }} onPaste={handlePaste}>
       {Array.from({ length: 6 }).map((_, idx) => (
-        <input
+        <OtpBox
           key={idx}
           id={`${idPrefix}-${idx}`}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
           value={digits[idx] || ''}
-          onChange={(e) => handleChange(e.target.value, idx)}
+          onChange={(val) => handleChange(val, idx)}
           onKeyDown={(e) => handleKeyDown(e, idx)}
-          className="w-11 h-11 text-center text-base font-bold border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
         />
       ))}
     </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Steps:
-//   1 → Enter details
-//   2 → Verify phone OTP  (only if phone given)
-//   3 → Verify email OTP  (only if email given)
-//   4 → Confirm + submit
-// ─────────────────────────────────────────────────────────────────────────────
+/* ─── Auth Input ─────────────────────────────────────────────────────── */
+function AuthInput({ label, icon, hint, rightElement, ...props }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {label && (
+        <label style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.65)' }}>
+          {label}
+        </label>
+      )}
+      <div style={{ position: 'relative' }}>
+        {icon && (
+          <span style={{
+            position: 'absolute', left: 12, top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: 16, pointerEvents: 'none',
+            color: focused ? '#818cf8' : 'rgba(255,255,255,0.35)',
+            transition: 'color .15s ease',
+          }}>
+            {icon}
+          </span>
+        )}
+        <input
+          {...props}
+          onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
+          onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
+          style={{
+            width: '100%',
+            padding: icon ? '11px 14px 11px 40px' : '11px 14px',
+            paddingRight: rightElement ? 44 : 14,
+            fontSize: 14, fontFamily: 'inherit',
+            borderRadius: 12,
+            border: `1.5px solid ${focused ? '#6366f1' : 'rgba(255,255,255,0.1)'}`,
+            background: 'rgba(255,255,255,0.07)',
+            color: '#fff', outline: 'none',
+            boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.15)' : 'none',
+            transition: 'all .15s ease', boxSizing: 'border-box',
+          }}
+        />
+        {rightElement && (
+          <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
+            {rightElement}
+          </div>
+        )}
+      </div>
+      {hint && (
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: 0 }}>{hint}</p>
+      )}
+    </div>
+  )
+}
 
+/* ─── Auth Button ────────────────────────────────────────────────────── */
+function AuthBtn({ children, loading: isLoading, disabled, onClick, type = 'button' }) {
+  const [h, setH] = useState(false)
+  const isDisabled = disabled || isLoading
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={isDisabled}
+      onMouseEnter={() => !isDisabled && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        width: '100%', padding: '13px', borderRadius: 12, border: 'none',
+        background: isDisabled ? 'rgba(255,255,255,0.1)'
+          : h ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
+            : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        color: isDisabled ? 'rgba(255,255,255,0.3)' : '#fff',
+        fontSize: 14, fontWeight: 600,
+        cursor: isDisabled ? 'not-allowed' : 'pointer',
+        boxShadow: isDisabled ? 'none' : h ? '0 8px 24px rgba(99,102,241,0.5)' : '0 4px 14px rgba(99,102,241,0.3)',
+        transition: 'all .18s ease',
+        transform: h && !isDisabled ? 'scale(1.01)' : 'scale(1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+      }}
+    >
+      {isLoading ? (
+        <span style={{
+          width: 16, height: 16, borderRadius: '50%',
+          border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff',
+          animation: 'auth-spin .7s linear infinite', display: 'inline-block',
+        }} />
+      ) : children}
+    </button>
+  )
+}
+
+/* ─── Ghost Button ───────────────────────────────────────────────────── */
+function GhostBtn({ children, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: 13, color: h ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)',
+        padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+        transition: 'color .15s ease',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+/* ─── Error Banner ───────────────────────────────────────────────────── */
+function ErrorBanner({ error }) {
+  if (!error) return null
+  return (
+    <div style={{
+      background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+      borderRadius: 12, padding: '10px 14px',
+      fontSize: 13, color: '#fca5a5', marginBottom: 16,
+      animation: 'auth-shake .4s ease',
+    }}>
+      ⚠ {error}
+    </div>
+  )
+}
+
+/* ─── Progress Bar ───────────────────────────────────────────────────── */
+function ProgressBar({ progress }) {
+  return (
+    <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, marginBottom: 28 }}>
+      <div style={{
+        height: '100%', borderRadius: 2,
+        background: 'linear-gradient(90deg,#6366f1,#8b5cf6)',
+        width: `${progress}%`, transition: 'width .4s ease',
+      }} />
+    </div>
+  )
+}
+
+/* ─── Badge ──────────────────────────────────────────────────────────── */
+function VerifiedBadge({ icon, label, color = '#10b981' }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 100,
+      background: `rgba(${color === '#10b981' ? '16,185,129' : '99,102,241'},0.12)`,
+      border: `1px solid rgba(${color === '#10b981' ? '16,185,129' : '99,102,241'},0.25)`,
+      color: color,
+    }}>
+      {icon} {label}
+    </span>
+  )
+}
+
+/* ─── Spinner Page ───────────────────────────────────────────────────── */
+function SpinnerPage() {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg,#0f0f1a,#1a1a2e,#16213e)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexDirection: 'column', gap: 12,
+    }}>
+      <style>{`@keyframes auth-spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #6366f1', borderTopColor: 'transparent', animation: 'auth-spin .8s linear infinite' }} />
+      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: 0 }}>Loading...</p>
+    </div>
+  )
+}
+
+/* ─── Register Content ───────────────────────────────────────────────── */
 function RegisterContent() {
-  const router      = useRouter()
+  const router = useRouter()
   const { loginWithOtp } = useAuth()
 
-  // Form
   const [name,     setName]     = useState('')
   const [phone,    setPhone]    = useState('')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
 
-  // Flow
   const [step,          setStep]          = useState(1)
   const [phoneOtp,      setPhoneOtp]      = useState('')
   const [emailOtp,      setEmailOtp]      = useState('')
@@ -89,158 +268,101 @@ function RegisterContent() {
   const [error,         setError]         = useState('')
   const [loading,       setLoading]       = useState(false)
   const [sending,       setSending]       = useState(false)
+  const [visible,       setVisible]       = useState(false)
 
-  // Countdown
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 50)
+    return () => clearTimeout(t)
+  }, [])
+
   useEffect(() => {
     if (countdown <= 0) return
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000)
     return () => clearTimeout(t)
   }, [countdown])
 
-  // ── Step 1 validation ─────────────────────────────────────────────────────
   const hasPhone  = phone.length === 10
   const hasEmail  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   const step1Valid = name.trim().length >= 2 && (hasPhone || hasEmail)
 
-  // ── Send phone OTP ────────────────────────────────────────────────────────
+  const totalSteps = hasPhone && hasEmail ? 4 : 3
+  const progress   = Math.round(((step - 1) / (totalSteps - 1)) * 100)
+
   const sendPhoneOtp = async () => {
-    setSending(true)
-    setError('')
+    setSending(true); setError('')
     try {
       const res  = await fetch('/api/auth/otp/send', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ phone }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
       })
       const json = await res.json()
-      if (json.success) {
-        setCountdown(30)
-      } else {
-        setError(json.error || 'Failed to send OTP')
-      }
-    } catch {
-      setError('Network error. Please try again.')
-    } finally {
-      setSending(false)
-    }
+      if (json.success) setCountdown(30)
+      else setError(json.error || 'Failed to send OTP')
+    } catch { setError('Network error. Please try again.') }
+    finally { setSending(false) }
   }
 
-  // ── Send email OTP ────────────────────────────────────────────────────────
   const sendEmailOtp = async () => {
-    setSending(true)
-    setError('')
+    setSending(true); setError('')
     try {
       const res  = await fetch('/api/auth/otp/send', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim().toLowerCase() }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       })
       const json = await res.json()
-      if (json.success) {
-        setCountdown(30)
-      } else {
-        setError(json.error || 'Failed to send OTP')
-      }
-    } catch {
-      setError('Network error. Please try again.')
-    } finally {
-      setSending(false)
-    }
+      if (json.success) setCountdown(30)
+      else setError(json.error || 'Failed to send OTP')
+    } catch { setError('Network error. Please try again.') }
+    finally { setSending(false) }
   }
 
-  // ── Step 1 Continue ───────────────────────────────────────────────────────
   const handleStep1 = async () => {
     setError('')
-    if (!name.trim() || name.trim().length < 2) {
-      setError('Full name must be at least 2 characters')
-      return
-    }
-    if (!hasPhone && !hasEmail) {
-      setError('Enter a valid phone number or email address')
-      return
-    }
-
-    if (hasPhone) {
-      await sendPhoneOtp()
-      setStep(2)
-    } else if (hasEmail) {
-      await sendEmailOtp()
-      setStep(3)
-    }
+    if (!name.trim() || name.trim().length < 2) { setError('Full name must be at least 2 characters'); return }
+    if (!hasPhone && !hasEmail) { setError('Enter a valid phone number or email address'); return }
+    if (hasPhone) { await sendPhoneOtp(); setStep(2) }
+    else { await sendEmailOtp(); setStep(3) }
   }
 
-  // ── Verify phone OTP ──────────────────────────────────────────────────────
   const verifyPhoneOtp = async () => {
     if (phoneOtp.length !== 6) { setError('Enter the 6-digit OTP'); return }
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const res  = await fetch('/api/auth/otp/verify', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ phone, otp: phoneOtp, purpose: 'verify_only' }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp: phoneOtp, purpose: 'verify_only' }),
       })
       const json = await res.json()
       if (json.success) {
-        setPhoneVerified(true)
-        setPhoneOtp('')
-        if (hasEmail) {
-          await sendEmailOtp()
-          setStep(3)
-        } else {
-          setStep(4)
-        }
-      } else {
-        setError(json.error || 'Incorrect OTP')
-        setPhoneOtp('')
-      }
-    } catch {
-      setError('Network error')
-    } finally {
-      setLoading(false)
-    }
+        setPhoneVerified(true); setPhoneOtp('')
+        if (hasEmail) { await sendEmailOtp(); setStep(3) }
+        else setStep(4)
+      } else { setError(json.error || 'Incorrect OTP'); setPhoneOtp('') }
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
   }
 
-  // ── Verify email OTP ──────────────────────────────────────────────────────
   const verifyEmailOtp = async () => {
     if (emailOtp.length !== 6) { setError('Enter the 6-digit OTP'); return }
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const res  = await fetch('/api/auth/otp/verify', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          email: email.trim().toLowerCase(),
-          otp:   emailOtp,
-          purpose: 'verify_only',
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), otp: emailOtp, purpose: 'verify_only' }),
       })
       const json = await res.json()
-      if (json.success) {
-        setEmailVerified(true)
-        setEmailOtp('')
-        setStep(4)
-      } else {
-        setError(json.error || 'Incorrect OTP')
-        setEmailOtp('')
-      }
-    } catch {
-      setError('Network error')
-    } finally {
-      setLoading(false)
-    }
+      if (json.success) { setEmailVerified(true); setEmailOtp(''); setStep(4) }
+      else { setError(json.error || 'Incorrect OTP'); setEmailOtp('') }
+    } catch { setError('Network error') }
+    finally { setLoading(false) }
   }
 
-  // ── Final registration ────────────────────────────────────────────────────
   const handleRegister = async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const res  = await fetch('/api/auth/register', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           name:     name.trim(),
           phone:    hasPhone ? phone : undefined,
           email:    hasEmail ? email.trim().toLowerCase() : undefined,
@@ -248,440 +370,337 @@ function RegisterContent() {
         }),
       })
       const json = await res.json()
-
       if (json.success) {
         const { user: u, accessToken, refreshToken } = json.data
-
-        // Update auth context via preloadedData
         await loginWithOtp(null, null, { user: u, accessToken, refreshToken })
-
         router.replace(getDashboardForRole(u.role))
       } else {
         setError(json.error || 'Registration failed')
-        if (
-          json.code === 'PHONE_NOT_VERIFIED' ||
-          json.code === 'EMAIL_NOT_VERIFIED'
-        ) {
-          setStep(1)
-          setPhoneVerified(false)
-          setEmailVerified(false)
+        if (json.code === 'PHONE_NOT_VERIFIED' || json.code === 'EMAIL_NOT_VERIFIED') {
+          setStep(1); setPhoneVerified(false); setEmailVerified(false)
         }
       }
-    } catch {
-      setError('Network error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Progress ──────────────────────────────────────────────────────────────
-  const totalSteps = hasPhone && hasEmail ? 4 : 3
-  const progress   = Math.round(((step - 1) / (totalSteps - 1)) * 100)
-
-  const slide = {
-    initial:    { x: 30,  opacity: 0 },
-    animate:    { x: 0,   opacity: 1 },
-    exit:       { x: -30, opacity: 0 },
-    transition: { duration: 0.2 },
+    } catch { setError('Network error. Please try again.') }
+    finally { setLoading(false) }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-md"
-      >
-        {/* Logo */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-3 mb-2">
-            <span className="text-3xl">🏥</span>
-            <span className="text-2xl font-bold text-blue-600">MEDLI</span>
+    <>
+      <style>{KF}</style>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg,#0f0f1a 0%,#1a1a2e 50%,#16213e 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 'clamp(16px,4vw,32px)',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        {/* Orbs */}
+        <div style={{ position:'absolute',top:'10%',left:'10%',width:350,height:350,borderRadius:'50%',background:'radial-gradient(circle,rgba(99,102,241,0.12),transparent 70%)',filter:'blur(60px)',pointerEvents:'none' }} />
+        <div style={{ position:'absolute',bottom:'10%',right:'10%',width:280,height:280,borderRadius:'50%',background:'radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%)',filter:'blur(50px)',pointerEvents:'none' }} />
+
+        <div style={{
+          width: '100%', maxWidth: 440,
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'translateY(0)' : 'translateY(20px)',
+          transition: 'opacity .4s ease, transform .4s ease',
+        }}>
+          {/* Logo */}
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ width:42,height:42,borderRadius:12,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,boxShadow:'0 6px 20px rgba(99,102,241,0.4)' }}>
+                🏥
+              </div>
+              <span style={{ fontSize:24,fontWeight:800,backgroundImage:'linear-gradient(135deg,#818cf8,#a78bfa)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',backgroundClip:'text',letterSpacing:'-0.5px' }}>
+                MEDLI
+              </span>
+            </div>
+            <p style={{ fontSize:13,color:'rgba(255,255,255,0.4)',margin:0 }}>Create your account</p>
           </div>
-          <p className="text-gray-500 text-sm">Create your account</p>
-        </div>
 
-        {/* Card */}
-        <div
-          className="bg-white rounded-3xl border border-gray-100 overflow-hidden"
-          style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.08)' }}
-        >
-          {/* Progress bar */}
-          <div className="h-1 bg-gray-100">
-            <motion.div
-              className="h-full bg-blue-600"
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.4 }}
-            />
-          </div>
+          {/* Glass card */}
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 24,
+            padding: 'clamp(24px,5vw,36px)',
+            backdropFilter: 'blur(24px)',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.3)',
+          }}>
+            <ProgressBar progress={progress} />
 
-          <div className="p-8">
+            <ErrorBanner error={error} />
 
-            {/* Error */}
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4"
-                >
-                  {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* ══ STEP 1 ══ */}
+            {step === 1 && (
+              <div style={{ animation: 'auth-step .2s ease' }}>
+                <h2 style={{ fontSize:18,fontWeight:800,color:'#fff',margin:'0 0 4px' }}>
+                  Create account
+                </h2>
+                <p style={{ fontSize:13,color:'rgba(255,255,255,0.4)',margin:'0 0 20px' }}>
+                  Fill in your details to get started
+                </p>
 
-            <AnimatePresence mode="wait">
-
-              {/* ══ STEP 1: Details ══ */}
-              {step === 1 && (
-                <motion.div key="step1" {...slide} className="space-y-4">
-                  <div className="mb-2">
-                    <h2 className="text-lg font-bold text-gray-900">Create account</h2>
-                    <p className="text-sm text-gray-400">
-                      Fill in your details to get started
-                    </p>
-                  </div>
-
-                  <Input
+                <div style={{ display:'flex',flexDirection:'column',gap:14 }}>
+                  <AuthInput
                     label="Full Name"
                     value={name}
                     onChange={(e) => { setName(e.target.value); setError('') }}
                     placeholder="Your full name"
-                    leftIcon={<User className="w-4 h-4" />}
+                    icon="👤"
                   />
-
-                  <Input
+                  <AuthInput
                     label="Phone Number"
                     type="tel"
                     value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
-                      setError('')
-                    }}
+                    onChange={(e) => { setPhone(e.target.value.replace(/\D/g,'').slice(0,10)); setError('') }}
                     placeholder="10-digit mobile number"
-                    leftIcon={<Phone className="w-4 h-4" />}
+                    icon="📱"
                     maxLength={10}
                     hint="We'll send an OTP to verify"
                   />
-
-                  <Input
+                  <AuthInput
                     label="Email Address"
                     type="email"
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError('') }}
                     placeholder="you@example.com"
-                    leftIcon={<Mail className="w-4 h-4" />}
+                    icon="📧"
                     hint={hasPhone ? 'Optional — adds email OTP login' : 'Required if no phone'}
                   />
+                  <AuthInput
+                    label="Password"
+                    type={showPass ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min 6 characters (optional)"
+                    icon="🔒"
+                    hint="Leave blank to use OTP login only"
+                    rightElement={
+                      <button
+                        type="button"
+                        onClick={() => setShowPass((p) => !p)}
+                        style={{ background:'none',border:'none',cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',color:'rgba(255,255,255,0.4)' }}
+                      >
+                        {showPass ? '🙈' : '👁️'}
+                      </button>
+                    }
+                  />
 
-                  <div className="relative">
-                    <Input
-                      label="Password"
-                      type={showPass ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Min 6 characters (optional)"
-                      hint="Leave blank to use OTP login only"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPass((p) => !p)}
-                      className="absolute right-3 top-[34px] text-gray-400 hover:text-gray-600"
-                    >
-                      {showPass
-                        ? <EyeOff className="w-4 h-4" />
-                        : <Eye    className="w-4 h-4" />}
-                    </button>
-                  </div>
+                  <AuthBtn onClick={handleStep1} loading={sending} disabled={!step1Valid || sending}>
+                    Continue →
+                  </AuthBtn>
 
-                  <Button
-                    className="w-full"
-                    onClick={handleStep1}
-                    loading={sending}
-                    disabled={!step1Valid || sending}
-                    rightIcon={<ArrowRight className="w-4 h-4" />}
-                  >
-                    Continue
-                  </Button>
-
-                  <p className="text-center text-sm text-gray-500">
+                  <p style={{ textAlign:'center',fontSize:13,color:'rgba(255,255,255,0.4)',margin:0 }}>
                     Already have an account?{' '}
-                    <a
-                      href="/auth/login"
-                      className="text-blue-600 font-medium hover:underline"
-                    >
-                      Sign in
-                    </a>
+                    <a href="/auth/login" style={{ color:'#818cf8',fontWeight:600,textDecoration:'none' }}>Sign in</a>
                   </p>
-                </motion.div>
-              )}
+                </div>
+              </div>
+            )}
 
-              {/* ══ STEP 2: Verify Phone ══ */}
-              {step === 2 && (
-                <motion.div key="step2" {...slide} className="space-y-5">
-                  <button
-                    onClick={() => { setStep(1); setPhoneOtp(''); setError('') }}
-                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" /> Back
-                  </button>
+            {/* ══ STEP 2: Phone OTP ══ */}
+            {step === 2 && (
+              <div style={{ animation: 'auth-step .2s ease' }}>
+                <GhostBtn onClick={() => { setStep(1); setPhoneOtp(''); setError('') }}>
+                  ← Back
+                </GhostBtn>
 
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900 mb-1">
-                      Verify your phone
-                    </h2>
-                    <p className="text-sm text-gray-400">
-                      OTP sent to <strong className="text-gray-700">+91 {phone}</strong>
-                    </p>
-                  </div>
+                <h2 style={{ fontSize:18,fontWeight:800,color:'#fff',margin:'16px 0 4px' }}>
+                  Verify your phone
+                </h2>
+                <p style={{ fontSize:13,color:'rgba(255,255,255,0.4)',margin:'0 0 20px' }}>
+                  OTP sent to <strong style={{ color:'rgba(255,255,255,0.7)' }}>+91 {phone}</strong>
+                </p>
 
-                  {/* Progress indicators */}
-                  <div className="flex items-center gap-2 text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                        phoneVerified
-                          ? 'bg-emerald-100 text-emerald-600'
-                          : 'bg-blue-100 text-blue-600'
-                      }`}>
-                        {phoneVerified
-                          ? <Check className="w-3 h-3" />
-                          : <Phone className="w-3 h-3" />}
-                      </div>
-                      <span className={phoneVerified ? 'text-emerald-600' : 'text-blue-600'}>
-                        Phone
-                      </span>
-                    </div>
-                    {hasEmail && (
-                      <>
-                        <div className="flex-1 h-px bg-gray-200" />
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center">
-                            <Mail className="w-3 h-3" />
-                          </div>
-                          <span className="text-gray-400">Email</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                {/* Step indicators */}
+                <StepIndicators step={2} hasPhone={hasPhone} hasEmail={hasEmail} phoneVerified={phoneVerified} />
 
-                  <div className="space-y-3">
-                    <p className="text-xs text-gray-500 text-center">
-                      Enter the 6-digit code
-                    </p>
-                    <OtpBoxes
-                      value={phoneOtp}
-                      onChange={setPhoneOtp}
-                      idPrefix="ph-reg-otp"
-                    />
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={verifyPhoneOtp}
-                    loading={loading}
-                    disabled={phoneOtp.length !== 6 || loading}
-                  >
+                <div style={{ display:'flex',flexDirection:'column',gap:16,marginTop:20 }}>
+                  <p style={{ textAlign:'center',fontSize:12,color:'rgba(255,255,255,0.4)',margin:0 }}>
+                    Enter the 6-digit code
+                  </p>
+                  <OtpBoxes value={phoneOtp} onChange={setPhoneOtp} idPrefix="ph-reg-otp" />
+                  <AuthBtn onClick={verifyPhoneOtp} loading={loading} disabled={phoneOtp.length !== 6 || loading}>
                     Verify Phone
-                  </Button>
+                  </AuthBtn>
+                  <ResendRow
+                    countdown={countdown}
+                    onResend={sendPhoneOtp}
+                    sending={sending}
+                    onBack={() => { setStep(1); setPhoneOtp(''); setError('') }}
+                    backLabel="Change number"
+                  />
+                </div>
+              </div>
+            )}
 
-                  <div className="flex items-center justify-between text-sm">
-                    <button
-                      onClick={() => { setStep(1); setPhoneOtp(''); setError('') }}
-                      className="text-gray-500 hover:text-gray-700 transition-colors"
-                    >
-                      Change number
-                    </button>
-                    {countdown > 0 ? (
-                      <span className="text-gray-400 text-xs">
-                        Resend in {countdown}s
-                      </span>
-                    ) : (
-                      <button
-                        onClick={sendPhoneOtp}
-                        disabled={sending}
-                        className="text-blue-600 font-medium hover:text-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        Resend OTP
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
+            {/* ══ STEP 3: Email OTP ══ */}
+            {step === 3 && (
+              <div style={{ animation: 'auth-step .2s ease' }}>
+                <GhostBtn onClick={() => { setStep(hasPhone ? 2 : 1); setEmailOtp(''); setError('') }}>
+                  ← Back
+                </GhostBtn>
 
-              {/* ══ STEP 3: Verify Email ══ */}
-              {step === 3 && (
-                <motion.div key="step3" {...slide} className="space-y-5">
-                  <button
-                    onClick={() => {
-                      setStep(hasPhone ? 2 : 1)
-                      setEmailOtp('')
-                      setError('')
-                    }}
-                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" /> Back
-                  </button>
+                <h2 style={{ fontSize:18,fontWeight:800,color:'#fff',margin:'16px 0 4px' }}>
+                  Verify your email
+                </h2>
+                <p style={{ fontSize:13,color:'rgba(255,255,255,0.4)',margin:'0 0 20px' }}>
+                  OTP sent to <strong style={{ color:'rgba(255,255,255,0.7)' }}>{email}</strong>
+                </p>
 
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900 mb-1">
-                      Verify your email
-                    </h2>
-                    <p className="text-sm text-gray-400">
-                      OTP sent to <strong className="text-gray-700">{email}</strong>
-                    </p>
-                  </div>
+                <StepIndicators step={3} hasPhone={hasPhone} hasEmail={hasEmail} phoneVerified={phoneVerified} />
 
-                  {/* Progress indicators */}
-                  <div className="flex items-center gap-2 text-xs">
-                    {hasPhone && (
-                      <>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                            <Check className="w-3 h-3" />
-                          </div>
-                          <span className="text-emerald-600">Phone ✓</span>
-                        </div>
-                        <div className="flex-1 h-px bg-gray-200" />
-                      </>
-                    )}
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                        <Mail className="w-3 h-3" />
-                      </div>
-                      <span className="text-blue-600">Email</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <p className="text-xs text-gray-500 text-center">
-                      Enter the 6-digit code · Check spam/junk folder
-                    </p>
-                    <OtpBoxes
-                      value={emailOtp}
-                      onChange={setEmailOtp}
-                      idPrefix="em-reg-otp"
-                    />
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={verifyEmailOtp}
-                    loading={loading}
-                    disabled={emailOtp.length !== 6 || loading}
-                  >
-                    Verify Email
-                  </Button>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-xs text-gray-400">
-                      Didn&apos;t receive it?
-                    </span>
-                    {countdown > 0 ? (
-                      <span className="text-gray-400 text-xs">
-                        Resend in {countdown}s
-                      </span>
-                    ) : (
-                      <button
-                        onClick={sendEmailOtp}
-                        disabled={sending}
-                        className="text-blue-600 font-medium hover:text-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        Resend OTP
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* ══ STEP 4: Confirm & Create ══ */}
-              {step === 4 && (
-                <motion.div key="step4" {...slide} className="space-y-5">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900 mb-1">
-                      Almost done!
-                    </h2>
-                    <p className="text-sm text-gray-400">
-                      Review your details and create your account.
-                    </p>
-                  </div>
-
-                  {/* Summary card */}
-                  <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-base">
-                        {name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{name}</p>
-                        <p className="text-xs text-gray-400">
-                          {hasPhone && `+91 ${phone}`}
-                          {hasPhone && hasEmail && ' · '}
-                          {hasEmail && email}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Verified badges */}
-                    <div className="flex flex-wrap gap-2">
-                      {phoneVerified && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
-                          <Check className="w-3 h-3" /> Phone verified
-                        </span>
-                      )}
-                      {emailVerified && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
-                          <Check className="w-3 h-3" /> Email verified
-                        </span>
-                      )}
-                      {password && (
-                        <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-full font-medium">
-                          <Lock className="w-3 h-3" /> Password set
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={handleRegister}
-                    loading={loading}
-                    disabled={loading}
-                    rightIcon={<ArrowRight className="w-4 h-4" />}
-                  >
-                    Create Account
-                  </Button>
-
-                  <p className="text-center text-sm text-gray-500">
-                    Already have an account?{' '}
-                    <a
-                      href="/auth/login"
-                      className="text-blue-600 font-medium hover:underline"
-                    >
-                      Sign in
-                    </a>
+                <div style={{ display:'flex',flexDirection:'column',gap:16,marginTop:20 }}>
+                  <p style={{ textAlign:'center',fontSize:12,color:'rgba(255,255,255,0.4)',margin:0 }}>
+                    Enter the 6-digit code · Check spam/junk folder
                   </p>
-                </motion.div>
-              )}
+                  <OtpBoxes value={emailOtp} onChange={setEmailOtp} idPrefix="em-reg-otp" />
+                  <AuthBtn onClick={verifyEmailOtp} loading={loading} disabled={emailOtp.length !== 6 || loading}>
+                    Verify Email
+                  </AuthBtn>
+                  <ResendRow
+                    countdown={countdown}
+                    onResend={sendEmailOtp}
+                    sending={sending}
+                    onBack={() => { setStep(hasPhone ? 2 : 1); setEmailOtp(''); setError('') }}
+                    backLabel="← Back"
+                  />
+                </div>
+              </div>
+            )}
 
-            </AnimatePresence>
+            {/* ══ STEP 4: Confirm ══ */}
+            {step === 4 && (
+              <div style={{ animation: 'auth-step .2s ease' }}>
+                <h2 style={{ fontSize:18,fontWeight:800,color:'#fff',margin:'0 0 4px' }}>Almost done!</h2>
+                <p style={{ fontSize:13,color:'rgba(255,255,255,0.4)',margin:'0 0 20px' }}>
+                  Review your details and create your account.
+                </p>
+
+                {/* Summary */}
+                <div style={{
+                  background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',
+                  borderRadius:16,padding:16,marginBottom:20,
+                }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:12,marginBottom:12 }}>
+                    <div style={{
+                      width:44,height:44,borderRadius:'50%',
+                      background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      color:'#fff',fontWeight:700,fontSize:18,flexShrink:0,
+                    }}>
+                      {name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p style={{ fontSize:14,fontWeight:700,color:'#fff',margin:0 }}>{name}</p>
+                      <p style={{ fontSize:12,color:'rgba(255,255,255,0.4)',margin:0 }}>
+                        {hasPhone && `+91 ${phone}`}{hasPhone && hasEmail && ' · '}{hasEmail && email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display:'flex',flexWrap:'wrap',gap:6 }}>
+                    {phoneVerified && <VerifiedBadge icon="✓" label="Phone verified" color="#10b981" />}
+                    {emailVerified && <VerifiedBadge icon="✓" label="Email verified" color="#10b981" />}
+                    {password      && <VerifiedBadge icon="🔒" label="Password set"  color="#6366f1" />}
+                  </div>
+                </div>
+
+                <div style={{ display:'flex',flexDirection:'column',gap:12 }}>
+                  <AuthBtn onClick={handleRegister} loading={loading} disabled={loading}>
+                    Create Account →
+                  </AuthBtn>
+                  <p style={{ textAlign:'center',fontSize:13,color:'rgba(255,255,255,0.4)',margin:0 }}>
+                    Already have an account?{' '}
+                    <a href="/auth/login" style={{ color:'#818cf8',fontWeight:600,textDecoration:'none' }}>Sign in</a>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </motion.div>
+      </div>
+    </>
+  )
+}
+
+/* ─── Step Indicators ────────────────────────────────────────────────── */
+function StepIndicators({ step, hasPhone, hasEmail, phoneVerified }) {
+  return (
+    <div style={{ display:'flex',alignItems:'center',gap:8,fontSize:11 }}>
+      {hasPhone && (
+        <StepDot
+          icon={phoneVerified ? '✓' : '📱'}
+          label="Phone"
+          done={phoneVerified}
+          active={step === 2}
+        />
+      )}
+      {hasPhone && hasEmail && (
+        <div style={{ flex:1,height:1,background:'rgba(255,255,255,0.1)' }} />
+      )}
+      {hasEmail && (
+        <StepDot
+          icon="📧"
+          label="Email"
+          done={false}
+          active={step === 3}
+        />
+      )}
     </div>
   )
 }
 
+function StepDot({ icon, label, done, active }) {
+  const bg = done ? 'rgba(16,185,129,0.15)' : active ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)'
+  const color = done ? '#10b981' : active ? '#818cf8' : 'rgba(255,255,255,0.3)'
+  return (
+    <div style={{ display:'flex',alignItems:'center',gap:6 }}>
+      <div style={{
+        width:24,height:24,borderRadius:'50%',
+        background: bg, border:`1px solid ${color}`,
+        display:'flex',alignItems:'center',justifyContent:'center',
+        fontSize:12,
+      }}>
+        {icon}
+      </div>
+      <span style={{ color, fontWeight:done||active?600:400 }}>{label}</span>
+    </div>
+  )
+}
+
+/* ─── Resend Row ─────────────────────────────────────────────────────── */
+function ResendRow({ countdown, onResend, sending, onBack, backLabel }) {
+  const [h, setH] = useState(false)
+  return (
+    <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+      <GhostBtn onClick={onBack}>{backLabel}</GhostBtn>
+      {countdown > 0 ? (
+        <span style={{ fontSize:12,color:'rgba(255,255,255,0.3)' }}>Resend in {countdown}s</span>
+      ) : (
+        <button
+          onClick={onResend}
+          disabled={sending}
+          onMouseEnter={() => setH(true)}
+          onMouseLeave={() => setH(false)}
+          style={{
+            background:'none',border:'none',cursor:sending?'not-allowed':'pointer',
+            fontSize:13,fontWeight:600,
+            color: sending ? 'rgba(255,255,255,0.2)' : h ? '#a5b4fc' : '#818cf8',
+            padding:0,transition:'color .15s ease',
+          }}
+        >
+          Resend OTP
+        </button>
+      )}
+    </div>
+  )
+}
+
+/* ─── Page Export ────────────────────────────────────────────────────── */
 export default function RegisterPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={<SpinnerPage />}>
       <RegisterContent />
     </Suspense>
   )

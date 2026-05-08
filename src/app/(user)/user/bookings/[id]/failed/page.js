@@ -1,177 +1,173 @@
-// src/app/(user)/user/bookings/[id]/failed/page.js
 'use client'
 
-import { use, useState } from 'react'
-import { motion } from 'framer-motion'
+import { use, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { XCircle, RefreshCw, Home, Phone } from 'lucide-react'
+
+const KF = `
+  @keyframes fail-spring { 0%{transform:scale(0)} 70%{transform:scale(1.1)} 100%{transform:scale(1)} }
+  @keyframes fail-spin   { to{transform:rotate(360deg)} }
+  @keyframes fail-in     { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+`
+
+function ActionBtn({ children, onClick, disabled, variant = 'primary' }) {
+  const [h, setH] = useState(false)
+  const isDisabled = disabled
+  const V = {
+    primary:   { base:'linear-gradient(135deg,#6366f1,#8b5cf6)', hov:'linear-gradient(135deg,#7c3aed,#6d28d9)', color:'#fff', shadow:'0 4px 14px rgba(99,102,241,0.3)' },
+    secondary: { base:'#f1f5f9', hov:'#e2e8f0', color:'#475569', shadow:'none' },
+    ghost:     { base:'transparent', hov:'rgba(0,0,0,0.04)', color:'#94a3b8', shadow:'none' },
+  }
+  const s = V[variant]
+  return (
+    <button
+      onClick={onClick}
+      disabled={isDisabled}
+      onMouseEnter={() => !isDisabled && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+        padding:'12px', borderRadius:12, border:'none',
+        background: isDisabled?'#e2e8f0':h?s.hov:s.base,
+        color: isDisabled?'#94a3b8':s.color,
+        fontSize:13, fontWeight:variant==='primary'?700:500,
+        cursor:isDisabled?'not-allowed':'pointer',
+        boxShadow:isDisabled?'none':s.shadow,
+        transition:'all .18s ease', opacity:isDisabled?.7:1,
+      }}
+    >
+      {children}
+    </button>
+  )
+}
 
 export default function BookingFailedPage({ params }) {
-  const { id }    = use(params)
-  const router    = useRouter()
+  const { id }   = use(params)
+  const router   = useRouter()
   const [retrying, setRetrying] = useState(false)
+  const [visible,  setVisible]  = useState(false)
+  const [iconAnim, setIconAnim] = useState(false)
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setVisible(true), 50)
+    const t2 = setTimeout(() => setIconAnim(true), 150)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [])
 
   const handleRetry = async () => {
     setRetrying(true)
     try {
-      // Re-initiate payment for same booking
       const res  = await fetch('/api/payments/create-order', {
-        method:      'POST',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body:        JSON.stringify({ bookingId: id }),
+        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body: JSON.stringify({ bookingId:id }),
       })
       const json = await res.json()
-
-      if (!json.success) {
-        alert(json.error || 'Failed to retry payment')
-        setRetrying(false)
-        return
-      }
-
+      if (!json.success) { alert(json.error||'Failed to retry payment'); setRetrying(false); return }
       const { merchantId, reqData, paymentUrl } = json.data
-
-      // Submit form to 1Pay again
-      const form       = document.createElement('form')
-      form.method      = 'POST'
-      form.action      = paymentUrl
-      form.style.display = 'none'
-
-      const addField = (name, value) => {
-        const input = document.createElement('input')
-        input.type  = 'hidden'
-        input.name  = name
-        input.value = String(value)
-        form.appendChild(input)
-      }
-
-      addField('merchantId', merchantId)
-      addField('reqData',    reqData)
-
-      document.body.appendChild(form)
-      form.submit()
-    } catch {
-      alert('Network error. Please try again.')
-      setRetrying(false)
-    }
+      const form = document.createElement('form'); form.method='POST'; form.action=paymentUrl; form.style.display='none'
+      const addField = (n,v) => { const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=String(v); form.appendChild(i) }
+      addField('merchantId', merchantId); addField('reqData', reqData)
+      document.body.appendChild(form); form.submit()
+    } catch { alert('Network error. Please try again.'); setRetrying(false) }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="bg-white rounded-2xl p-8 max-w-md w-full text-center"
-        style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}
-      >
-        {/* Failed icon */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-          className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6"
-        >
-          <XCircle className="w-10 h-10 text-red-500" />
-        </motion.div>
+  const REASONS = [
+    'Incorrect card details',
+    'Insufficient balance',
+    'Bank declined the transaction',
+    'Payment session timed out',
+    'Network interruption',
+  ]
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+  return (
+    <>
+      <style>{KF}</style>
+      <div style={{
+        minHeight:'100vh',
+        background:'linear-gradient(135deg,#fff1f2 0%,#f8fafc 50%,#fef2f2 100%)',
+        display:'flex', alignItems:'center', justifyContent:'center', padding:16,
+      }}>
+        <div style={{
+          background:'#fff', borderRadius:24,
+          padding:'clamp(24px,5vw,40px)',
+          maxWidth:440, width:'100%', textAlign:'center',
+          boxShadow:'0 8px 40px rgba(0,0,0,0.1)',
+          opacity: visible?1:0,
+          transform: visible?'translateY(0)':'translateY(16px)',
+          transition:'opacity .4s ease, transform .4s ease',
+        }}>
+          {/* Icon */}
+          <div style={{
+            width:80, height:80, borderRadius:'50%',
+            background:'rgba(239,68,68,0.1)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            margin:'0 auto 20px', fontSize:40,
+            animation: iconAnim ? 'fail-spring .5s cubic-bezier(0.34,1.56,0.64,1) forwards' : 'none',
+            transform: iconAnim ? undefined : 'scale(0)',
+          }}>
+            ❌
+          </div>
+
+          <h1 style={{ fontSize:'clamp(20px,4vw,26px)', fontWeight:800, color:'#0f172a', marginBottom:8 }}>
             Payment Failed
           </h1>
-          <p className="text-gray-500 text-sm mb-2">
+          <p style={{ fontSize:13, color:'#64748b', marginBottom:6 }}>
             Your payment could not be processed.
           </p>
-          <p className="text-gray-400 text-xs mb-8">
+          <p style={{ fontSize:12, color:'#94a3b8', marginBottom:24 }}>
             No money has been deducted from your account.
             You can try again or use a different payment method.
           </p>
-        </motion.div>
 
-        {/* Booking ID */}
-        <div className="bg-gray-50 rounded-xl p-3 mb-6">
-          <p className="text-xs text-gray-400">Booking Reference</p>
-          <p className="text-sm font-mono font-bold text-gray-700">{id}</p>
+          {/* Booking reference */}
+          <div style={{ background:'#f8fafc', borderRadius:12, padding:'10px 14px', marginBottom:16 }}>
+            <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 3px' }}>Booking Reference</p>
+            <p style={{ fontSize:13, fontFamily:'monospace', fontWeight:700, color:'#475569', margin:0 }}>{id}</p>
+          </div>
+
+          {/* Reasons */}
+          <div style={{
+            background:'rgba(245,158,11,0.06)', border:'1px solid rgba(245,158,11,0.2)',
+            borderRadius:14, padding:16, marginBottom:20, textAlign:'left',
+          }}>
+            <p style={{ fontSize:12, fontWeight:700, color:'#92400e', marginBottom:10 }}>
+              Common reasons for failure:
+            </p>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {REASONS.map((reason) => (
+                <div key={reason} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'#b45309' }}>
+                  <div style={{ width:6, height:6, borderRadius:'50%', background:'#f59e0b', flexShrink:0 }} />
+                  {reason}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <ActionBtn onClick={handleRetry} disabled={retrying} variant="primary">
+              {retrying ? (
+                <>
+                  <span style={{ width:14,height:14,borderRadius:'50%',border:'2px solid rgba(255,255,255,0.4)',borderTopColor:'#fff',animation:'fail-spin .7s linear infinite',display:'inline-block' }} />
+                  Retrying...
+                </>
+              ) : '🔄 Try Payment Again'}
+            </ActionBtn>
+            <ActionBtn onClick={() => router.push('/user/bookings')} variant="secondary">
+              My Bookings
+            </ActionBtn>
+            <ActionBtn onClick={() => router.push('/')} variant="ghost">
+              🏠 Back to Home
+            </ActionBtn>
+          </div>
+
+          <div style={{ marginTop:20, paddingTop:16, borderTop:'1px solid #f1f5f9' }}>
+            <p style={{ fontSize:12, color:'#94a3b8', marginBottom:6 }}>Still having issues?</p>
+            <a href="mailto:support@medli.in" style={{ fontSize:12, color:'#6366f1', textDecoration:'none', fontWeight:600 }}>
+              📞 Contact Support
+            </a>
+          </div>
         </div>
-
-        {/* Common reasons */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-left">
-          <p className="text-xs font-semibold text-amber-700 mb-2">
-            Common reasons for failure:
-          </p>
-          <ul className="space-y-1">
-            {[
-              'Incorrect card details',
-              'Insufficient balance',
-              'Bank declined the transaction',
-              'Payment session timed out',
-              'Network interruption',
-            ].map((reason) => (
-              <li key={reason} className="text-xs text-amber-600 flex items-center gap-1.5">
-                <span className="w-1 h-1 rounded-full bg-amber-400 flex-shrink-0" />
-                {reason}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Actions */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="flex flex-col gap-3"
-        >
-          <button
-            onClick={handleRetry}
-            disabled={retrying}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-semibold transition-colors"
-          >
-            {retrying ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                Retrying...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" />
-                Try Payment Again
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={() => router.push('/user/bookings')}
-            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl text-sm font-medium transition-colors"
-          >
-            My Bookings
-          </button>
-
-          <button
-            onClick={() => router.push('/')}
-            className="w-full flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 py-2 text-sm transition-colors"
-          >
-            <Home className="w-4 h-4" />
-            Back to Home
-          </button>
-        </motion.div>
-
-        {/* Support */}
-        <div className="mt-6 pt-6 border-t border-gray-100">
-          <p className="text-xs text-gray-400 mb-2">Still having issues?</p>
-          <a
-            href="mailto:support@medli.in"
-            className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-medium"
-          >
-            <Phone className="w-3 h-3" />
-            Contact Support
-          </a>
-        </div>
-      </motion.div>
-    </div>
+      </div>
+    </>
   )
 }

@@ -1,31 +1,37 @@
 'use client'
 
-import { ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 
 export default function AdminHeader({
   breadcrumbs = [],
   title,
   subtitle,
   actions,
-  className = '',
+  style: extraStyle = {},
 }) {
   return (
-    <div className={`mb-6 ${className}`}>
+    <div style={{ marginBottom: 24, ...extraStyle }}>
+
       {/* Breadcrumbs */}
       {breadcrumbs.length > 0 && (
-        <nav className="flex items-center gap-1 mb-2">
+        <nav style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          marginBottom: 8,
+          flexWrap: 'wrap',
+        }}>
           {breadcrumbs.map((crumb, i) => (
-            <span key={i} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-gray-300" />}
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {i > 0 && (
+                <span style={{ fontSize: 12, color: '#d1d5db' }}>›</span>
+              )}
               {crumb.href ? (
-                <a
-                  href={crumb.href}
-                  className="text-xs text-gray-400 hover:text-blue-600 transition-colors"
-                >
-                  {crumb.label}
-                </a>
+                <BreadcrumbLink href={crumb.href} label={crumb.label} />
               ) : (
-                <span className="text-xs text-gray-600 font-medium">{crumb.label}</span>
+                <span style={{ fontSize: 12, color: '#475569', fontWeight: 500 }}>
+                  {crumb.label}
+                </span>
               )}
             </span>
           ))}
@@ -33,19 +39,71 @@ export default function AdminHeader({
       )}
 
       {/* Title row */}
-      <div className="flex items-start justify-between gap-4">
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 16,
+        flexWrap: 'wrap',
+      }}>
         <div>
           {title && (
-            <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+            <h1 style={{
+              fontSize: 'clamp(18px,3vw,22px)',
+              fontWeight: 800,
+              color: '#0f172a',
+              margin: 0,
+              letterSpacing: '-0.3px',
+              lineHeight: 1.2,
+            }}>
+              {title}
+            </h1>
           )}
           {subtitle && (
-            <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
+            <p style={{
+              fontSize: 13,
+              color: '#94a3b8',
+              margin: '4px 0 0',
+              lineHeight: 1.5,
+            }}>
+              {subtitle}
+            </p>
           )}
         </div>
+
         {actions && (
-          <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexShrink: 0,
+            flexWrap: 'wrap',
+          }}>
+            {actions}
+          </div>
         )}
       </div>
     </div>
+  )
+}
+
+/* ─── Breadcrumb link with hover ─────────────────────────────────────── */
+function BreadcrumbLink({ href, label }) {
+  const [h, setH] = useState(false)
+  return (
+    <a
+      href={href}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        fontSize: 12,
+        color: h ? '#6366f1' : '#94a3b8',
+        textDecoration: 'none',
+        transition: 'color .15s ease',
+        fontWeight: 400,
+      }}
+    >
+      {label}
+    </a>
   )
 }

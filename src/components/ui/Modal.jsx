@@ -1,8 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+const SIZES = {
+  sm:   480,
+  md:   560,
+  lg:   760,
+  xl:   960,
+  full: 1200,
+}
 
 export default function Modal({
   open,
@@ -13,84 +19,156 @@ export default function Modal({
   hideClose = false,
   footer,
 }) {
-  const sizes = {
-    sm:   'w-full max-w-sm',
-    md:   'w-full max-w-lg',
-    lg:   'w-full max-w-2xl',
-    xl:   'w-full max-w-4xl',
-    full: 'w-full max-w-6xl',
-  }
+  const [show,    setShow]    = useState(false)
+  const [visible, setVisible] = useState(false)
 
-  // Lock body scroll
   useEffect(() => {
     if (open) {
+      setShow(true)
+      const t = setTimeout(() => setVisible(true), 10)
       document.body.style.overflow = 'hidden'
+      return () => clearTimeout(t)
     } else {
+      setVisible(false)
+      const t = setTimeout(() => setShow(false), 250)
       document.body.style.overflow = ''
+      return () => clearTimeout(t)
     }
-    return () => { document.body.style.overflow = '' }
   }, [open])
 
-  // ESC key
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape' && open) onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [open, onClose])
 
+  if (!show) return null
+
   return (
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{    opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={onClose}
-          />
-          {/* Panel */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1,    y: 0  }}
-            exit={{    opacity: 0, scale: 0.95,  y: 20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-            className={`relative bg-white rounded-2xl max-h-[90vh] flex flex-col overflow-hidden ${sizes[size] ?? sizes.md}`}
-            style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}
-          >
-            {/* Header */}
-            {(title || !hideClose) && (
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-                {title && (
-                  <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-                )}
-                {!hideClose && (
-                  <button
-                    onClick={onClose}
-                    className="ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
+    <>
+      <style>{`
+        @keyframes modal-in {
+          from { transform: scale(0.93) translateY(16px); opacity: 0; }
+          to   { transform: scale(1)    translateY(0);    opacity: 1; }
+        }
+      `}</style>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              {children}
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+      }}>
+        {/* Backdrop */}
+        <div
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(6px)',
+            transition: 'opacity 0.25s ease',
+            opacity: visible ? 1 : 0,
+          }}
+        />
+
+        {/* Panel */}
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: SIZES[size] ?? SIZES.md,
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#ffffff',
+          borderRadius: 24,
+          overflow: 'hidden',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.25)',
+          animation: visible ? 'modal-in 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards' : 'none',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 0.25s ease',
+        }}>
+          {/* Header */}
+          {(title || !hideClose) && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '18px 24px',
+              borderBottom: '1px solid #f1f5f9',
+              flexShrink: 0,
+              background: '#fff',
+            }}>
+              {title && (
+                <h2 style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  margin: 0,
+                }}>
+                  {title}
+                </h2>
+              )}
+              {!hideClose && (
+                <CloseButton onClose={onClose} title={title} />
+              )}
             </div>
+          )}
 
-            {/* Footer */}
-            {footer && (
-              <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-                {footer}
-              </div>
-            )}
-          </motion.div>
+          {/* Body */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px 24px',
+          }}>
+            {children}
+          </div>
+
+          {/* Footer */}
+          {footer && (
+            <div style={{
+              flexShrink: 0,
+              padding: '16px 24px',
+              borderTop: '1px solid #f1f5f9',
+              background: '#fafafa',
+            }}>
+              {footer}
+            </div>
+          )}
         </div>
-      )}
-    </AnimatePresence>
+      </div>
+    </>
+  )
+}
+
+function CloseButton({ onClose, title }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      onClick={onClose}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        marginLeft: title ? 'auto' : undefined,
+        width: 32, height: 32,
+        borderRadius: 8,
+        border: 'none',
+        background: hover ? '#f1f5f9' : 'transparent',
+        color: hover ? '#334155' : '#94a3b8',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all 0.15s ease',
+        fontSize: 18,
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+    >
+      ×
+    </button>
   )
 }

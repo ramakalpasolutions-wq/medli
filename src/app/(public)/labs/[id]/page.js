@@ -1,148 +1,324 @@
 'use client'
 
 import { use, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
+import useSWR from 'swr'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import Badge from '@/components/ui/Badge'
-import Button from '@/components/ui/Button'
 import EmptyState from '@/components/ui/EmptyState'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import { Star, MapPin, Home, ShoppingCart, X, ChevronRight } from 'lucide-react'
 
 const fetcher = (url) => fetch(url).then((r) => r.json()).then((j) => j.data)
 
-export default function LabPage({ params }) {
+function CartBar({ cart, labId, onRemove, router }) {
+  const [show, setShow] = useState(false)
+  const cartTotal = cart.reduce((s, t) => s + (t.discountedPrice || t.price), 0)
+
+  useState(() => { setShow(cart.length > 0) }, [cart.length])
+
+  if (!cart.length) return null
+
+  return (
+    <div style={{
+      position:'fixed',bottom:0,left:0,right:0,
+      background:'rgba(255,255,255,0.97)',
+      borderTop:'1px solid #f1f5f9',
+      padding:'12px clamp(16px,3vw,32px)',
+      display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,
+      zIndex:200,
+      boxShadow:'0 -8px 32px rgba(0,0,0,0.1)',
+      backdropFilter:'blur(20px)',
+      animation:'slideUp .3s ease',
+    }}>
+      <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+      <div style={{ display:'flex',alignItems:'center',gap:12 }}>
+        <div style={{
+          width:40,height:40,borderRadius:12,
+          background:'rgba(16,185,129,0.1)',
+          display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,
+        }}>🛒</div>
+        <div>
+          <p style={{ fontSize:12,color:'#94a3b8',margin:0 }}>
+            {cart.length} test{cart.length>1?'s':''} selected
+          </p>
+          <p style={{ fontSize:15,fontWeight:700,color:'#0f172a',margin:0 }}>
+            ₹{cartTotal.toLocaleString('en-IN')}
+          </p>
+        </div>
+      </div>
+      <BookNowBtn onClick={() => router.push(`/user/bookings/new?labId=${labId}&testIds=${cart.map((c)=>c.id).join(',')}`)} />
+    </div>
+  )
+}
+
+function BookNowBtn({ onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        padding:'11px 24px',borderRadius:12,border:'none',
+        background: h ? 'linear-gradient(135deg,#059669,#047857)' : 'linear-gradient(135deg,#10b981,#059669)',
+        color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer',
+        boxShadow: h ? '0 8px 24px rgba(16,185,129,0.5)' : '0 4px 14px rgba(16,185,129,0.35)',
+        transition:'all .18s ease',
+        display:'flex',alignItems:'center',gap:8,
+        transform: h ? 'scale(1.02)' : 'scale(1)',
+      }}
+    >
+      Book Now →
+    </button>
+  )
+}
+
+function TestCard({ test, inCart, onAdd, onRemove }) {
+  const [addHover, setAddHover] = useState(false)
+
+  return (
+    <div style={{
+      background:'#fff',borderRadius:20,padding:18,
+      border:`1.5px solid ${inCart?'#a7f3d0':'#f1f5f9'}`,
+      boxShadow: inCart ? '0 4px 16px rgba(16,185,129,0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
+      transition:'all .2s ease',
+    }}>
+      <div style={{ display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:8 }}>
+        <div style={{ flex:1,minWidth:0 }}>
+          <h4 style={{ fontSize:13,fontWeight:700,color:'#0f172a',margin:'0 0 2px',lineHeight:1.4 }}>
+            {test.name}
+          </h4>
+          {test.code && <p style={{ fontSize:11,color:'#94a3b8',margin:0 }}>Code: {test.code}</p>}
+        </div>
+        {test.category && <Badge variant="info" size="sm">{test.category}</Badge>}
+      </div>
+
+      <div style={{ display:'flex',gap:12,marginBottom:12 }}>
+        <p style={{ fontSize:11,color:'#94a3b8',margin:0 }}>
+          🧪 {test.sampleType || 'Blood'}
+        </p>
+        {test.turnaroundTime && (
+          <p style={{ fontSize:11,color:'#94a3b8',margin:0 }}>
+            ⏱ {test.turnaroundTime.value} {test.turnaroundTime.unit}
+          </p>
+        )}
+      </div>
+
+      <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+        <div>
+          {test.discountedPrice ? (
+            <div style={{ display:'flex',alignItems:'baseline',gap:6 }}>
+              <span style={{ fontSize:18,fontWeight:800,color:'#0f172a' }}>₹{test.discountedPrice}</span>
+              <span style={{ fontSize:12,color:'#94a3b8',textDecoration:'line-through' }}>₹{test.price}</span>
+              <span style={{
+                fontSize:10,fontWeight:600,
+                background:'rgba(16,185,129,0.1)',color:'#059669',
+                padding:'1px 6px',borderRadius:100,
+              }}>
+                {Math.round((1-test.discountedPrice/test.price)*100)}% off
+              </span>
+            </div>
+          ) : (
+            <span style={{ fontSize:18,fontWeight:800,color:'#0f172a' }}>₹{test.price}</span>
+          )}
+        </div>
+        <button
+          onClick={() => inCart ? onRemove(test.id) : onAdd(test)}
+          onMouseEnter={() => setAddHover(true)}
+          onMouseLeave={() => setAddHover(false)}
+          style={{
+            padding:'8px 16px',borderRadius:10,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',
+            background: inCart
+              ? addHover ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)'
+              : addHover ? 'linear-gradient(135deg,#059669,#047857)' : 'linear-gradient(135deg,#10b981,#059669)',
+            color: inCart ? '#ef4444' : '#fff',
+            boxShadow: !inCart && addHover ? '0 4px 12px rgba(16,185,129,0.4)' : 'none',
+            transition:'all .15s ease',
+            minHeight:36,
+          }}
+        >
+          {inCart ? '✕ Remove' : '+ Add'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function LabDetailPage({ params }) {
   const { id } = use(params)
   const router = useRouter()
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [cart, setCart] = useState([])
 
-  const { data: lab, isLoading } = useSWR(`/api/labs/${id}`, fetcher)
+  const { data: lab,      isLoading: lLoading } = useSWR(`/api/labs/${id}`,       fetcher)
   const { data: testsData, isLoading: tLoading } = useSWR(`/api/labs/${id}/tests`, fetcher)
 
-  const allTests = testsData?.tests || []
+  const allTests   = testsData?.tests || []
   const categories = ['all', ...new Set(allTests.map((t) => t.category).filter(Boolean))]
-  const filtered = selectedCategory === 'all' ? allTests : allTests.filter((t) => t.category === selectedCategory)
+  const filtered   = selectedCategory === 'all' ? allTests : allTests.filter((t) => t.category === selectedCategory)
 
-  const addToCart = (test) => {
-    if (!cart.find((c) => c.id === test.id)) setCart([...cart, test])
+  const addToCart    = (test) => { if (!cart.find((c) => c.id===test.id)) setCart([...cart, test]) }
+  const removeFromCart = (id)  => setCart(cart.filter((c) => c.id !== id))
+
+  if (lLoading) {
+    return (
+      <div style={{ minHeight:'100vh',background:'#f8fafc' }}>
+        <Navbar />
+        <div style={{ maxWidth:800,margin:'0 auto',padding:'100px 16px 64px' }}>
+          <SkeletonCard />
+        </div>
+        <Footer />
+      </div>
+    )
   }
-  const removeFromCart = (testId) => setCart(cart.filter((c) => c.id !== testId))
-  const cartTotal = cart.reduce((s, t) => s + (t.discountedPrice || t.price), 0)
-
-  if (isLoading) return <div className="min-h-screen bg-gray-50"><Navbar /><div className="max-w-4xl mx-auto px-4 pt-24"><SkeletonCard /></div><Footer /></div>
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      <Navbar />
+    <>
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+      <div style={{ minHeight:'100vh',background:'#f8fafc',paddingBottom: cart.length?80:0 }}>
+        <Navbar />
 
-      {/* Hero */}
-      <div className="relative h-56 bg-gradient-to-br from-green-600 to-emerald-700 overflow-hidden mt-16">
-        {lab?.images?.cover && <img src={lab.images.cover} alt="" className="w-full h-full object-cover" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-6 flex items-end gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center text-2xl border-4 border-white shadow-lg overflow-hidden">
-            {lab?.images?.logo ? <img src={lab.images.logo} alt="" className="w-full h-full object-cover" /> : '🧪'}
+        {/* Hero */}
+        <div style={{
+          position:'relative',height:240,
+          background:'linear-gradient(135deg,#059669,#10b981)',
+          overflow:'hidden',marginTop:64,
+        }}>
+          {lab?.images?.cover && (
+            <img src={lab.images.cover} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }} />
+          )}
+          <div style={{ position:'absolute',inset:0,background:'linear-gradient(to top,rgba(0,0,0,0.6),rgba(0,0,0,0.1))' }} />
+
+          <div style={{
+            position:'absolute',bottom:0,left:0,right:0,
+            padding:'0 clamp(16px,3vw,32px) 20px',
+            display:'flex',alignItems:'flex-end',gap:14,flexWrap:'wrap',
+          }}>
+            <div style={{
+              width:56,height:56,borderRadius:14,background:'#fff',
+              border:'3px solid #fff',display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:26,boxShadow:'0 6px 20px rgba(0,0,0,0.15)',overflow:'hidden',flexShrink:0,
+            }}>
+              {lab?.images?.logo
+                ? <img src={lab.images.logo} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
+                : '🧪'}
+            </div>
+            <div style={{ flex:1,minWidth:0 }}>
+              <h1 style={{ fontSize:'clamp(16px,3vw,22px)',fontWeight:800,color:'#fff',margin:'0 0 4px',lineHeight:1.2 }}>
+                {lab?.name}
+              </h1>
+              {lab?.address?.city && (
+                <p style={{ fontSize:12,color:'rgba(255,255,255,0.8)',margin:'0 0 4px' }}>
+                  📍 {lab.address.city}
+                </p>
+              )}
+              {lab?.homeCollection?.enabled && (
+                <span style={{
+                  display:'inline-flex',alignItems:'center',gap:4,
+                  background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.25)',
+                  borderRadius:100,padding:'2px 10px',fontSize:11,fontWeight:600,color:'#fff',
+                }}>
+                  🏠 Home Collection
+                </span>
+              )}
+            </div>
+            {lab?.rating?.average > 0 && (
+              <div style={{
+                display:'flex',alignItems:'center',gap:6,
+                background:'rgba(255,255,255,0.92)',backdropFilter:'blur(8px)',
+                borderRadius:100,padding:'5px 12px',flexShrink:0,
+              }}>
+                <span>⭐</span>
+                <span style={{ fontSize:13,fontWeight:700,color:'#1e293b' }}>{lab.rating.average.toFixed(1)}</span>
+              </div>
+            )}
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-white">{lab?.name}</h1>
-            {lab?.address?.city && <p className="text-green-200 text-xs flex items-center gap-1"><MapPin className="w-3 h-3" />{lab.address.city}</p>}
-            {lab?.homeCollection?.enabled && <span className="text-xs bg-green-400/20 text-green-200 px-2 py-0.5 rounded-full mt-1 inline-flex items-center gap-1"><Home className="w-3 h-3" /> Home Collection</span>}
+        </div>
+
+        {/* Certifications strip */}
+        {lab?.certifications?.length > 0 && (
+          <div style={{
+            background:'#fff',borderBottom:'1px solid #f1f5f9',
+            padding:'10px clamp(16px,3vw,32px)',
+            display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',
+          }}>
+            <span style={{ fontSize:11,color:'#94a3b8',fontWeight:600 }}>CERTIFIED:</span>
+            {lab.certifications.map((c) => (
+              <Badge key={c} variant="success" size="sm">{c}</Badge>
+            ))}
           </div>
-          {lab?.rating?.average > 0 && (
-            <div className="ml-auto flex items-center gap-1 bg-white/90 px-2.5 py-1 rounded-full">
-              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-              <span className="text-sm font-bold">{lab.rating.average.toFixed(1)}</span>
+        )}
+
+        {/* Content */}
+        <div style={{ maxWidth:860,margin:'0 auto',padding:'clamp(20px,4vw,32px) clamp(16px,3vw,32px)' }}>
+
+          {/* Category filter */}
+          <div style={{
+            display:'flex',gap:6,overflowX:'auto',paddingBottom:12,marginBottom:16,
+            scrollbarWidth:'none',
+          }}>
+            {categories.map((c) => (
+              <CategoryBtn
+                key={c}
+                label={c === 'all' ? 'All Tests' : c}
+                active={selectedCategory === c}
+                onClick={() => setSelectedCategory(c)}
+              />
+            ))}
+          </div>
+
+          {/* Test grid */}
+          {tLoading ? (
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14 }}>
+              {[1,2,3,4].map((i) => <SkeletonCard key={i} />)}
+            </div>
+          ) : !filtered.length ? (
+            <EmptyState title="No tests found" />
+          ) : (
+            <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:14 }}>
+              {filtered.map((test) => (
+                <TestCard
+                  key={test.id}
+                  test={test}
+                  inCart={!!cart.find((c) => c.id === test.id)}
+                  onAdd={addToCart}
+                  onRemove={removeFromCart}
+                />
+              ))}
             </div>
           )}
         </div>
+
+        <CartBar cart={cart} labId={id} onRemove={removeFromCart} router={router} />
+        <Footer />
       </div>
+    </>
+  )
+}
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Category filter */}
-        <div className="flex gap-2 overflow-x-auto pb-3 mb-4">
-          {categories.map((c) => (
-            <button key={c} onClick={() => setSelectedCategory(c)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${selectedCategory === c ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {c === 'all' ? 'All Tests' : c}
-            </button>
-          ))}
-        </div>
-
-        {/* Test cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {tLoading ? [1,2,3,4].map((i) => <SkeletonCard key={i} />) :
-           !filtered.length ? <div className="col-span-2"><EmptyState title="No tests found" /></div> :
-           filtered.map((test) => {
-             const inCart = cart.find((c) => c.id === test.id)
-             return (
-               <motion.div key={test.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                 className="bg-white rounded-2xl p-4 border border-gray-100" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                 <div className="flex items-start justify-between mb-2">
-                   <div>
-                     <h4 className="text-sm font-semibold text-gray-800">{test.name}</h4>
-                     {test.code && <p className="text-xs text-gray-400">Code: {test.code}</p>}
-                   </div>
-                   {test.category && <Badge variant="info" size="sm">{test.category}</Badge>}
-                 </div>
-                 <p className="text-xs text-gray-400 mb-1">Sample: {test.sampleType || 'Blood'}</p>
-                 {test.turnaroundTime && <p className="text-xs text-gray-400 mb-3">TAT: {test.turnaroundTime.value} {test.turnaroundTime.unit}</p>}
-                 <div className="flex items-center justify-between">
-                   <div>
-                     {test.discountedPrice ? (
-                       <div className="flex items-center gap-1.5">
-                         <span className="text-base font-bold text-gray-900">₹{test.discountedPrice}</span>
-                         <span className="text-xs text-gray-400 line-through">₹{test.price}</span>
-                       </div>
-                     ) : (
-                       <span className="text-base font-bold text-gray-900">₹{test.price}</span>
-                     )}
-                   </div>
-                   <button
-                     onClick={() => inCart ? removeFromCart(test.id) : addToCart(test)}
-                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${inCart ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-600 text-white hover:bg-green-700'}`}
-                     style={{ minHeight: 44 }}
-                   >
-                     {inCart ? 'Remove' : '+ Add'}
-                   </button>
-                 </div>
-               </motion.div>
-             )
-           })}
-        </div>
-      </div>
-
-      {/* Cart floating bar */}
-      <AnimatePresence>
-        {cart.length > 0 && (
-          <motion.div
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex items-center justify-between z-30"
-            style={{ boxShadow: '0 -4px 24px rgba(0,0,0,0.08)' }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center">
-                <ShoppingCart className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">{cart.length} test{cart.length > 1 ? 's' : ''} selected</p>
-                <p className="text-sm font-bold text-gray-800">₹{cartTotal.toLocaleString('en-IN')}</p>
-              </div>
-            </div>
-            <Button variant="primary" size="sm" rightIcon={<ChevronRight className="w-4 h-4" />}
-              onClick={() => router.push(`/user/bookings/new?labId=${id}&testIds=${cart.map((c) => c.id).join(',')}`)}>
-              Book Now
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <Footer />
-    </div>
+function CategoryBtn({ label, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        padding:'6px 14px',borderRadius:100,
+        fontSize:12,fontWeight:500,
+        background: active
+          ? 'linear-gradient(135deg,#10b981,#059669)'
+          : h ? '#e2e8f0' : '#f1f5f9',
+        color: active ? '#fff' : '#64748b',
+        border:'none',cursor:'pointer',whiteSpace:'nowrap',
+        boxShadow: active ? '0 2px 8px rgba(16,185,129,0.35)' : 'none',
+        transition:'all .15s ease',
+        transform: active ? 'scale(1.02)' : 'scale(1)',
+        flexShrink:0,
+      }}
+    >
+      {label}
+    </button>
   )
 }

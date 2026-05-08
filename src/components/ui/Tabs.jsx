@@ -1,83 +1,82 @@
 'use client'
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useRef, useEffect } from 'react'
 
 export default function Tabs({
   tabs,
   activeTab,
   onChange,
   variant   = 'underline',
-  className = '',
+  style: extraStyle = {},
 }) {
-  const isUnderline = variant === 'underline'
-  const isPills     = variant === 'pills'
+  const [indicatorStyle, setIndicatorStyle] = useState({})
+  const tabRefs = useRef({})
 
-  if (isUnderline) {
+  useEffect(() => {
+    if (variant !== 'underline') return
+    const el = tabRefs.current[activeTab]
+    if (el) {
+      setIndicatorStyle({
+        left: el.offsetLeft,
+        width: el.offsetWidth,
+      })
+    }
+  }, [activeTab, variant, tabs])
+
+  if (variant === 'underline') {
     return (
-      <div className={`flex border-b border-gray-200 ${className}`}>
+      <div style={{
+        display: 'flex',
+        borderBottom: '2px solid #f1f5f9',
+        position: 'relative',
+        overflowX: 'auto',
+        ...extraStyle,
+      }}>
         {tabs.map((tab) => {
           const active = activeTab === tab.key
           return (
-            <button
+            <TabUnderlineItem
               key={tab.key}
-              onClick={() => onChange(tab.key)}
-              className={`relative px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none flex items-center gap-2 ${
-                active ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.icon && <span>{tab.icon}</span>}
-              {tab.label}
-              {tab.count !== undefined && (
-                <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-                  active ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
-              {active && (
-                <motion.div
-                  layoutId="underline"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full"
-                />
-              )}
-            </button>
+              tab={tab}
+              active={active}
+              onChange={onChange}
+              ref={(el) => { if (el) tabRefs.current[tab.key] = el }}
+            />
           )
         })}
+        {/* Sliding indicator */}
+        <div style={{
+          position: 'absolute',
+          bottom: -2,
+          height: 2,
+          background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+          borderRadius: 2,
+          transition: 'left 0.25s ease, width 0.25s ease',
+          ...indicatorStyle,
+        }} />
       </div>
     )
   }
 
-  if (isPills) {
+  if (variant === 'pills') {
     return (
-      <div className={`flex gap-1 bg-gray-100 rounded-xl p-1 ${className}`}>
+      <div style={{
+        display: 'flex',
+        gap: 4,
+        background: '#f1f5f9',
+        borderRadius: 14,
+        padding: 4,
+        ...extraStyle,
+      }}>
         {tabs.map((tab) => {
           const active = activeTab === tab.key
           return (
-            <button
+            <TabPillItem
               key={tab.key}
-              onClick={() => onChange(tab.key)}
-              className="relative flex-1 px-3 py-2 text-sm font-medium transition-colors focus:outline-none rounded-lg flex items-center justify-center gap-2"
-            >
-              {active && (
-                <motion.div
-                  layoutId="pill"
-                  className="absolute inset-0 bg-white rounded-lg"
-                  style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}
-                />
-              )}
-              <span className={`relative z-10 ${active ? 'text-gray-900' : 'text-gray-500'}`}>
-                {tab.icon && <span className="mr-1">{tab.icon}</span>}
-                {tab.label}
-              </span>
-              {tab.count !== undefined && (
-                <span className={`relative z-10 px-1.5 py-0.5 rounded-full text-xs font-semibold ${
-                  active ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
-                }`}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
+              tab={tab}
+              active={active}
+              onChange={onChange}
+            />
           )
         })}
       </div>
@@ -85,4 +84,99 @@ export default function Tabs({
   }
 
   return null
+}
+
+import { forwardRef } from 'react'
+
+const TabUnderlineItem = forwardRef(function TabUnderlineItem({ tab, active, onChange }, ref) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      ref={ref}
+      onClick={() => onChange(tab.key)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '10px 16px',
+        fontSize: 14,
+        fontWeight: active ? 600 : 500,
+        color: active ? '#6366f1' : hover ? '#334155' : '#94a3b8',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        outline: 'none',
+        transition: 'color 0.15s ease',
+        whiteSpace: 'nowrap',
+        position: 'relative',
+        flexShrink: 0,
+      }}
+    >
+      {tab.icon && (
+        <span style={{ display: 'inline-flex' }}>{tab.icon}</span>
+      )}
+      {tab.label}
+      {tab.count !== undefined && (
+        <span style={{
+          padding: '1px 7px',
+          borderRadius: 100,
+          fontSize: 11,
+          fontWeight: 600,
+          background: active ? 'rgba(99,102,241,0.12)' : '#f1f5f9',
+          color: active ? '#6366f1' : '#94a3b8',
+        }}>
+          {tab.count}
+        </span>
+      )}
+    </button>
+  )
+})
+
+function TabPillItem({ tab, active, onChange }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      onClick={() => onChange(tab.key)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        flex: 1,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        padding: '8px 12px',
+        fontSize: 13,
+        fontWeight: active ? 600 : 500,
+        color: active ? '#0f172a' : hover ? '#334155' : '#94a3b8',
+        background: active
+          ? '#ffffff'
+          : hover ? 'rgba(255,255,255,0.5)' : 'transparent',
+        border: 'none',
+        borderRadius: 10,
+        cursor: 'pointer',
+        outline: 'none',
+        transition: 'all 0.18s ease',
+        boxShadow: active ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {tab.icon && <span style={{ display: 'inline-flex' }}>{tab.icon}</span>}
+      {tab.label}
+      {tab.count !== undefined && (
+        <span style={{
+          padding: '1px 7px',
+          borderRadius: 100,
+          fontSize: 11,
+          fontWeight: 600,
+          background: active ? 'rgba(99,102,241,0.12)' : 'rgba(0,0,0,0.06)',
+          color: active ? '#6366f1' : '#94a3b8',
+        }}>
+          {tab.count}
+        </span>
+      )}
+    </button>
+  )
 }

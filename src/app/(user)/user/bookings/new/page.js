@@ -1,22 +1,12 @@
-// src/app/(user)/user/bookings/new/page.js
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import BookingStepper from '@/components/booking/BookingStepper'
-import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
 import Navbar from '@/components/public/Navbar'
 import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/hooks/useAuth'
-import {
-  Check, Tag, User, Users, Building2,
-  Video, Calendar, Clock, Home, MapPin,
-} from 'lucide-react'
 import useSWR from 'swr'
 
-// ── useMounted: prevents hydration mismatch ───────────────────────────────────
 function useMounted() {
   const [m, setM] = useState(false)
   useEffect(() => { setM(true) }, [])
@@ -24,37 +14,224 @@ function useMounted() {
 }
 
 const fetcher = (url) =>
-  fetch(url, { credentials: 'include' })
-    .then((r) => r.json())
-    .then((j) => j.data)
+  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
 
-const fmtRs = (n) =>
-  `Rs. ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`
+const fmtRs = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
 
-function PriceRow({ label, value, green, bold }) {
+const KF = `
+  @keyframes nb-spin { to{transform:rotate(360deg)} }
+  @keyframes nb-in   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes nb-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  @keyframes nb-slide-in  { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes nb-coupon-ok { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+`
+const SHIMMER = {
+  backgroundImage: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
+  backgroundSize: '200% 100%',
+  animation: 'nb-shimmer 1.5s linear infinite',
+}
+
+/* ─── Step indicator ─────────────────────────────────────────────────── */
+function StepBar({ step }) {
+  const steps = ['Details', 'Patient', 'Pricing', 'Payment']
   return (
-    <div className={
-      bold
-        ? 'flex justify-between py-1.5 border-t border-gray-200 mt-1 pt-2.5'
-        : 'flex justify-between py-1.5'
-    }>
-      <span className={bold ? 'text-sm font-bold text-gray-800' : 'text-sm text-gray-500'}>
-        {label}
-      </span>
-      <span className={
-        green
-          ? 'text-sm font-semibold text-green-600'
-          : bold
-            ? 'text-sm font-semibold text-blue-600'
-            : 'text-sm font-semibold text-gray-800'
-      }>
-        {value}
-      </span>
+    <div style={{ display:'flex', alignItems:'center', marginBottom:24 }}>
+      {steps.map((label, i) => {
+        const idx     = i + 1
+        const done    = idx < step
+        const active  = idx === step
+        const isLast  = i === steps.length - 1
+        return (
+          <div key={label} style={{ display:'flex', alignItems:'center', flex: isLast?0:1 }}>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+              <div style={{
+                width:32, height:32, borderRadius:'50%',
+                background: done ? '#10b981' : active ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#f1f5f9',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                fontSize:14, fontWeight:700,
+                color: done||active ? '#fff' : '#94a3b8',
+                boxShadow: active ? '0 3px 10px rgba(99,102,241,0.35)' : 'none',
+                transition:'all .2s ease',
+              }}>
+                {done ? '✓' : idx}
+              </div>
+              <span style={{ fontSize:10, fontWeight:500, color: active?'#6366f1':done?'#10b981':'#94a3b8', whiteSpace:'nowrap' }}>
+                {label}
+              </span>
+            </div>
+            {!isLast && (
+              <div style={{ flex:1, height:2, background: done?'#10b981':'#f1f5f9', margin:'0 4px', marginBottom:18, transition:'background .2s ease' }} />
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-// ── Main booking content ──────────────────────────────────────────────────────
+/* ─── Card wrapper ───────────────────────────────────────────────────── */
+function BookCard({ children, style: sx }) {
+  return (
+    <div style={{
+      background:'#fff', borderRadius:20,
+      border:'1px solid #f1f5f9',
+      boxShadow:'0 2px 8px rgba(0,0,0,0.05)',
+      overflow:'hidden',
+      animation:'nb-slide-in .2s ease',
+      ...sx,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+/* ─── Primary button ─────────────────────────────────────────────────── */
+function PBtn({ children, loading: isLoading, disabled, onClick, variant='primary', type='button', style: sx }) {
+  const [h, setH] = useState(false)
+  const isDisabled = disabled || isLoading
+  const V = {
+    primary:   { base:'linear-gradient(135deg,#6366f1,#8b5cf6)', hov:'linear-gradient(135deg,#7c3aed,#6d28d9)', color:'#fff', border:'none', shadow:'0 4px 14px rgba(99,102,241,0.3)', shadowHov:'0 6px 20px rgba(99,102,241,0.45)' },
+    secondary: { base:'#fff', hov:'#f8fafc', color:'#475569', border:'1.5px solid #e2e8f0', shadow:'0 1px 3px rgba(0,0,0,0.06)', shadowHov:'none' },
+    outline:   { base:'transparent', hov:'rgba(99,102,241,0.06)', color:'#6366f1', border:'1.5px solid rgba(99,102,241,0.3)', shadow:'none', shadowHov:'none' },
+  }
+  const s = V[variant] || V.primary
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={isDisabled}
+      onMouseEnter={() => !isDisabled && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        padding:'12px 18px', borderRadius:12,
+        background: isDisabled ? '#e2e8f0' : h ? s.hov : s.base,
+        color: isDisabled ? '#94a3b8' : s.color,
+        border: s.border || 'none',
+        fontSize:14, fontWeight:600,
+        cursor: isDisabled ? 'not-allowed' : 'pointer',
+        opacity: isDisabled ? 0.65 : 1,
+        boxShadow: isDisabled ? 'none' : h ? s.shadowHov : s.shadow,
+        transition:'all .18s ease',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+        ...sx,
+      }}
+    >
+      {isLoading && (
+        <span style={{ width:14, height:14, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', animation:'nb-spin .7s linear infinite', display:'inline-block', flexShrink:0 }} />
+      )}
+      {children}
+    </button>
+  )
+}
+
+/* ─── Text input ─────────────────────────────────────────────────────── */
+function NInput({ label, icon, ...props }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+      {label && <label style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{label}</label>}
+      <div style={{ position:'relative' }}>
+        {icon && <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', fontSize:16, pointerEvents:'none', color: focused?'#6366f1':'#94a3b8' }}>{icon}</span>}
+        <input
+          {...props}
+          onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
+          onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
+          style={{
+            width:'100%', padding: icon?'11px 14px 11px 40px':'11px 14px',
+            fontSize:13, fontFamily:'inherit', borderRadius:12,
+            border:`1.5px solid ${focused?'#6366f1':'#e2e8f0'}`,
+            background:'#fff', color:'#0f172a', outline:'none',
+            boxShadow: focused?'0 0 0 3px rgba(99,102,241,0.12)':'0 1px 3px rgba(0,0,0,0.06)',
+            transition:'all .15s ease', boxSizing:'border-box',
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ─── Date/time input ────────────────────────────────────────────────── */
+function DateTimeInput({ label, type, min, value, onChange }) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+      {label && <label style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{label}</label>}
+      <input
+        type={type}
+        min={min}
+        value={value}
+        onChange={onChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          width:'100%', padding:'11px 14px',
+          fontSize:13, fontFamily:'inherit', borderRadius:12,
+          border:`1.5px solid ${focused?'#6366f1':'#e2e8f0'}`,
+          background:'#fff', color:'#0f172a', outline:'none',
+          boxShadow: focused?'0 0 0 3px rgba(99,102,241,0.12)':'0 1px 3px rgba(0,0,0,0.06)',
+          transition:'all .15s ease', boxSizing:'border-box',
+        }}
+      />
+    </div>
+  )
+}
+
+/* ─── Price row ──────────────────────────────────────────────────────── */
+function PriceRow({ label, value, green, bold }) {
+  return (
+    <div style={{
+      display:'flex', justifyContent:'space-between', alignItems:'center',
+      padding: bold ? '10px 0 0' : '6px 0',
+      borderTop: bold ? '1px solid #e2e8f0' : 'none',
+      marginTop: bold ? 4 : 0,
+    }}>
+      <span style={{ fontSize:13, fontWeight: bold?600:400, color: bold?'#1e293b':'#64748b' }}>{label}</span>
+      <span style={{ fontSize:13, fontWeight: bold?700:600, color: green?'#10b981':bold?'#6366f1':'#1e293b' }}>{value}</span>
+    </div>
+  )
+}
+
+/* ─── Toggle group ───────────────────────────────────────────────────── */
+function Toggle2({ options, value, onChange }) {
+  return (
+    <div style={{ display:'flex', gap:3, background:'#f1f5f9', borderRadius:14, padding:3 }}>
+      {options.map((opt) => (
+        <ToggleBtn key={opt.key} opt={opt} active={value===opt.key} onClick={() => onChange(opt.key)} />
+      ))}
+    </div>
+  )
+}
+
+function ToggleBtn({ opt, active, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{
+        flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+        padding:'10px 8px', borderRadius:11, border:'none',
+        background: active?'#fff':h?'rgba(255,255,255,0.5)':'transparent',
+        color: active?'#0f172a':'#64748b',
+        fontSize:13, fontWeight: active?600:500, cursor:'pointer',
+        boxShadow: active?'0 1px 4px rgba(0,0,0,0.1)':'none',
+        transition:'all .15s ease',
+      }}>
+      <span style={{ fontSize:16 }}>{opt.icon}</span>
+      <span>{opt.label}</span>
+    </button>
+  )
+}
+
+/* ─── Row item ───────────────────────────────────────────────────────── */
+function InfoRow({ label, value }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
+      <span style={{ fontSize:13, color:'#64748b' }}>{label}</span>
+      <span style={{ fontSize:13, fontWeight:500, color:'#1e293b' }}>{value}</span>
+    </div>
+  )
+}
+
+/* ─── Main booking content ───────────────────────────────────────────── */
 function NewBookingContent() {
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -70,16 +247,12 @@ function NewBookingContent() {
   const [loading,        setLoading]        = useState(false)
   const [patientType,    setPatientType]    = useState('myself')
   const [patientName,    setPatientName]    = useState('')
-
-  // Lab collection state
-  const [collectionType,    setCollectionType]    = useState('walk_in')
-  const [collectionAddress, setCollectionAddress] = useState({
-    line1: '', city: '', pinCode: '',
-  })
+  const [collectionType, setCollectionType] = useState('walk_in')
+  const [collectionAddr, setCollectionAddr] = useState({ line1:'', city:'', pinCode:'' })
   const [collectionDate, setCollectionDate] = useState('')
   const [collectionTime, setCollectionTime] = useState('')
+  const [couponInput,    setCouponInput]    = useState(false)
 
-  // ── URL params ──────────────────────────────────────────────────────────────
   const doctorId = searchParams.get('doctorId')
   const labId    = searchParams.get('labId')
   const testIds  = searchParams.get('testIds')?.split(',').filter(Boolean) || []
@@ -90,807 +263,410 @@ function NewBookingContent() {
   const isLab    = !!labId
   const isOnline = type === 'online'
 
-  const doctorStartTime = date && slot
-    ? new Date(`${date}T${slot}:00`).toISOString()
-    : null
-  const doctorEndTime = doctorStartTime
-    ? new Date(new Date(doctorStartTime).getTime() + 30 * 60000).toISOString()
-    : null
+  const doctorStartTime = date && slot ? new Date(`${date}T${slot}:00`).toISOString() : null
+  const doctorEndTime   = doctorStartTime ? new Date(new Date(doctorStartTime).getTime() + 30*60000).toISOString() : null
+  const labStartTime    = collectionDate && collectionTime ? new Date(`${collectionDate}T${collectionTime}:00`).toISOString() : null
 
-  const labStartTime = collectionDate && collectionTime
-    ? new Date(`${collectionDate}T${collectionTime}:00`).toISOString()
-    : null
-
-  // ── Fetch doctor / lab / tests (after mount only) ─────────────────────────
-  const { data: doctor } = useSWR(
-    mounted && doctorId ? `/api/doctors/${doctorId}` : null,
-    fetcher
-  )
-  const { data: lab } = useSWR(
-    mounted && labId ? `/api/labs/${labId}` : null,
-    fetcher
-  )
-  const { data: testsData } = useSWR(
-    mounted && labId && testIds.length ? `/api/labs/${labId}/tests` : null,
-    fetcher
-  )
+  const { data: doctor }    = useSWR(mounted && doctorId ? `/api/doctors/${doctorId}` : null, fetcher)
+  const { data: lab }       = useSWR(mounted && labId ? `/api/labs/${labId}` : null, fetcher)
+  const { data: testsData } = useSWR(mounted && labId && testIds.length ? `/api/labs/${labId}/tests` : null, fetcher)
 
   const allTests      = testsData?.tests || []
   const selectedTests = allTests.filter((t) => testIds.includes(t.id))
 
-  // ── Pricing (all derived, no state) ──────────────────────────────────────
   const baseFee = isLab
-    ? selectedTests.reduce((s, t) => s + (t.discountedPrice || t.price || 0), 0)
-    : doctor
-      ? (isOnline
-          ? (doctor.consultationFee?.online  || 0)
-          : (doctor.consultationFee?.offline || 0))
-      : 0
+    ? selectedTests.reduce((s,t) => s+(t.discountedPrice||t.price||0), 0)
+    : doctor ? (isOnline ? (doctor.consultationFee?.online||0) : (doctor.consultationFee?.offline||0)) : 0
 
-  const platformFeePercent = isLab
-    ? (lab?.platformFeePercent || 8)
-    : (doctor?.platformFeePercent || 10)
-
+  const platformFeePercent = isLab ? (lab?.platformFeePercent||8) : (doctor?.platformFeePercent||10)
   const couponDiscount = couponResult?.discountAmount || 0
   const discountedFee  = Math.max(0, baseFee - couponDiscount)
   const platformFee    = Math.round(discountedFee * platformFeePercent / 100)
   const gst            = Math.round(platformFee * 18 / 100)
   const totalAmount    = discountedFee + platformFee + gst
 
-  const bookingTypeLabel = isLab
-    ? 'Lab Test'
-    : isOnline
-      ? 'Online Consultation'
-      : 'Hospital Visit'
+  const bookingTypeLabel = isLab ? 'Lab Test' : isOnline ? 'Online Consultation' : 'Hospital Visit'
 
-  // ── Step 1 validation ─────────────────────────────────────────────────────
   const step1Valid = isLab
-    ? (testIds.length > 0 && collectionDate && collectionTime &&
-        (collectionType !== 'home' ||
-          (collectionAddress.line1 && collectionAddress.city)))
+    ? (testIds.length > 0 && collectionDate && collectionTime && (collectionType!=='home'||(collectionAddr.line1&&collectionAddr.city)))
     : !!doctorStartTime
 
   const todayStr = mounted ? new Date().toISOString().split('T')[0] : ''
 
-  // ── Step 1: Create booking ────────────────────────────────────────────────
   const createBooking = async () => {
-    if (!step1Valid) {
-      toast.error(isLab
-        ? 'Please select collection date, time and address'
-        : 'No slot selected'
-      )
-      return
-    }
+    if (!step1Valid) { toast.error(isLab ? 'Select date, time and address' : 'No slot selected'); return }
     setLoading(true)
     try {
-      const body = {
-        type:      isLab ? 'lab' : isOnline ? 'online' : 'hospital',
-        doctorId:  doctorId  || undefined,
-        labId:     labId     || undefined,
-        testIds,
-        startTime: isLab ? labStartTime : doctorStartTime,
-        endTime:   isLab ? null         : doctorEndTime,
-        collectionType:    isLab ? collectionType    : undefined,
-        collectionAddress: isLab && collectionType === 'home'
-          ? collectionAddress
-          : undefined,
-        couponCode: couponCode || undefined,
-      }
-
       const res  = await fetch('/api/bookings', {
-        method:      'POST',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body:        JSON.stringify(body),
+        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body: JSON.stringify({
+          type:             isLab?'lab':isOnline?'online':'hospital',
+          doctorId:         doctorId||undefined,
+          labId:            labId||undefined,
+          testIds,
+          startTime:        isLab?labStartTime:doctorStartTime,
+          endTime:          isLab?null:doctorEndTime,
+          collectionType:   isLab?collectionType:undefined,
+          collectionAddress:isLab&&collectionType==='home'?collectionAddr:undefined,
+          couponCode:       couponCode||undefined,
+        }),
       })
       const json = await res.json()
-
-      if (json.success) {
-        setBookingId(json.data.id)
-        setStep(2)
-      } else {
-        toast.error(json.error || 'Failed to create booking')
-      }
-    } catch {
-      toast.error('Network error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+      if (json.success) { setBookingId(json.data.id); setStep(2) }
+      else toast.error(json.error || 'Failed to create booking')
+    } catch { toast.error('Network error') }
+    finally { setLoading(false) }
   }
 
-  // ── Apply coupon ──────────────────────────────────────────────────────────
   const applyCoupon = async () => {
     if (!couponCode.trim()) return
     setApplyingCoupon(true)
     try {
-      const bType = isLab ? 'lab' : isOnline ? 'online' : 'hospital'
-      const res   = await fetch(
-        `/api/coupons/validate/${couponCode}?bookingType=${bType}&amount=${baseFee}`,
-        { credentials: 'include' }
-      )
-      const json = await res.json()
-      const d    = json.data || json
-
-      if (d.valid) {
-        setCouponResult(d)
-        toast.success(d.message || 'Coupon applied!')
-      } else {
-        setCouponResult({ valid: false })
-        toast.error(d.message || 'Invalid coupon')
-      }
-    } catch {
-      toast.error('Failed to validate coupon')
-    } finally {
-      setApplyingCoupon(false)
-    }
+      const bType = isLab?'lab':isOnline?'online':'hospital'
+      const res   = await fetch(`/api/coupons/validate/${couponCode}?bookingType=${bType}&amount=${baseFee}`, { credentials:'include' })
+      const json  = await res.json()
+      const d     = json.data || json
+      if (d.valid) { setCouponResult(d); toast.success(d.message||'Coupon applied!') }
+      else { setCouponResult({valid:false}); toast.error(d.message||'Invalid coupon') }
+    } catch { toast.error('Failed to validate coupon') }
+    finally { setApplyingCoupon(false) }
   }
 
-  // ── Step 4: Initiate 1Pay payment ─────────────────────────────────────────
-  // Uses official 1Pay integration:
-  //   - Call create-order API
-  //   - Build hidden HTML form
-  //   - POST form to 1Pay gateway (NOT axios redirect)
   const initiatePayment = async () => {
-    if (!bookingId) {
-      toast.error('No booking found. Please start over.')
-      return
-    }
-
+    if (!bookingId) { toast.error('No booking found. Please start over.'); return }
     setLoading(true)
-
     try {
-      // Step A: Get encrypted order from backend
       const res  = await fetch('/api/payments/create-order', {
-        method:      'POST',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body:        JSON.stringify({ bookingId }),
+        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body: JSON.stringify({ bookingId }),
       })
       const json = await res.json()
-
-      if (!json.success) {
-        toast.error(json.error || 'Payment initiation failed')
-        setLoading(false)
-        return
-      }
-
+      if (!json.success) { toast.error(json.error||'Payment initiation failed'); setLoading(false); return }
       const { merchantId, reqData, paymentUrl } = json.data
-
-      // Debug log
-      console.log('[Payment] Submitting to:', paymentUrl)
-      console.log('[Payment] merchantId:', merchantId)
-      console.log('[Payment] reqData length:', reqData?.length)
-
-      if (!merchantId || !reqData || !paymentUrl) {
-        toast.error('Invalid payment data received. Please try again.')
-        setLoading(false)
-        return
-      }
-
-      // Step B: Build hidden HTML form and POST to 1Pay
-      // Per official 1Pay docs — must be form POST, not axios/fetch redirect
+      if (!merchantId||!reqData||!paymentUrl) { toast.error('Invalid payment data'); setLoading(false); return }
       const form       = document.createElement('form')
       form.method      = 'POST'
       form.action      = paymentUrl
       form.style.display = 'none'
-      form.style.visibility = 'hidden'
-
-      // Helper to add hidden input
-      const addField = (name, value) => {
-        const input   = document.createElement('input')
-        input.type    = 'hidden'
-        input.name    = name
-        input.value   = String(value)
-        form.appendChild(input)
-      }
-
-      // Only 2 fields needed per 1Pay docs
+      const addField = (n,v) => { const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=String(v); form.appendChild(i) }
       addField('merchantId', merchantId)
-      addField('reqData',    reqData)
-
-      // Append to body and submit
+      addField('reqData', reqData)
       document.body.appendChild(form)
-
-      console.log('[Payment] Submitting form to 1Pay...')
       form.submit()
-
-      // Page will redirect to 1Pay — keep loading=true
-      // Do NOT set loading=false here
-    } catch (err) {
-      console.error('[Payment] Error:', err)
-      toast.error('Payment initiation failed. Please try again.')
-      setLoading(false)
-    }
+    } catch { toast.error('Payment initiation failed'); setLoading(false) }
   }
 
-  const slide = {
-    initial:    { x: 40,  opacity: 0 },
-    animate:    { x: 0,   opacity: 1 },
-    exit:       { x: -40, opacity: 0 },
-    transition: { duration: 0.2 },
-  }
-
-  // ── Static skeleton before mount ──────────────────────────────────────────
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div style={{ minHeight:'100vh', background:'#f8fafc' }}>
         <Navbar />
-        <div className="max-w-xl mx-auto px-4 pt-24 pb-16">
-          <div className="h-12 bg-white rounded-2xl border border-gray-100 mb-6 animate-pulse" />
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-            <div className="h-5 w-40 bg-gray-100 rounded animate-pulse" />
-            <div className="h-4 w-64 bg-gray-100 rounded animate-pulse" />
-            <div className="h-4 w-48 bg-gray-100 rounded animate-pulse" />
-            <div className="h-10 bg-blue-100 rounded-xl animate-pulse mt-6" />
-          </div>
+        <div style={{ maxWidth:560, margin:'0 auto', padding:'88px 16px 64px' }}>
+          <div style={{ height:48, borderRadius:20, marginBottom:20, ...SHIMMER }} />
+          <div style={{ height:280, borderRadius:20, ...SHIMMER }} />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="max-w-xl mx-auto px-4 pt-24 pb-16">
-        <BookingStepper currentStep={step} />
+    <>
+      <style>{KF}</style>
+      <div style={{ minHeight:'100vh', background:'#f8fafc' }}>
+        <Navbar />
+        <div style={{ maxWidth:560, margin:'0 auto', padding:'88px 16px 64px' }}>
+          <StepBar step={step} />
 
-        <AnimatePresence mode="wait">
-
-          {/* ══ STEP 1: Review / Collection Details ══ */}
+          {/* ══ STEP 1 ══ */}
           {step === 1 && (
-            <motion.div key="step1" {...slide}>
-              <div
-                className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
-                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-              >
-                {/* Header gradient */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
-                  <h2 className="text-lg font-bold">
-                    {isLab ? 'Select Collection Details' : 'Review Appointment'}
-                  </h2>
-                  <p className="text-blue-100 text-sm mt-1">
-                    {isLab
-                      ? 'Choose how and when to collect your sample'
-                      : 'Confirm your appointment details'}
-                  </p>
-                </div>
+            <BookCard>
+              <div style={{ backgroundImage:'linear-gradient(135deg,#4f46e5,#2563eb)', padding:24, color:'#fff' }}>
+                <h2 style={{ fontSize:18, fontWeight:800, margin:'0 0 4px' }}>
+                  {isLab ? 'Select Collection Details' : 'Review Appointment'}
+                </h2>
+                <p style={{ fontSize:13, color:'rgba(255,255,255,0.75)', margin:0 }}>
+                  {isLab ? 'Choose how and when to collect your sample' : 'Confirm your appointment details'}
+                </p>
+              </div>
 
-                <div className="p-6 space-y-4">
-
-                  {/* ── Doctor booking ── */}
-                  {!isLab && (
-                    <div className="space-y-0 divide-y divide-gray-50">
-                      {doctor ? (
-                        <>
-                          <div className="flex items-center justify-between py-3">
-                            <span className="text-sm text-gray-500">Doctor</span>
-                            <span className="text-sm font-semibold text-gray-800">
-                              Dr. {doctor.name}
-                            </span>
-                          </div>
-                          {doctor.specialization?.length > 0 && (
-                            <div className="flex items-center justify-between py-3">
-                              <span className="text-sm text-gray-500">Specialization</span>
-                              <span className="text-sm text-gray-700">
-                                {doctor.specialization.slice(0, 2).join(', ')}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="py-3 space-y-2">
-                          <div className="h-4 w-48 bg-gray-100 rounded animate-pulse" />
-                          <div className="h-3 w-32 bg-gray-100 rounded animate-pulse" />
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between py-3">
-                        <span className="text-sm text-gray-500">Type</span>
-                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-800">
-                          {isOnline
-                            ? <Video     className="w-3.5 h-3.5 text-purple-500" />
-                            : <Building2 className="w-3.5 h-3.5 text-blue-500"   />}
-                          {bookingTypeLabel}
-                        </span>
+              <div style={{ padding:20 }}>
+                {/* Doctor booking */}
+                {!isLab && (
+                  <div>
+                    {doctor ? (
+                      <>
+                        <InfoRow label="Doctor"    value={`Dr. ${doctor.name}`} />
+                        {doctor.specialization?.length>0 && <InfoRow label="Specialization" value={doctor.specialization.slice(0,2).join(', ')} />}
+                      </>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'10px 0' }}>
+                        <div style={{ width:192, height:14, borderRadius:6, ...SHIMMER }} />
+                        <div style={{ width:128, height:12, borderRadius:6, ...SHIMMER }} />
                       </div>
+                    )}
+                    <InfoRow label="Type" value={`${isOnline?'🎥':'🏥'} ${bookingTypeLabel}`} />
+                    {date && <InfoRow label="📅 Date" value={new Date(`${date}T00:00:00`).toLocaleDateString('en-IN',{dateStyle:'long'})} />}
+                    {slot && <InfoRow label="⏰ Time" value={slot} />}
+                    {baseFee>0 && <InfoRow label="Consultation Fee" value={fmtRs(baseFee)} />}
+                  </div>
+                )}
 
-                      {date && (
-                        <div className="flex items-center justify-between py-3">
-                          <span className="text-sm text-gray-500 flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5" /> Date
-                          </span>
-                          <span className="text-sm font-medium text-gray-800">
-                            {new Date(`${date}T00:00:00`)
-                              .toLocaleDateString('en-IN', { dateStyle: 'long' })}
-                          </span>
+                {/* Lab booking */}
+                {isLab && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                    {lab && (
+                      <div style={{ display:'flex', alignItems:'center', gap:12, padding:12, background:'rgba(16,185,129,0.06)', borderRadius:12, border:'1px solid rgba(16,185,129,0.15)' }}>
+                        <div style={{ width:42, height:42, borderRadius:12, background:'rgba(16,185,129,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>🧪</div>
+                        <div>
+                          <p style={{ fontSize:14, fontWeight:700, color:'#1e293b', margin:0 }}>{lab.name}</p>
+                          <p style={{ fontSize:12, color:'#64748b', margin:0 }}>{testIds.length} test{testIds.length>1?'s':''} selected</p>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {slot && (
-                        <div className="flex items-center justify-between py-3">
-                          <span className="text-sm text-gray-500 flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5" /> Time
-                          </span>
-                          <span className="text-sm font-medium text-gray-800">{slot}</span>
+                    {selectedTests.length>0 && (
+                      <div style={{ background:'#f8fafc', borderRadius:12, padding:12 }}>
+                        {selectedTests.map((t) => (
+                          <div key={t.id} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', fontSize:12 }}>
+                            <span style={{ color:'#64748b' }}>{t.name}</span>
+                            <span style={{ fontWeight:600, color:'#1e293b' }}>{fmtRs(t.discountedPrice||t.price)}</span>
+                          </div>
+                        ))}
+                        <div style={{ display:'flex', justifyContent:'space-between', padding:'8px 0 0', marginTop:4, borderTop:'1px solid #e2e8f0', fontSize:12 }}>
+                          <span style={{ fontWeight:600, color:'#475569' }}>Tests Total</span>
+                          <span style={{ fontWeight:700, color:'#10b981' }}>{fmtRs(baseFee)}</span>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {baseFee > 0 && (
-                        <div className="flex items-center justify-between py-3">
-                          <span className="text-sm text-gray-500">Consultation Fee</span>
-                          <span className="text-sm font-bold text-gray-900">
-                            {fmtRs(baseFee)}
-                          </span>
-                        </div>
-                      )}
+                    <Toggle2
+                      value={collectionType}
+                      onChange={setCollectionType}
+                      options={[
+                        { key:'walk_in', icon:'📍', label:'Walk-in' },
+                        { key:'home',    icon:'🏠', label:'Home Collection' },
+                      ]}
+                    />
+
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                      <DateTimeInput label={collectionType==='home'?'Pickup Date':'Visit Date'} type="date" min={todayStr} value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
+                      <DateTimeInput label={collectionType==='home'?'Pickup Time':'Visit Time'} type="time" value={collectionTime} onChange={(e) => setCollectionTime(e.target.value)} />
                     </div>
-                  )}
 
-                  {/* ── Lab booking ── */}
-                  {isLab && (
-                    <>
-                      {lab && (
-                        <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100">
-                          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-lg flex-shrink-0">
-                            🧪
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{lab.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {testIds.length} test{testIds.length > 1 ? 's' : ''} selected
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedTests.length > 0 && (
-                        <div className="bg-gray-50 rounded-xl p-3 space-y-2">
-                          {selectedTests.map((t) => (
-                            <div key={t.id} className="flex items-center justify-between">
-                              <span className="text-xs text-gray-600">{t.name}</span>
-                              <span className="text-xs font-semibold text-gray-800">
-                                {fmtRs(t.discountedPrice || t.price)}
-                              </span>
-                            </div>
-                          ))}
-                          <div className="flex items-center justify-between pt-1.5 border-t border-gray-200">
-                            <span className="text-xs font-semibold text-gray-700">
-                              Tests Total
-                            </span>
-                            <span className="text-xs font-bold text-green-600">
-                              {fmtRs(baseFee)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Collection type toggle */}
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700 mb-2">
-                          Collection Type
-                        </p>
-                        <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-                          {[
-                            { key: 'walk_in', label: 'Walk-in',        icon: <MapPin className="w-4 h-4" /> },
-                            { key: 'home',    label: 'Home Collection', icon: <Home   className="w-4 h-4" /> },
-                          ].map((opt) => (
-                            <button
-                              key={opt.key}
-                              onClick={() => setCollectionType(opt.key)}
-                              className={
-                                collectionType === opt.key
-                                  ? 'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-white text-gray-900 shadow-sm transition-all'
-                                  : 'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-gray-500 transition-all'
-                              }
-                            >
-                              {opt.icon} {opt.label}
-                            </button>
-                          ))}
+                    {collectionType === 'home' && (
+                      <div style={{ display:'flex', flexDirection:'column', gap:10, animation:'nb-slide-in .2s ease' }}>
+                        <p style={{ fontSize:13, fontWeight:600, color:'#475569', margin:0 }}>Pickup Address</p>
+                        <NInput icon="📍" placeholder="Street address / flat no." value={collectionAddr.line1} onChange={(e) => setCollectionAddr((a) => ({...a, line1:e.target.value}))} />
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                          <NInput placeholder="City" value={collectionAddr.city} onChange={(e) => setCollectionAddr((a) => ({...a, city:e.target.value}))} />
+                          <NInput placeholder="PIN Code" value={collectionAddr.pinCode} maxLength={6} onChange={(e) => setCollectionAddr((a) => ({...a, pinCode:e.target.value}))} />
                         </div>
                       </div>
+                    )}
+                  </div>
+                )}
 
-                      {/* Date & time */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                            {collectionType === 'home' ? 'Pickup Date' : 'Visit Date'}
-                          </label>
-                          <input
-                            type="date"
-                            min={todayStr}
-                            value={collectionDate}
-                            onChange={(e) => setCollectionDate(e.target.value)}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                            {collectionType === 'home' ? 'Pickup Time' : 'Visit Time'}
-                          </label>
-                          <input
-                            type="time"
-                            value={collectionTime}
-                            onChange={(e) => setCollectionTime(e.target.value)}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Home address (animated) */}
-                      <AnimatePresence>
-                        {collectionType === 'home' && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="space-y-3 overflow-hidden"
-                          >
-                            <p className="text-sm font-semibold text-gray-700">
-                              Pickup Address
-                            </p>
-                            <Input
-                              placeholder="Street address / flat no."
-                              value={collectionAddress.line1}
-                              onChange={(e) =>
-                                setCollectionAddress((a) => ({ ...a, line1: e.target.value }))
-                              }
-                              leftIcon={<MapPin className="w-4 h-4" />}
-                            />
-                            <div className="grid grid-cols-2 gap-3">
-                              <Input
-                                placeholder="City"
-                                value={collectionAddress.city}
-                                onChange={(e) =>
-                                  setCollectionAddress((a) => ({ ...a, city: e.target.value }))
-                                }
-                              />
-                              <Input
-                                placeholder="PIN Code"
-                                value={collectionAddress.pinCode}
-                                onChange={(e) =>
-                                  setCollectionAddress((a) => ({
-                                    ...a,
-                                    pinCode: e.target.value,
-                                  }))
-                                }
-                                maxLength={6}
-                              />
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </>
-                  )}
-                </div>
-
-                <div className="px-6 pb-6">
-                  <Button
-                    className="w-full"
-                    onClick={createBooking}
-                    loading={loading}
-                    disabled={loading || !step1Valid}
-                  >
-                    {isLab ? 'Confirm Collection Details' : 'Continue to Patient Details'}
-                  </Button>
+                <div style={{ marginTop:20 }}>
+                  <PBtn onClick={createBooking} loading={loading} disabled={loading||!step1Valid} sx={{ width:'100%' }}>
+                    {isLab ? 'Confirm Collection Details' : 'Continue to Patient Details'} →
+                  </PBtn>
                   {!step1Valid && (
-                    <p className="text-xs text-gray-400 text-center mt-2">
-                      {isLab
-                        ? `Please select date and time${collectionType === 'home' ? ' and address' : ''}`
-                        : 'No slot selected — please go back and select a slot'}
+                    <p style={{ fontSize:11, color:'#94a3b8', textAlign:'center', marginTop:8 }}>
+                      {isLab ? `Select date and time${collectionType==='home'?' and address':''}` : 'No slot selected — go back and select a slot'}
                     </p>
                   )}
                 </div>
               </div>
-            </motion.div>
+            </BookCard>
           )}
 
-          {/* ══ STEP 2: Patient Details ══ */}
+          {/* ══ STEP 2 ══ */}
           {step === 2 && (
-            <motion.div key="step2" {...slide}>
-              <div
-                className="bg-white rounded-2xl border border-gray-100 p-6"
-                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-              >
-                <h2 className="text-lg font-bold text-gray-800 mb-1">Patient Details</h2>
-                <p className="text-sm text-gray-400 mb-5">Who is this appointment for?</p>
+            <BookCard>
+              <div style={{ padding:24 }}>
+                <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Patient Details</h2>
+                <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>Who is this appointment for?</p>
 
-                {/* Patient type toggle */}
-                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl mb-5">
-                  {[
-                    { key: 'myself', label: 'For Myself', icon: <User  className="w-4 h-4" /> },
-                    { key: 'family', label: 'For Family', icon: <Users className="w-4 h-4" /> },
-                  ].map((pt) => (
-                    <button
-                      key={pt.key}
-                      onClick={() => setPatientType(pt.key)}
-                      className={
-                        patientType === pt.key
-                          ? 'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-white text-gray-900 shadow-sm transition-all'
-                          : 'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium text-gray-500 transition-all'
-                      }
-                    >
-                      {pt.icon} {pt.label}
-                    </button>
-                  ))}
+                <Toggle2
+                  value={patientType}
+                  onChange={setPatientType}
+                  options={[
+                    { key:'myself', icon:'👤', label:'For Myself' },
+                    { key:'family', icon:'👥', label:'For Family' },
+                  ]}
+                />
+
+                <div style={{ marginTop:16 }}>
+                  {patientType === 'myself' ? (
+                    <div style={{ display:'flex', alignItems:'center', gap:12, padding:14, background:'rgba(99,102,241,0.06)', borderRadius:14, border:'1px solid rgba(99,102,241,0.12)' }}>
+                      <div style={{ width:44, height:44, borderRadius:'50%', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700, fontSize:18, flexShrink:0 }}>
+                        {user?.name?.charAt(0)?.toUpperCase()||'U'}
+                      </div>
+                      <div>
+                        <p style={{ fontSize:14, fontWeight:700, color:'#1e293b', margin:0 }}>{user?.name||'—'}</p>
+                        <p style={{ fontSize:12, color:'#94a3b8', margin:0 }}>{user?.phone||user?.email||'—'}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <NInput label="Patient Name" icon="👤" value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="Enter family member's full name" />
+                  )}
                 </div>
 
-                {patientType === 'myself' ? (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                      {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">
-                        {user?.name || '—'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {user?.phone || user?.email || '—'}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <Input
-                    label="Patient Name"
-                    value={patientName}
-                    onChange={(e) => setPatientName(e.target.value)}
-                    placeholder="Enter family member's full name"
-                    leftIcon={<User className="w-4 h-4" />}
-                  />
-                )}
-
-                <div className="flex gap-3 mt-6">
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => setStep(1)}
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={() => setStep(3)}
-                    disabled={patientType === 'family' && !patientName.trim()}
-                  >
-                    Continue
-                  </Button>
+                <div style={{ display:'flex', gap:10, marginTop:20 }}>
+                  <PBtn variant="secondary" onClick={() => setStep(1)} sx={{ flex:1 }}>← Back</PBtn>
+                  <PBtn onClick={() => setStep(3)} disabled={patientType==='family'&&!patientName.trim()} sx={{ flex:1 }}>Continue →</PBtn>
                 </div>
               </div>
-            </motion.div>
+            </BookCard>
           )}
 
-          {/* ══ STEP 3: Coupon & Pricing ══ */}
+          {/* ══ STEP 3 ══ */}
           {step === 3 && (
-            <motion.div key="step3" {...slide}>
-              <div
-                className="bg-white rounded-2xl border border-gray-100 p-6"
-                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-              >
-                <h2 className="text-lg font-bold text-gray-800 mb-1">Coupon & Pricing</h2>
-                <p className="text-sm text-gray-400 mb-5">
-                  Apply a coupon to save on your booking
-                </p>
+            <BookCard>
+              <div style={{ padding:24 }}>
+                <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Coupon & Pricing</h2>
+                <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>Apply a coupon to save on your booking</p>
 
                 {/* Coupon input */}
-                <div className="flex gap-2 mb-4">
-                  <Input
-                    leftIcon={<Tag className="w-4 h-4" />}
-                    placeholder="Enter coupon code"
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    size="md"
-                    onClick={applyCoupon}
-                    loading={applyingCoupon}
-                    disabled={!couponCode.trim() || applyingCoupon}
-                  >
-                    Apply
-                  </Button>
+                <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+                  <NInput icon="🏷️" placeholder="Enter coupon code" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} />
+                  <PBtn variant="outline" onClick={applyCoupon} loading={applyingCoupon} disabled={!couponCode.trim()||applyingCoupon} sx={{ flexShrink:0, padding:'11px 16px' }}>Apply</PBtn>
                 </div>
 
-                <AnimatePresence>
-                  {couponResult?.valid && (
-                    <motion.div
-                      key="coupon-ok"
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl mb-4"
-                    >
-                      <Check className="w-4 h-4 flex-shrink-0" />
-                      Coupon applied! Saved {fmtRs(couponResult.discountAmount)}
-                    </motion.div>
-                  )}
-                  {couponResult && !couponResult.valid && (
-                    <motion.div
-                      key="coupon-err"
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4"
-                    >
-                      Invalid or expired coupon
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Price breakdown */}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <PriceRow label="Base Fee" value={fmtRs(baseFee)} />
-                  {couponDiscount > 0 && (
-                    <PriceRow
-                      label={`Coupon (${couponCode})`}
-                      value={`- ${fmtRs(couponDiscount)}`}
-                      green
-                    />
-                  )}
-                  {couponDiscount > 0 && (
-                    <PriceRow label="Discounted Fee" value={fmtRs(discountedFee)} />
-                  )}
-                  <PriceRow
-                    label={`Platform Fee (${platformFeePercent}%)`}
-                    value={fmtRs(platformFee)}
-                  />
-                  <PriceRow label="GST (18%)" value={fmtRs(gst)} />
-                  <PriceRow label="Total Amount" value={fmtRs(totalAmount)} bold />
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => setStep(2)}
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={() => setStep(4)}
-                  >
-                    Continue to Payment
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ══ STEP 4: Pay via 1Pay ══ */}
-          {step === 4 && (
-            <motion.div key="step4" {...slide}>
-              <div
-                className="bg-white rounded-2xl border border-gray-100 p-6"
-                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-              >
-                <h2 className="text-lg font-bold text-gray-800 mb-1">Pay Securely</h2>
-                <p className="text-sm text-gray-400 mb-5">
-                  You will be redirected to 1Pay secure payment page
-                </p>
-
-                {/* Amount summary card */}
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
-                  <div className="mb-3">
-                    <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide mb-1">
-                      {bookingTypeLabel}
-                    </p>
-                    <p className="text-xs text-blue-500">
-                      {isLab
-                        ? `${collectionType === 'home' ? 'Home Collection' : 'Walk-in'} · ${collectionDate} ${collectionTime}`
-                        : `${date} · ${slot}`}
-                    </p>
+                {couponResult?.valid && (
+                  <div style={{ display:'flex', alignItems:'center', gap:8, background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.2)', borderRadius:12, padding:'10px 14px', marginBottom:12, animation:'nb-coupon-ok .2s ease', fontSize:13, color:'#059669', fontWeight:500 }}>
+                    ✓ Coupon applied! Saved {fmtRs(couponResult.discountAmount)}
                   </div>
-
-                  {/* Price summary */}
-                  <div className="space-y-1.5 mb-3">
-                    <div className="flex justify-between text-xs text-blue-600">
-                      <span>Base Fee</span>
-                      <span>{fmtRs(baseFee)}</span>
-                    </div>
-                    {couponDiscount > 0 && (
-                      <div className="flex justify-between text-xs text-green-600">
-                        <span>Coupon ({couponCode})</span>
-                        <span>- {fmtRs(couponDiscount)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-xs text-blue-600">
-                      <span>Platform Fee ({platformFeePercent}%)</span>
-                      <span>{fmtRs(platformFee)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-blue-600">
-                      <span>GST (18%)</span>
-                      <span>{fmtRs(gst)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-blue-200">
-                    <span className="text-sm text-blue-700 font-semibold">Total Amount</span>
-                    <span className="text-2xl font-bold text-blue-700">
-                      {fmtRs(totalAmount)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Security + accepted payments */}
-                <div className="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-xl">
-                  <span className="text-xl flex-shrink-0">🔒</span>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-700">
-                      Secured by 1Pay Payment Gateway
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Cards · Net Banking · UPI · Wallets
-                    </p>
-                  </div>
-                </div>
-
-                {/* Warning for localhost */}
-                {process.env.NEXT_PUBLIC_APP_URL?.includes('localhost') && (
-                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                    <p className="text-xs text-amber-700 font-semibold mb-1">
-                      ⚠ Development Mode
-                    </p>
-                    <p className="text-xs text-amber-600">
-                      1Pay callback cannot reach localhost. Use ngrok for testing:
-                      <br />
-                      <code className="font-mono">ngrok http 3000</code>
-                    </p>
+                )}
+                {couponResult&&!couponResult.valid && (
+                  <div style={{ background:'rgba(239,68,68,0.07)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:12, padding:'10px 14px', marginBottom:12, fontSize:13, color:'#ef4444' }}>
+                    Invalid or expired coupon
                   </div>
                 )}
 
-                <div className="flex gap-3">
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onClick={() => setStep(3)}
-                    disabled={loading}
-                  >
-                    Back
-                  </Button>
-
-                  {/* Pay button — official 1Pay form POST */}
-                  <button
-                    onClick={initiatePayment}
-                    disabled={loading}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-base font-bold transition-all"
-                    style={{ minHeight: 52 }}
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                        Redirecting to 1Pay...
-                      </span>
-                    ) : (
-                      `PAY ${fmtRs(totalAmount)}`
-                    )}
-                  </button>
+                {/* Price breakdown */}
+                <div style={{ background:'#f8fafc', borderRadius:14, padding:16, marginBottom:20 }}>
+                  <PriceRow label="Base Fee"                                     value={fmtRs(baseFee)} />
+                  {couponDiscount>0 && <PriceRow label={`Coupon (${couponCode})`} value={`- ${fmtRs(couponDiscount)}`} green />}
+                  {couponDiscount>0 && <PriceRow label="Discounted Fee"           value={fmtRs(discountedFee)} />}
+                  <PriceRow label={`Platform Fee (${platformFeePercent}%)`}       value={fmtRs(platformFee)} />
+                  <PriceRow label="GST (18%)"                                     value={fmtRs(gst)} />
+                  <PriceRow label="Total Amount"                                  value={fmtRs(totalAmount)} bold />
                 </div>
 
-                <p className="text-center text-xs text-gray-400 mt-3">
-                  By proceeding you agree to our{' '}
-                  <a href="/terms" className="underline hover:text-gray-600">Terms</a>
-                  {' '}and{' '}
-                  <a href="/privacy" className="underline hover:text-gray-600">Privacy Policy</a>
-                </p>
+                <div style={{ display:'flex', gap:10 }}>
+                  <PBtn variant="secondary" onClick={() => setStep(2)} sx={{ flex:1 }}>← Back</PBtn>
+                  <PBtn onClick={() => setStep(4)} sx={{ flex:1 }}>Continue to Payment →</PBtn>
+                </div>
               </div>
-            </motion.div>
+            </BookCard>
           )}
 
-        </AnimatePresence>
+          {/* ══ STEP 4 ══ */}
+          {step === 4 && (
+            <BookCard>
+              <div style={{ padding:24 }}>
+                <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Pay Securely</h2>
+                <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>You will be redirected to 1Pay secure payment page</p>
+
+                {/* Amount card */}
+                <div style={{ backgroundImage:'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.04))', border:'1px solid rgba(99,102,241,0.15)', borderRadius:16, padding:18, marginBottom:18 }}>
+                  <p style={{ fontSize:10, fontWeight:700, letterSpacing:'1.5px', color:'#6366f1', marginBottom:6 }}>{bookingTypeLabel.toUpperCase()}</p>
+                  <p style={{ fontSize:12, color:'#94a3b8', marginBottom:14 }}>
+                    {isLab ? `${collectionType==='home'?'Home Collection':'Walk-in'} · ${collectionDate} ${collectionTime}` : `${date} · ${slot}`}
+                  </p>
+
+                  {[
+                    { l:'Base Fee', v:fmtRs(baseFee), green:false },
+                    ...(couponDiscount>0 ? [{ l:`Coupon (${couponCode})`, v:`- ${fmtRs(couponDiscount)}`, green:true }] : []),
+                    { l:`Platform Fee (${platformFeePercent}%)`, v:fmtRs(platformFee), green:false },
+                    { l:'GST (18%)', v:fmtRs(gst), green:false },
+                  ].map(({ l, v, green }) => (
+                    <div key={l} style={{ display:'flex', justifyContent:'space-between', fontSize:12, color: green?'#10b981':'#6366f1', marginBottom:4 }}>
+                      <span>{l}</span><span>{v}</span>
+                    </div>
+                  ))}
+
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:12, marginTop:8, borderTop:'1px solid rgba(99,102,241,0.2)' }}>
+                    <span style={{ fontSize:14, fontWeight:600, color:'#4f46e5' }}>Total Amount</span>
+                    <span style={{ fontSize:26, fontWeight:900, color:'#4f46e5' }}>{fmtRs(totalAmount)}</span>
+                  </div>
+                </div>
+
+                {/* Security badge */}
+                <div style={{ display:'flex', alignItems:'center', gap:12, padding:14, background:'#f8fafc', borderRadius:12, marginBottom:18 }}>
+                  <span style={{ fontSize:24 }}>🔒</span>
+                  <div>
+                    <p style={{ fontSize:13, fontWeight:600, color:'#334155', margin:0 }}>Secured by 1Pay Payment Gateway</p>
+                    <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Cards · Net Banking · UPI · Wallets</p>
+                  </div>
+                </div>
+
+                {/* Dev warning */}
+                {process.env.NEXT_PUBLIC_APP_URL?.includes('localhost') && (
+                  <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:12, padding:'10px 14px', marginBottom:16 }}>
+                    <p style={{ fontSize:12, fontWeight:600, color:'#92400e', margin:'0 0 3px' }}>⚠ Development Mode</p>
+                    <p style={{ fontSize:11, color:'#b45309', margin:0 }}>1Pay callback cannot reach localhost. Use ngrok for testing.</p>
+                  </div>
+                )}
+
+                <div style={{ display:'flex', gap:10 }}>
+                  <PBtn variant="secondary" onClick={() => setStep(3)} disabled={loading} sx={{ flex:1 }}>← Back</PBtn>
+                  <PayButton totalAmount={totalAmount} loading={loading} onPay={initiatePayment} />
+                </div>
+
+                <p style={{ textAlign:'center', fontSize:11, color:'#94a3b8', marginTop:12 }}>
+                  By proceeding you agree to our{' '}
+                  <a href="/terms" style={{ color:'#6366f1', textDecoration:'none' }}>Terms</a>
+                  {' '}and{' '}
+                  <a href="/privacy" style={{ color:'#6366f1', textDecoration:'none' }}>Privacy Policy</a>
+                </p>
+              </div>
+            </BookCard>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
+function PayButton({ totalAmount, loading, onPay }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onPay}
+      disabled={loading}
+      onMouseEnter={() => !loading && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        flex:2, padding:'13px', borderRadius:12, border:'none',
+        background: loading?'#e2e8f0':h?'linear-gradient(135deg,#7c3aed,#6d28d9)':'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        color: loading?'#94a3b8':'#fff',
+        fontSize:14, fontWeight:700, cursor:loading?'not-allowed':'pointer',
+        boxShadow: loading?'none':h?'0 8px 24px rgba(99,102,241,0.5)':'0 4px 14px rgba(99,102,241,0.35)',
+        transition:'all .18s ease',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+      }}
+    >
+      {loading ? (
+        <>
+          <span style={{ width:16, height:16, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', animation:'nb-spin .7s linear infinite', display:'inline-block' }} />
+          Redirecting to 1Pay...
+        </>
+      ) : `PAY ${fmtRs(totalAmount)}`}
+    </button>
+  )
+}
+
+/* ─── Page export ────────────────────────────────────────────────────── */
 export default function NewBookingPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={
+      <div style={{ minHeight:'100vh', background:'#f8fafc', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12 }}>
+        <style>{`@keyframes nb-spin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width:32, height:32, borderRadius:'50%', border:'3px solid #6366f1', borderTopColor:'transparent', animation:'nb-spin .8s linear infinite' }} />
+        <p style={{ fontSize:13, color:'#94a3b8', margin:0 }}>Loading...</p>
+      </div>
+    }>
       <NewBookingContent />
     </Suspense>
   )
