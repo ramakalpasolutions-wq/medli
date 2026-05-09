@@ -1,53 +1,67 @@
-// src/app/api/payments/route.js
-
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import { getPaginationParams } from '@/lib/utils/helpers'
-import prisma from '@/lib/prisma'
+import { checkRole }  from '@/lib/middleware/rbac.middleware'
+import {
+  getPaginationParams,
+  buildPaginationMeta,
+} from '@/lib/utils/helpers'
+import {
+  errorResponse,
+  handleOptions,
+  paginatedResponse,
+} from '@/lib/utils/apiResponse'
 
-export async function OPTIONS() {
-  return handleOptions()
-}
+export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
-  try {
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin')
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin', 'regional_manager')
 
-    const { searchParams } = new URL(request.url)
-    const { skip, take, page, limit } = getPaginationParams(
-      searchParams.get('page'),
-      searchParams.get('limit')
-    )
+      const { searchParams } = new URL(request.url)
+      const status   = searchParams.get('status')   || ''
+      const dateFrom = searchParams.get('dateFrom')  || ''
+      const dateTo   = searchParams.get('dateTo')    || ''
 
-    const status   = searchParams.get('status')
-    const dateFrom = searchParams.get('dateFrom')
-    const dateTo   = searchParams.get('dateTo')
+      const { page, limit, skip, take } = getPaginationParams(
+        searchParams.get('page'),
+        searchParams.get('limit'),
+      )
 
-    const where = {}
-    if (status) where.status = status
-    if (dateFrom || dateTo) {
-      where.createdAt = {}
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom)
-      if (dateTo)   where.createdAt.lte = new Date(dateTo)
+      const where = {}
+      if (status) where.status = status
+      if (dateFrom || dateTo) {
+        where.createdAt = {}
+        if (dateFrom) where.createdAt.gte = new Date(dateFrom)
+        if (dateTo) {
+          const end = new Date(dateTo)
+          end.setHours(23, 59, 59, 999)
+          where.createdAt.lte = end
+        }
+      }
+
+      const [payments, total] = await Promise.all([
+        prisma.payment.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.payment.count({ where }),
+      ])
+
+      return paginatedResponse(
+        payments,
+        buildPaginationMeta(total, page, limit),
+        'payments',
+      )
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[GET /api/payments]', error)
+      return errorResponse('Internal server error', 500)
     }
-
-    const [payments, total] = await Promise.all([
-      prisma.payment.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' }
-      }),
-      prisma.payment.count({ where })
-    ])
-
-    return successResponse({
-      payments,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
-    })
-  } catch (err) {
-    return errorResponse(err.message, 'PAYMENTS_ERROR', 500)
-  }
+  })
 }

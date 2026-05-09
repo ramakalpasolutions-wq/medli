@@ -1,136 +1,147 @@
-// src/app/api/settlements/route.js
-
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import { getPaginationParams } from '@/lib/utils/helpers'
-import prisma from '@/lib/prisma'
+import { checkRole }  from '@/lib/middleware/rbac.middleware'
+import {
+  getPaginationParams,
+  buildPaginationMeta,
+} from '@/lib/utils/helpers'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+  paginatedResponse,
+} from '@/lib/utils/apiResponse'
 
-export async function OPTIONS() {
-  return handleOptions()
-}
+export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
-  try {
-    const user = await verifyAuth(request)
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user,
+        'super_admin', 'regional_manager',
+        'hospital_admin', 'lab_admin',
+      )
 
-    // ✅ Allow: super_admin, regional_manager, hospital_admin, lab_admin
-    checkRole(
-      user,
-      'super_admin',
-      'regional_manager',
-      'hospital_admin',
-      'lab_admin'
-    )
+      const { searchParams } = new URL(request.url)
+      const status     = searchParams.get('status')     || ''
+      const entityType = searchParams.get('entityType') || ''
+      const entityId   = searchParams.get('entityId')   || ''
 
-    const { searchParams } = new URL(request.url)
-    const { skip, take, page, limit } = getPaginationParams(
-      searchParams.get('page'),
-      searchParams.get('limit')
-    )
+      const { page, limit, skip, take } = getPaginationParams(
+        searchParams.get('page'),
+        searchParams.get('limit'),
+      )
 
-    const status     = searchParams.get('status')
-    const entityType = searchParams.get('entityType')
-    const entityId   = searchParams.get('entityId')
+      const where = {}
 
-    const where = {}
-    if (status)     where.status     = status
-    if (entityType) where.entityType = entityType
-    if (entityId)   where.entityId   = entityId
-
-    // ── Scope by role ─────────────────────────────────────────────────────
-
-    if (user.role === 'hospital_admin') {
-      // Only their hospital's settlements
-      const hospital = await prisma.hospital.findFirst({
-        where:  { adminUserId: user.id },
-        select: { id: true },
-      })
-      if (hospital) {
-        where.entityId   = hospital.id
-        where.entityType = 'hospital'
-      } else {
-        // No hospital found — return empty
-        return successResponse({
-          settlements: [],
-          pagination:  { page, limit, total: 0, pages: 0 },
-        })
+      // ✅ Support status as array e.g. status=pending,processing
+      if (status) {
+        const statuses = status.split(',').map((s) => s.trim()).filter(Boolean)
+        where.status   = statuses.length === 1
+          ? statuses[0]
+          : { in: statuses }
       }
-    } else if (user.role === 'lab_admin') {
-      // Only their lab's settlements
-      const lab = await prisma.lab.findFirst({
-        where:  { adminUserId: user.id },
-        select: { id: true },
-      })
-      if (lab) {
-        where.entityId   = lab.id
-        where.entityType = 'lab'
-      } else {
-        return successResponse({
-          settlements: [],
-          pagination:  { page, limit, total: 0, pages: 0 },
+
+      if (entityType) where.entityType = entityType
+
+      // ── Role-based filtering ────────────────────────────────────────
+      if (user.role === 'hospital_admin') {
+        const hospital = await prisma.hospital.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true, name: true },
         })
-      }
-    } else if (user.role === 'regional_manager') {
-      // Get their region's hospitals and labs
-      const region = await prisma.region.findFirst({
-        where:  { managerId: user.id },
-        select: { id: true },
-      })
-
-      if (region) {
-        // Find all hospitals + labs in this region
-        const [hospitals, labs] = await Promise.all([
-          prisma.hospital.findMany({
-            where:  { regionId: region.id },
-            select: { id: true },
-          }),
-          prisma.lab.findMany({
-            where:  { regionId: region.id },
-            select: { id: true },
-          }),
-        ])
-
-        const entityIds = [
-          ...hospitals.map(h => h.id),
-          ...labs.map(l => l.id),
-        ]
-
-        if (entityIds.length > 0) {
-          where.entityId = { in: entityIds }
-        } else {
-          return successResponse({
-            settlements: [],
-            pagination:  { page, limit, total: 0, pages: 0 },
-          })
+        if (hospital) {
+          where.entityType = 'hospital'
+          where.entityId   = hospital.id
         }
+      } else if (user.role === 'lab_admin') {
+        const lab = await prisma.lab.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true, name: true },
+        })
+        if (lab) {
+          where.entityType = 'lab'
+          where.entityId   = lab.id
+        }
+      } else if (entityId) {
+        // super_admin / regional_manager — optional filter
+        where.entityId = entityId
       }
-      // If no region found, super_admin-like — show all (filtered by query params)
+
+      const [settlements, total] = await Promise.all([
+        prisma.settlement.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.settlement.count({ where }),
+      ])
+
+      return paginatedResponse(
+        settlements,
+        buildPaginationMeta(total, page, limit),
+        'settlements',
+      )
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[GET /api/settlements]', error)
+      return errorResponse('Internal server error', 500)
     }
+  })
+}
 
-    // ── Query ─────────────────────────────────────────────────────────────
-    const [settlements, total] = await Promise.all([
-      prisma.settlement.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.settlement.count({ where }),
-    ])
+export async function POST(request) {
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin')
 
-    return successResponse({
-      settlements,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages:      Math.ceil(total / limit),
-        totalPages: Math.ceil(total / limit),
-      },
-    })
-  } catch (err) {
-    console.error('Settlements list error:', err)
-    return errorResponse(err.message, 'SETTLEMENTS_ERROR', 500)
-  }
+      const body = await request.json()
+
+      if (!body.entityType) return errorResponse('entityType is required', 400)
+      if (!body.entityId)   return errorResponse('entityId is required', 400)
+
+      const { generateSettlementNumber } = await import('@/lib/utils/helpers')
+
+      const settlement = await prisma.settlement.create({
+        data: {
+          settlementNumber:    generateSettlementNumber(),
+          entityType:          body.entityType,
+          entityId:            body.entityId,
+          entityName:          body.entityName          || undefined,
+          periodFrom:          body.periodFrom ? new Date(body.periodFrom) : undefined,
+          periodTo:            body.periodTo   ? new Date(body.periodTo)   : undefined,
+          totalBookings:       Number(body.totalBookings)       || 0,
+          grossAmount:         Number(body.grossAmount)         || 0,
+          platformFee:         Number(body.platformFee)         || 0,
+          gst:                 Number(body.gst)                 || 0,
+          couponAbsorbed:      Number(body.couponAbsorbed)      || 0,
+          refundsDeducted:     Number(body.refundsDeducted)     || 0,
+          netSettlementAmount: Number(body.netSettlementAmount) || 0,
+          bankAccountId:       body.bankAccountId               || undefined,
+          beneficiaryName:     body.beneficiaryName             || undefined,
+          beneficiaryAccount:  body.beneficiaryAccount          || undefined,
+          beneficiaryIFSC:     body.beneficiaryIFSC             || undefined,
+          bankName:            body.bankName                    || undefined,
+          transferMode:        body.transferMode                || undefined,
+          bookingIds:          body.bookingIds                  || [],
+          notes:               body.notes                       || undefined,
+          status:              'pending',
+          initiatedBy:         user.userId,
+        },
+      })
+
+      return successResponse(settlement, 'Settlement created', 201)
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[POST /api/settlements]', error)
+      return errorResponse('Internal server error', 500)
+    }
+  })
 }

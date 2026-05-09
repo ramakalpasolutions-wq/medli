@@ -1,5 +1,5 @@
 // src/app/api/labs/[id]/settlement-summary/route.js
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
 

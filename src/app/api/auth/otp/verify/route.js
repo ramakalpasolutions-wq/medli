@@ -1,196 +1,132 @@
-// src/app/api/auth/otp/verify/route.js
-
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import { cache } from '@/lib/cache'
+import { NextResponse }                              from 'next/server'
+import { withRateLimit }                             from '@/lib/middleware/rateLimit.middleware'
+import { prisma }                                    from '@/lib/prisma'
 import { generateAccessToken, generateRefreshToken } from '@/lib/utils/jwt'
-import prisma from '@/lib/prisma'
-
-export async function OPTIONS() {
-  return handleOptions()
-}
+import { validatePhone }                             from '@/lib/utils/validators'
 
 export async function POST(request) {
-  try {
-    const body = await request.json()
-    const { phone, email, otp, purpose } = body
+  return withRateLimit(request, 'otp', async () => {
+    try {
+      const { phone, otp } = await request.json()
 
-    if (!otp || otp.toString().length !== 6) {
-      return errorResponse('OTP must be 6 digits', 'INVALID_OTP', 400)
-    }
-
-    if (!phone && !email) {
-      return errorResponse('Phone or email is required', 'MISSING_FIELD', 400)
-    }
-
-    // ── Phone OTP verify ──────────────────────────────────────────────────
-    if (phone) {
-      const cleaned   = phone.toString().replace(/\D/g, '')
-      const cacheKey  = `otp:phone:${cleaned}`
-      const storedOtp = await cache.get(cacheKey)
-
-      if (!storedOtp) {
-        return errorResponse(
-          'OTP expired or not found. Please request a new one.',
-          'OTP_EXPIRED',
-          400
+      if (!phone || !otp) {
+        return NextResponse.json(
+          { success: false, error: 'Phone and OTP are required' },
+          { status: 400 }
+        )
+      }
+      if (!validatePhone(phone)) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid phone number' },
+          { status: 400 }
         )
       }
 
-      if (storedOtp.toString() !== otp.toString()) {
-        return errorResponse('Incorrect OTP. Please try again.', 'INVALID_OTP', 400)
-      }
+      // Verify OTP
+      const { verifyOtp } = await import('@/lib/utils/msg91')
+      const valid = await verifyOtp(String(phone).trim(), String(otp).trim())
 
-      // Delete used OTP
-      await cache.del(cacheKey)
-
-      // ── purpose = verify_only → registration flow ──────────────────────
-      if (purpose === 'verify_only') {
-        await cache.set(`verified:phone:${cleaned}`, '1', 600) // 10 min
-        return successResponse(
-          { verified: true, phone: cleaned },
-          'Phone number verified'
+      if (!valid) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid or expired OTP' },
+          { status: 401 }
         )
       }
 
-      // ── Full login flow ────────────────────────────────────────────────
+      // ── Find or create user ─────────────────────────────────────────
       let user = await prisma.user.findUnique({
-        where: { phone: cleaned },
+        where:  { phone: String(phone).trim() },
+        select: {
+          id:         true,
+          name:       true,
+          phone:      true,
+          email:      true,
+          role:       true,
+          isBlocked:  true,
+          isVerified: true,
+          avatar:     true,
+        },
       })
 
       if (!user) {
-        // Auto-create account for new users
+        // Auto-create on first OTP login
         user = await prisma.user.create({
           data: {
-            name:       `User ${cleaned.slice(-4)}`,
-            phone:      cleaned,
-            role:       'user',
+            phone:         String(phone).trim(),
+            name:          `User ${String(phone).slice(-4)}`,
+            role:          'user',
+            isVerified:    true,
+            isBlocked:     false,
+            familyMembers: [],
+          },
+          select: {
+            id:         true,
+            name:       true,
+            phone:      true,
+            email:      true,
+            role:       true,
+            isBlocked:  true,
             isVerified: true,
-            wallet:     { balance: 0 },
+            avatar:     true,
           },
         })
-      } else if (!user.isVerified) {
-        user = await prisma.user.update({
+      }
+
+      if (user.isBlocked) {
+        return NextResponse.json(
+          { success: false, error: 'Account blocked. Contact support.' },
+          { status: 403 }
+        )
+      }
+
+      // ── Mark verified ───────────────────────────────────────────────
+      if (!user.isVerified) {
+        await prisma.user.update({
           where: { id: user.id },
           data:  { isVerified: true },
         })
       }
 
-      if (user.isBlocked) {
-        return errorResponse('Account is blocked. Contact support.', 'BLOCKED', 403)
+      // ── Generate tokens ─────────────────────────────────────────────
+      const payload = {
+        userId: user.id,
+        role:   user.role,
+        phone:  user.phone,
+        email:  user.email,
       }
 
-      const safeUser = {
-        id:         user.id,
-        name:       user.name,
-        email:      user.email,
-        phone:      user.phone,
-        role:       user.role,
-        avatar:     user.avatar,
-        isVerified: user.isVerified,
-        isBlocked:  user.isBlocked,
-      }
+      const accessToken  = generateAccessToken(payload)
+      const refreshToken = generateRefreshToken(payload)
 
-      const accessToken  = generateAccessToken(safeUser)
-      const refreshToken = generateRefreshToken({ id: user.id })
-
-      const response = successResponse(
-        { user: safeUser, accessToken, refreshToken },
-        'Login successful'
-      )
-
-      response.headers.set(
-        'Set-Cookie',
-        `refreshToken=${refreshToken}; HttpOnly; Path=/; Max-Age=${7 * 24 * 3600}; SameSite=Lax`
-      )
-
-      return response
-    }
-
-    // ── Email OTP verify ──────────────────────────────────────────────────
-    if (email) {
-      const cleaned   = email.trim().toLowerCase()
-      const cacheKey  = `otp:email:${cleaned}`
-      const storedOtp = await cache.get(cacheKey)
-
-      if (!storedOtp) {
-        return errorResponse(
-          'OTP expired or not found. Please request a new one.',
-          'OTP_EXPIRED',
-          400
-        )
-      }
-
-      if (storedOtp.toString() !== otp.toString()) {
-        return errorResponse('Incorrect OTP. Please try again.', 'INVALID_OTP', 400)
-      }
-
-      // Delete used OTP
-      await cache.del(cacheKey)
-
-      // ── purpose = verify_only → registration flow ──────────────────────
-      if (purpose === 'verify_only') {
-        await cache.set(`verified:email:${cleaned}`, '1', 600)
-        return successResponse(
-          { verified: true, email: cleaned },
-          'Email address verified'
-        )
-      }
-
-      // ── Full login flow ────────────────────────────────────────────────
-      let user = await prisma.user.findUnique({
-        where: { email: cleaned },
+      const response = NextResponse.json({
+        success: true,
+        message: 'OTP verified successfully',
+        data:    { user, accessToken, refreshToken },
       })
 
-      if (!user) {
-        // Auto-create account
-        user = await prisma.user.create({
-          data: {
-            name:       cleaned.split('@')[0],
-            email:      cleaned,
-            role:       'user',
-            isVerified: true,
-            wallet:     { balance: 0 },
-          },
-        })
-      } else if (!user.isVerified) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data:  { isVerified: true },
-        })
-      }
-
-      if (user.isBlocked) {
-        return errorResponse('Account is blocked. Contact support.', 'BLOCKED', 403)
-      }
-
-      const safeUser = {
-        id:         user.id,
-        name:       user.name,
-        email:      user.email,
-        phone:      user.phone,
-        role:       user.role,
-        avatar:     user.avatar,
-        isVerified: user.isVerified,
-        isBlocked:  user.isBlocked,
-      }
-
-      const accessToken  = generateAccessToken(safeUser)
-      const refreshToken = generateRefreshToken({ id: user.id })
-
-      const response = successResponse(
-        { user: safeUser, accessToken, refreshToken },
-        'Login successful'
-      )
-
-      response.headers.set(
-        'Set-Cookie',
-        `refreshToken=${refreshToken}; HttpOnly; Path=/; Max-Age=${7 * 24 * 3600}; SameSite=Lax`
-      )
+      response.cookies.set('accessToken', accessToken, {
+        httpOnly: true,
+        secure:   process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge:   15 * 60,
+        path:     '/',
+      })
+      response.cookies.set('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure:   process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge:   30 * 24 * 60 * 60,
+        path:     '/',
+      })
 
       return response
+
+    } catch (error) {
+      console.error('[POST /api/auth/otp/verify]', error)
+      return NextResponse.json(
+        { success: false, error: 'Internal server error' },
+        { status: 500 }
+      )
     }
-  } catch (err) {
-    console.error('OTP verify error:', err)
-    return errorResponse(err.message, 'OTP_ERROR', 500)
-  }
+  })
 }

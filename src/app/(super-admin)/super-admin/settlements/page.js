@@ -1,23 +1,23 @@
-// src/app/(super-admin)/super-admin/settlements/page.js
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import useSWR from 'swr'
 import AdminHeader from '@/components/admin/AdminHeader'
-import Tabs from '@/components/ui/Tabs'
-import StatsCard from '@/components/ui/StatsCard'
-import DataTable from '@/components/ui/DataTable'
-import Badge from '@/components/ui/Badge'
-import Button from '@/components/ui/Button'
-import Modal from '@/components/ui/Modal'
-import Card from '@/components/ui/Card'
+import Tabs        from '@/components/ui/Tabs'
+import StatsCard   from '@/components/ui/StatsCard'
+import DataTable   from '@/components/ui/DataTable'
+import Badge       from '@/components/ui/Badge'
+import Button      from '@/components/ui/Button'
+import Modal       from '@/components/ui/Modal'
+import Card        from '@/components/ui/Card'
 import { useToast } from '@/context/ToastContext'
 import {
   Banknote, Clock, CheckCircle, RotateCcw,
-  Download, Info, Building2, FlaskConical,
-  Copy, AlertCircle,
+  Download, Info, Building2, FlaskConical, Copy,
 } from 'lucide-react'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function useMounted() {
   const [m, setM] = useState(false)
@@ -26,70 +26,83 @@ function useMounted() {
 }
 
 const fetcher = (url) =>
-  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
+  fetch(url, { credentials: 'include' })
+    .then((r) => r.json())
+    .then((j) => j.data)
 
 const fmtRs = (n) =>
   `Rs. ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`
 
-// ── Transfer Instructions Modal ───────────────────────────────────────────────
+// ─── Transfer Instructions Modal ──────────────────────────────────────────────
+
 function TransferInstructionsModal({ isOpen, onClose, data }) {
   const toast = useToast()
-
-  const copy = (val) => {
+  const copy  = (val) => {
     if (!val) return
     navigator.clipboard.writeText(String(val))
     toast.success('Copied!')
   }
-
   if (!data) return null
 
   const rows = [
-    { label: 'Amount',        value: fmtRs(data.amount),      bold: true    },
-    { label: 'Beneficiary',   value: data.beneficiaryName                    },
-    { label: 'Account No.',   value: data.accountNumber,       canCopy: true },
-    { label: 'IFSC Code',     value: data.ifscCode,            canCopy: true },
-    { label: 'Bank',          value: data.bankName                           },
-    { label: 'Account Type',  value: data.accountType                        },
-    { label: 'Reference',     value: data.referenceNote,       canCopy: true, highlight: true },
+    { label: 'Amount',       value: fmtRs(data.amount),    bold: true          },
+    { label: 'Beneficiary',  value: data.beneficiaryName                        },
+    { label: 'Account No.',  value: data.accountNumber,    canCopy: true       },
+    { label: 'IFSC Code',    value: data.ifscCode,         canCopy: true       },
+    { label: 'Bank',         value: data.bankName                               },
+    { label: 'Account Type', value: data.accountType                            },
+    { label: 'Reference',    value: data.referenceNote,    canCopy: true, highlight: true },
   ].filter((r) => r.value)
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Bank Transfer Instructions" size="md">
-      <div className="p-6 space-y-4">
-
-        {/* Warning banner */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-2">
-          <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-700">
+      <div style={{ padding: '0 24px 24px' }}>
+        <div style={{
+          background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12,
+          padding: '12px 16px', display: 'flex', gap: 10, marginBottom: 16,
+        }}>
+          <Info style={{ width: 16, height: 16, color: '#d97706', flexShrink: 0, marginTop: 2 }} />
+          <p style={{ fontSize: 13, color: '#92400e', margin: 0, lineHeight: 1.6 }}>
             Transfer the exact amount to the account below using your bank.
             After the transfer, go to the <strong>Processing</strong> tab and
             confirm with the UTR number.
           </p>
         </div>
 
-        {/* Bank details */}
-        <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+        <div style={{
+          background: '#f8fafc', borderRadius: 12, padding: '12px 16px',
+          marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
           {rows.map((row) => (
-            <div key={row.label} className="flex items-center justify-between gap-4">
-              <span className="text-sm text-gray-500 flex-shrink-0 w-28">
+            <div key={row.label} style={{
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', gap: 16,
+            }}>
+              <span style={{ fontSize: 12, color: '#64748b', flexShrink: 0, width: 110 }}>
                 {row.label}
               </span>
-              <div className="flex items-center gap-2 flex-1 justify-end">
-                <span className={`text-sm text-right break-all ${
-                  row.bold
-                    ? 'font-bold text-gray-900 text-base'
-                    : row.highlight
-                      ? 'font-semibold text-blue-600'
-                      : 'text-gray-800'
-                }`}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                flex: 1, justifyContent: 'flex-end',
+              }}>
+                <span style={{
+                  fontSize:   row.bold ? 16 : 13,
+                  fontWeight: row.bold ? 700 : row.highlight ? 600 : 500,
+                  color:      row.highlight ? '#2563eb' : '#1e293b',
+                  textAlign: 'right', wordBreak: 'break-all',
+                  fontFamily: (row.canCopy && !row.bold) ? 'monospace' : 'inherit',
+                }}>
                   {row.value}
                 </span>
                 {row.canCopy && (
                   <button
                     onClick={() => copy(row.value)}
-                    className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      padding: 4, color: '#94a3b8', flexShrink: 0,
+                    }}
                   >
-                    <Copy className="w-3.5 h-3.5" />
+                    <Copy style={{ width: 14, height: 14 }} />
                   </button>
                 )}
               </div>
@@ -97,20 +110,30 @@ function TransferInstructionsModal({ isOpen, onClose, data }) {
           ))}
         </div>
 
-        {/* UPI option */}
         {data.upiId && (
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 flex items-center justify-between">
+          <div style={{
+            background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 12,
+            padding: '12px 16px', display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', marginBottom: 16,
+          }}>
             <div>
-              <p className="text-xs font-semibold text-purple-600">UPI Option</p>
-              <p className="text-sm text-purple-800 font-mono">{data.upiId}</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', margin: '0 0 2px' }}>
+                UPI Option
+              </p>
+              <p style={{ fontSize: 13, fontFamily: 'monospace', color: '#6d28d9', margin: 0 }}>
+                {data.upiId}
+              </p>
             </div>
-            <button onClick={() => copy(data.upiId)}>
-              <Copy className="w-4 h-4 text-purple-400" />
+            <button
+              onClick={() => copy(data.upiId)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa' }}
+            >
+              <Copy style={{ width: 16, height: 16 }} />
             </button>
           </div>
         )}
 
-        <p className="text-xs text-gray-500 text-center">
+        <p style={{ fontSize: 12, color: '#64748b', textAlign: 'center', marginBottom: 16 }}>
           After transfer, go to <strong>Processing</strong> tab →{' '}
           <strong>Confirm with UTR</strong>
         </p>
@@ -123,41 +146,33 @@ function TransferInstructionsModal({ isOpen, onClose, data }) {
   )
 }
 
-// ── Confirm UTR Modal ─────────────────────────────────────────────────────────
+// ─── Confirm UTR Modal ────────────────────────────────────────────────────────
+
 function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
   const toast = useToast()
   const [utrNumber,    setUtrNumber]    = useState('')
   const [transferMode, setTransferMode] = useState('NEFT')
   const [loading,      setLoading]      = useState(false)
 
-  // Reset on open
   useEffect(() => {
     if (isOpen) { setUtrNumber(''); setTransferMode('NEFT') }
   }, [isOpen])
 
   const handleConfirm = async () => {
-    if (!utrNumber.trim()) {
-      toast.error('Please enter the UTR number')
-      return
-    }
+    if (!utrNumber.trim()) { toast.error('Please enter the UTR number'); return }
     setLoading(true)
     try {
       const res  = await fetch(`/api/settlements/${settlement.id}/confirm`, {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body:        JSON.stringify({
-          utrNumber:    utrNumber.trim(),
-          transferMode,
-        }),
+        body:        JSON.stringify({ utrNumber: utrNumber.trim(), transferMode }),
       })
       const json = await res.json()
-
       if (!json.success) {
         toast.error(json.error || 'Failed to confirm settlement')
         return
       }
-
       toast.success(`Settlement confirmed! UTR: ${utrNumber.trim()}`)
       onConfirmed()
       onClose()
@@ -170,55 +185,64 @@ function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
 
   if (!settlement) return null
 
+  const inputStyle = {
+    width: '100%', padding: '10px 12px', fontSize: 13,
+    borderRadius: 10, boxSizing: 'border-box',
+    border: '1.5px solid #e2e8f0', outline: 'none',
+    background: '#fff', transition: 'border-color .15s ease',
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Confirm Settlement" size="sm">
-      <div className="p-6 space-y-4">
-
-        {/* Settlement summary */}
-        <div className="bg-gray-50 rounded-xl p-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Entity</span>
-            <span className="font-semibold text-gray-900">{settlement.entityName}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Amount</span>
-            <span className="font-bold text-gray-900 text-base">
-              {fmtRs(settlement.netSettlementAmount)}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Beneficiary</span>
-            <span className="font-medium text-gray-900">{settlement.beneficiaryName}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Bank</span>
-            <span className="font-medium text-gray-900">{settlement.bankName}</span>
-          </div>
+      <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{
+          background: '#f8fafc', borderRadius: 12, padding: '12px 16px',
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          {[
+            { l: 'Entity',      v: settlement.entityName                      },
+            { l: 'Amount',      v: fmtRs(settlement.netSettlementAmount), bold: true },
+            { l: 'Beneficiary', v: settlement.beneficiaryName                 },
+            { l: 'Bank',        v: settlement.bankName                        },
+          ].filter((r) => r.v).map((row) => (
+            <div key={row.l} style={{
+              display: 'flex', justifyContent: 'space-between', fontSize: 13,
+            }}>
+              <span style={{ color: '#64748b' }}>{row.l}</span>
+              <span style={{ fontWeight: row.bold ? 700 : 600, color: '#1e293b' }}>
+                {row.v}
+              </span>
+            </div>
+          ))}
         </div>
 
-        {/* UTR input */}
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-            UTR / Reference Number <span className="text-red-500">*</span>
+          <label style={{
+            display: 'block', fontSize: 13, fontWeight: 600,
+            color: '#374151', marginBottom: 6,
+          }}>
+            UTR / Reference Number <span style={{ color: '#ef4444' }}>*</span>
           </label>
           <input
             type="text"
             placeholder="Enter UTR number from your bank"
             value={utrNumber}
             onChange={(e) => setUtrNumber(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono transition-all"
+            style={{ ...inputStyle, fontFamily: 'monospace' }}
           />
         </div>
 
-        {/* Transfer mode */}
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+          <label style={{
+            display: 'block', fontSize: 13, fontWeight: 600,
+            color: '#374151', marginBottom: 6,
+          }}>
             Transfer Mode
           </label>
           <select
             value={transferMode}
             onChange={(e) => setTransferMode(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none bg-white transition-all"
+            style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
           >
             <option value="NEFT">NEFT</option>
             <option value="IMPS">IMPS</option>
@@ -227,23 +251,13 @@ function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
           </select>
         </div>
 
-        <div className="flex gap-3 pt-1">
-          <Button
-            variant="secondary"
-            size="md"
-            className="flex-1"
-            onClick={onClose}
-            disabled={loading}
-          >
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button variant="secondary" size="md" className="flex-1"
+            onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            size="md"
-            className="flex-1"
-            loading={loading}
-            onClick={handleConfirm}
-          >
+          <Button variant="primary" size="md" className="flex-1"
+            loading={loading} onClick={handleConfirm}>
             Confirm Settlement
           </Button>
         </div>
@@ -252,130 +266,143 @@ function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
   )
 }
 
-// ── Pending entity card ───────────────────────────────────────────────────────
-function PendingEntityCard({ entity, result, onInitiate }) {
+// ─── Pending Entity Card ──────────────────────────────────────────────────────
+
+function PendingEntityCard({ entity, onInitiate, initiated, initiating }) {
   const isHospital = entity.entityType === 'hospital'
-  const accent     = isHospital ? 'blue' : 'green'
-
-  const cls = {
-    blue: {
-      bg:     'from-blue-50 to-indigo-50',
-      border: 'border-blue-100',
-      dot:    'bg-blue-100',
-      icon:   'text-blue-600',
-      text:   'text-blue-700',
-      badge:  'bg-blue-50 border-blue-200 text-blue-700',
-      tip:    'text-blue-500',
-    },
-    green: {
-      bg:     'from-green-50 to-emerald-50',
-      border: 'border-green-100',
-      dot:    'bg-green-100',
-      icon:   'text-green-600',
-      text:   'text-green-700',
-      badge:  'bg-green-50 border-green-200 text-green-700',
-      tip:    'text-green-500',
-    },
-  }[accent]
-
-  const isSettled = result?.status === 'completed'
+  const C = isHospital
+    ? { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8', badge: '#dbeafe', badgeText: '#1e40af' }
+    : { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d', badge: '#dcfce7', badgeText: '#166534' }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-gradient-to-br ${cls.bg} border ${cls.border} rounded-2xl p-6`}
-      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+      style={{
+        background: initiated ? '#f8fafc' : C.bg,
+        border: `1px solid ${initiated ? '#e2e8f0' : C.border}`,
+        borderRadius: 20, padding: 24,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        opacity: initiated ? 0.75 : 1,
+        transition: 'all .3s ease',
+      }}
     >
-      {/* Entity header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', marginBottom: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {isHospital
-            ? <Building2  className={`w-4 h-4 ${cls.icon}`} />
-            : <FlaskConical className={`w-4 h-4 ${cls.icon}`} />}
-          <p className={`text-xs font-bold uppercase tracking-wide ${cls.text}`}>
+            ? <Building2    style={{ width: 16, height: 16, color: initiated ? '#64748b' : C.text }} />
+            : <FlaskConical style={{ width: 16, height: 16, color: initiated ? '#64748b' : C.text }} />
+          }
+          <p style={{
+            fontSize: 13, fontWeight: 700, margin: 0,
+            color: initiated ? '#64748b' : C.text,
+          }}>
             {entity.name}
           </p>
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${cls.badge}`}>
-          {entity.entityType}
-        </span>
-      </div>
-
-      {/* Info */}
-      <div className={`flex items-start gap-2 mb-4 mt-1 text-xs ${cls.text}`}>
-        <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-        <span>
-          {entity.totalBookings} paid booking{entity.totalBookings !== 1 ? 's' : ''} awaiting transfer.
-          Only cancelled booking refunds are deducted.
-        </span>
+        {/* ✅ Show "Processing" badge if initiated */}
+        {initiated ? (
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 100,
+            background: '#fef3c7', color: '#92400e',
+            border: '1px solid #fde68a',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            <Clock style={{ width: 10, height: 10 }} /> Processing
+          </span>
+        ) : (
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 100,
+            background: C.badge, color: C.badgeText,
+            border: `1px solid ${C.border}`,
+          }}>
+            {entity.entityType}
+          </span>
+        )}
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-white/70 rounded-xl p-3">
-          <p className="text-xs text-gray-500 mb-1">Gross Amount</p>
-          <p className="text-sm font-bold text-gray-800">{fmtRs(entity.grossAmount)}</p>
-        </div>
-        <div className="bg-white/70 rounded-xl p-3">
-          <p className="text-xs text-gray-500 mb-1">Refunds</p>
-          <p className={`text-sm font-bold ${
-            Number(entity.refundsDeducted) > 0 ? 'text-red-600' : 'text-gray-400'
-          }`}>
-            {Number(entity.refundsDeducted) > 0
-              ? `- ${fmtRs(entity.refundsDeducted)}`
-              : 'None'}
-          </p>
-        </div>
-        <div className="bg-white/70 rounded-xl p-3 border-2 border-emerald-200">
-          <p className="text-xs text-emerald-600 font-semibold mb-1">You Receive</p>
-          <p className="text-sm font-bold text-emerald-700">
-            {fmtRs(entity.netSettlementAmount)}
-          </p>
-        </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
+        gap: 10, marginBottom: 16,
+      }}>
+        {[
+          { label: 'Gross',       value: fmtRs(entity.grossAmount)                                                      },
+          { label: 'Refunds',     value: Number(entity.refundsDeducted) > 0 ? `- ${fmtRs(entity.refundsDeducted)}` : 'None', red: Number(entity.refundsDeducted) > 0 },
+          { label: 'You Receive', value: fmtRs(entity.netSettlementAmount), green: true                                  },
+        ].map((s) => (
+          <div key={s.label} style={{
+            background: '#fff', borderRadius: 12, padding: '10px 12px',
+            border: s.green ? '2px solid #86efac' : 'none',
+          }}>
+            <p style={{
+              fontSize: 11, marginBottom: 4,
+              color: s.green ? '#16a34a' : '#64748b',
+              fontWeight: s.green ? 600 : 400,
+            }}>
+              {s.label}
+            </p>
+            <p style={{
+              fontSize: 13, fontWeight: 700, margin: 0,
+              color: s.green ? '#15803d' : s.red ? '#dc2626' : '#1e293b',
+            }}>
+              {s.value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      {/* Bank account status */}
-      <div className="bg-white/50 rounded-xl p-3 mb-4 text-xs space-y-1">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Bank Account</span>
-          <span className={`font-semibold ${
-            entity.bankAccount?.isVerified ? 'text-emerald-600' : 'text-amber-600'
-          }`}>
+      {/* Bank status */}
+      <div style={{
+        background: 'rgba(255,255,255,0.5)', borderRadius: 12,
+        padding: '10px 14px', marginBottom: 16, fontSize: 12,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ color: '#64748b' }}>Bank Account</span>
+          <span style={{
+            fontWeight: 600,
+            color: entity.bankAccount?.isVerified ? '#16a34a' : '#d97706',
+          }}>
             {entity.bankAccount?.isVerified ? '✓ Verified' : '⚠ Not Verified'}
           </span>
         </div>
         {entity.bankAccount?.bankName && (
-          <div className="flex justify-between">
-            <span className="text-gray-500">Bank</span>
-            <span className="font-medium text-gray-700">{entity.bankAccount.bankName}</span>
-          </div>
-        )}
-        {entity.bankAccount?.ifscCode && (
-          <div className="flex justify-between">
-            <span className="text-gray-500">IFSC</span>
-            <span className="font-mono text-gray-700">{entity.bankAccount.ifscCode}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: '#64748b' }}>Bank</span>
+            <span style={{ fontWeight: 500, color: '#1e293b' }}>
+              {entity.bankAccount.bankName}
+            </span>
           </div>
         )}
       </div>
 
       {/* Net amount */}
-      <div className="text-center mb-4">
-        <p className="text-xs text-gray-500 mb-1">Net Settlement Amount</p>
-        <p className="text-2xl font-bold text-gray-900">
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Net Settlement Amount</p>
+        <p style={{ fontSize: 24, fontWeight: 800, color: '#1e293b', margin: 0 }}>
           {fmtRs(entity.netSettlementAmount)}
         </p>
       </div>
 
-      {/* Action */}
-      {isSettled ? (
-        <div className="flex items-center justify-center gap-2 text-emerald-600 bg-white/80 px-4 py-3 rounded-xl border border-emerald-200">
-          <CheckCircle className="w-4 h-4" />
-          <div className="text-center">
-            <p className="text-xs font-bold">SETTLED</p>
-            {result.utrNumber && (
-              <p className="text-xs text-gray-500 font-mono">UTR: {result.utrNumber}</p>
-            )}
+      {/* ✅ Action — shows initiated state instead of button */}
+      {initiated ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          background: '#fffbeb', border: '1px solid #fde68a',
+          borderRadius: 14, padding: '12px 16px',
+        }}>
+          <Clock style={{ width: 18, height: 18, color: '#d97706' }} />
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: 0 }}>
+              Settlement Initiated
+            </p>
+            <p style={{ fontSize: 11, color: '#b45309', margin: '2px 0 0' }}>
+              Go to <strong>Processing</strong> tab → Confirm with UTR
+            </p>
           </div>
         </div>
       ) : (
@@ -384,13 +411,17 @@ function PendingEntityCard({ entity, result, onInitiate }) {
             variant="primary"
             size="md"
             className="w-full"
-            disabled={!entity.bankAccount?.isVerified}
+            loading={initiating}
+            disabled={!entity.bankAccount?.isVerified || initiating}
             onClick={() => onInitiate(entity)}
           >
-            Initiate Settlement {fmtRs(entity.netSettlementAmount)}
+            {initiating ? 'Initiating…' : `Initiate Settlement ${fmtRs(entity.netSettlementAmount)}`}
           </Button>
           {!entity.bankAccount?.isVerified && (
-            <p className="text-xs text-amber-600 text-center mt-2">
+            <p style={{
+              fontSize: 11, color: '#d97706',
+              textAlign: 'center', marginTop: 8,
+            }}>
               ⚠ Verify bank account before settling
             </p>
           )}
@@ -400,56 +431,87 @@ function PendingEntityCard({ entity, result, onInitiate }) {
   )
 }
 
-// ── Processing card ───────────────────────────────────────────────────────────
+// ─── Processing Card ──────────────────────────────────────────────────────────
+
 function ProcessingCard({ settlement, onConfirm, onCancel }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl border border-amber-200 p-6"
-      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+      style={{
+        background: '#fff', borderRadius: 20,
+        border: '1px solid #fde68a', padding: 24,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      }}
     >
-      <div className="flex items-start justify-between mb-4">
+      <div style={{
+        display: 'flex', alignItems: 'flex-start',
+        justifyContent: 'space-between', marginBottom: 16,
+      }}>
         <div>
-          <p className="font-semibold text-gray-900">{settlement.entityName}</p>
-          <p className="text-xs text-gray-500 mt-0.5 capitalize">
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: '0 0 2px' }}>
+            {settlement.entityName}
+          </p>
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
             {settlement.entityType} · {settlement.settlementNumber}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full">
-          <Clock className="w-3 h-3" /> Awaiting Transfer
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          fontSize: 11, fontWeight: 600,
+          background: '#fffbeb', color: '#92400e',
+          border: '1px solid #fde68a',
+          padding: '4px 10px', borderRadius: 100,
+        }}>
+          <Clock style={{ width: 12, height: 12 }} /> Awaiting Transfer
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-gray-50 rounded-xl p-3">
-          <p className="text-xs text-gray-500 mb-1">Amount</p>
-          <p className="font-bold text-gray-900">{fmtRs(settlement.netSettlementAmount)}</p>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr',
+        gap: 12, marginBottom: 16,
+      }}>
+        <div style={{ background: '#f8fafc', borderRadius: 12, padding: '10px 14px' }}>
+          <p style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Amount</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: 0 }}>
+            {fmtRs(settlement.netSettlementAmount)}
+          </p>
         </div>
-        <div className="bg-gray-50 rounded-xl p-3">
-          <p className="text-xs text-gray-500 mb-1">Bookings</p>
-          <p className="font-bold text-gray-900">{settlement.totalBookings}</p>
+        <div style={{ background: '#f8fafc', borderRadius: 12, padding: '10px 14px' }}>
+          <p style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Bookings</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: 0 }}>
+            {settlement.totalBookings}
+          </p>
         </div>
       </div>
 
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-700">
+      <div style={{
+        background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12,
+        padding: '10px 14px', marginBottom: 16,
+        fontSize: 12, color: '#92400e', lineHeight: 1.6,
+      }}>
         Transfer <strong>{fmtRs(settlement.netSettlementAmount)}</strong> to{' '}
         <strong>{settlement.beneficiaryName}</strong>
-        {settlement.bankName ? ` (${settlement.bankName})` : ''} and confirm
-        with UTR below.
+        {settlement.bankName ? ` (${settlement.bankName})` : ''} and confirm with UTR below.
       </div>
 
-      <div className="flex gap-2">
+      <div style={{ display: 'flex', gap: 10 }}>
         <button
           onClick={() => onCancel(settlement)}
-          className="flex-1 text-sm font-medium text-red-600 hover:bg-red-50 py-2 rounded-xl transition-colors border border-red-100"
+          style={{
+            flex: 1, fontSize: 13, fontWeight: 600, color: '#ef4444',
+            background: 'transparent', border: '1px solid #fecaca',
+            padding: '9px', borderRadius: 12, cursor: 'pointer',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#fff1f2'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
         >
           Cancel
         </button>
         <Button
           variant="primary"
           size="sm"
-          className="flex-grow"
+          style={{ flex: 2 }}
           onClick={() => onConfirm(settlement)}
         >
           Confirm with UTR
@@ -459,69 +521,84 @@ function ProcessingCard({ settlement, onConfirm, onCancel }) {
   )
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function SettlementsPage() {
   const toast   = useToast()
   const mounted = useMounted()
 
-  const [tab,                setTab]                = useState('pending')
-  const [page,               setPage]               = useState(1)
-  const [initiatingAll,      setInitiatingAll]      = useState(false)
-  const [settledResult,      setSettledResult]      = useState({})
+  const [tab,               setTab]               = useState('pending')
+  const [page,              setPage]               = useState(1)
+  const [initiatingAll,     setInitiatingAll]      = useState(false)
 
-  // Transfer instructions modal
-  const [instructionsModal,  setInstructionsModal]  = useState(false)
-  const [instructionsData,   setInstructionsData]   = useState(null)
+  // ✅ Track which entity IDs have been initiated this session
+  const [initiatedIds,      setInitiatedIds]       = useState(new Set())
+  // ✅ Track which entity ID is currently being initiated (for loading state)
+  const [initiatingId,      setInitiatingId]       = useState(null)
 
-  // UTR confirm modal
-  const [utrModal,           setUtrModal]           = useState(false)
-  const [selectedSettlement, setSelectedSettlement] = useState(null)
+  const [instructionsModal, setInstructionsModal]  = useState(false)
+  const [instructionsData,  setInstructionsData]   = useState(null)
+  const [utrModal,          setUtrModal]           = useState(false)
+  const [selectedSett,      setSelectedSett]       = useState(null)
+  const [dlId,              setDlId]               = useState(null)
 
-  // Download
-  const [dlId, setDlId] = useState(null)
-
-  // ── SWR ────────────────────────────────────────────────────────────────────
-  const { data: pending, isLoading: pendingLoading, mutate: mutatePending } = useSWR(
+  // ── SWR ──────────────────────────────────────────────────────────────────
+  const {
+    data: pending,
+    isLoading: pendingLoading,
+    mutate: mutatePending,
+  } = useSWR(
     tab === 'pending' ? '/api/settlements/pending' : null,
     fetcher,
-    { refreshInterval: 30000 }
+    { refreshInterval: 60000 }   // refresh every 60s, not 30s (less aggressive)
   )
 
-  const historyQs = new URLSearchParams({
-    page,
-    limit:  20,
-    status: tab === 'failed'     ? 'failed'
-          : tab === 'processing' ? 'processing'
-          : 'completed',
-  })
-  const { data: history, isLoading: historyLoading, mutate: mutateHistory } = useSWR(
-    tab !== 'pending' ? `/api/settlements?${historyQs}` : null,
-    fetcher
-  )
-
-  // Build pending entity list from API
-  const pendingHospitals = (pending?.hospitals || []).map((h) => ({
-    ...h,
-    entityType: 'hospital',
-    entityId:   h.id,
-  }))
-  const pendingLabs = (pending?.labs || []).map((l) => ({
-    ...l,
-    entityType: 'lab',
-    entityId:   l.id,
-  }))
-  const pendingEntities = [...pendingHospitals, ...pendingLabs]
-
-  // Count processing settlements from history
-  const { data: processingData, mutate: mutateProcessing } = useSWR(
+  const {
+    data: processingData,
+    mutate: mutateProcessing,
+  } = useSWR(
     '/api/settlements?status=processing&limit=50',
     fetcher,
     { refreshInterval: 30000 }
   )
+
+  const historyStatus = tab === 'failed' ? 'failed' : 'completed'
+  const historyQs     = new URLSearchParams({ page, limit: 20, status: historyStatus })
+  const {
+    data: history,
+    isLoading: historyLoading,
+    mutate: mutateHistory,
+  } = useSWR(
+    (tab === 'history' || tab === 'failed')
+      ? `/api/settlements?${historyQs}`
+      : null,
+    fetcher
+  )
+
+  // Build pending entity list
+  const pendingHospitals = (pending?.hospitals || []).map((h) => ({
+    ...h, entityType: 'hospital', entityId: h.id,
+  }))
+  const pendingLabs = (pending?.labs || []).map((l) => ({
+    ...l, entityType: 'lab', entityId: l.id,
+  }))
+  // ✅ Show ALL entities — but mark initiated ones differently
+  const pendingEntities    = [...pendingHospitals, ...pendingLabs]
   const processingSttlmnts = processingData?.settlements || []
 
-  // ── Initiate single settlement ────────────────────────────────────────────
+  // When tab changes to processing, clear initiated IDs
+  // (they are now visible in processing tab)
+  useEffect(() => {
+    if (tab === 'processing') {
+      setInitiatedIds(new Set())
+    }
+  }, [tab])
+
+  // ── Initiate single ────────────────────────────────────────────────────────
   const handleInitiate = async (entity) => {
+    const key = entity.entityId
+
+    setInitiatingId(key)
     try {
       const res  = await fetch('/api/settlements/initiate', {
         method:      'POST',
@@ -539,24 +616,31 @@ export default function SettlementsPage() {
         return
       }
 
-      setInstructionsData(json.data.transferInstructions)
+      // ✅ Mark this entity as initiated immediately
+      setInitiatedIds((prev) => new Set([...prev, key]))
+
+      setInstructionsData(json.data?.transferInstructions || json.data)
       setInstructionsModal(true)
+
       mutatePending()
       mutateProcessing()
       toast.success('Settlement initiated — please complete bank transfer')
     } catch {
       toast.error('Failed to initiate settlement')
+    } finally {
+      setInitiatingId(null)
     }
   }
 
-  // ── Initiate all ──────────────────────────────────────────────────────────
+  // ── Initiate all ───────────────────────────────────────────────────────────
   const handleInitiateAll = async () => {
-    const eligible = pendingEntities.filter((e) => e.bankAccount?.isVerified)
+    const eligible = pendingEntities.filter(
+      (e) => e.bankAccount?.isVerified && !initiatedIds.has(e.entityId)
+    )
     if (eligible.length === 0) {
-      toast.error('No entities with verified bank accounts')
+      toast.error('No eligible entities with verified bank accounts')
       return
     }
-
     setInitiatingAll(true)
     try {
       const res  = await fetch('/api/settlements/initiate-all', {
@@ -577,8 +661,15 @@ export default function SettlementsPage() {
         return
       }
 
+      // ✅ Mark all eligible entities as initiated
+      setInitiatedIds((prev) => {
+        const next = new Set(prev)
+        eligible.forEach((e) => next.add(e.entityId))
+        return next
+      })
+
       toast.success(
-        `Initiated ${json.data.successful}/${json.data.total} settlements. ` +
+        `Initiated ${json.data?.successful || eligible.length}/${eligible.length} settlements. ` +
         `Go to Processing tab to confirm with UTR.`
       )
       mutatePending()
@@ -590,31 +681,28 @@ export default function SettlementsPage() {
     }
   }
 
-  // ── UTR confirmed callback ────────────────────────────────────────────────
+  // ── UTR confirmed ──────────────────────────────────────────────────────────
   const handleUTRConfirmed = () => {
     mutateProcessing()
     mutateHistory()
     mutatePending()
   }
 
-  // ── Cancel processing settlement ─────────────────────────────────────────
+  // ── Cancel processing settlement ───────────────────────────────────────────
   const handleCancelSettlement = async (settlement) => {
-    const reason = prompt('Reason for cancellation?')
-    if (!reason) return
-
+    const reason = prompt('Reason for cancellation (required):')
+    if (!reason?.trim()) return
     try {
       const res  = await fetch(`/api/settlements/${settlement.id}/cancel`, {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body:        JSON.stringify({ reason }),
+        body:        JSON.stringify({ reason: reason.trim() }),
       })
       const json = await res.json()
-
       json.success
         ? toast.success('Settlement cancelled')
         : toast.error(json.error || 'Cancel failed')
-
       mutateProcessing()
       mutateHistory()
       mutatePending()
@@ -623,7 +711,7 @@ export default function SettlementsPage() {
     }
   }
 
-  // ── Download PDF ──────────────────────────────────────────────────────────
+  // ── Download ───────────────────────────────────────────────────────────────
   const handleDownload = async (settlementId, settlementNumber) => {
     setDlId(settlementId)
     try {
@@ -639,7 +727,7 @@ export default function SettlementsPage() {
       const url  = URL.createObjectURL(blob)
       const a    = document.createElement('a')
       a.href     = url
-      a.download = `MEDLI-Settlement-${settlementNumber}.pdf`
+      a.download = `MEDLI-Settlement-${settlementNumber}.csv`
       document.body.appendChild(a); a.click(); a.remove()
       URL.revokeObjectURL(url)
       toast.success('Downloaded')
@@ -650,7 +738,7 @@ export default function SettlementsPage() {
     }
   }
 
-  // ── Retry failed settlement ───────────────────────────────────────────────
+  // ── Retry failed ───────────────────────────────────────────────────────────
   const retrySettlement = async (settlement) => {
     try {
       const res  = await fetch('/api/settlements/initiate', {
@@ -663,13 +751,8 @@ export default function SettlementsPage() {
         }),
       })
       const json = await res.json()
-
-      if (!json.success) {
-        toast.error(json.error || 'Retry failed')
-        return
-      }
-
-      setInstructionsData(json.data.transferInstructions)
+      if (!json.success) { toast.error(json.error || 'Retry failed'); return }
+      setInstructionsData(json.data?.transferInstructions || json.data)
       setInstructionsModal(true)
       mutateHistory()
       mutateProcessing()
@@ -679,111 +762,113 @@ export default function SettlementsPage() {
     }
   }
 
-  // ── Tab definitions ───────────────────────────────────────────────────────
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  // ✅ Show non-initiated count in pending tab
+  const notYetInitiated = pendingEntities.filter((e) => !initiatedIds.has(e.entityId))
+
   const tabs = [
-    {
-      key:   'pending',
-      label: 'Pending',
-      count: pendingEntities.length,
-    },
-    {
-      key:   'processing',
-      label: 'Processing',
-      count: processingSttlmnts.length,
-    },
-    { key: 'history', label: 'Completed' },
-    { key: 'failed',  label: 'Failed'    },
+    { key: 'pending',    label: 'Pending',    count: notYetInitiated.length    },
+    { key: 'processing', label: 'Processing', count: processingSttlmnts.length },
+    { key: 'history',    label: 'Completed'                                    },
+    { key: 'failed',     label: 'Failed'                                       },
   ]
 
-  // ── History table columns ─────────────────────────────────────────────────
+  // ── History table columns ──────────────────────────────────────────────────
   const historyCols = [
     {
-      key:    'settlementNumber',
-      header: 'Settlement #',
+      key: 'settlementNumber', header: 'Settlement #',
       render: (v) => (
-        <span className="font-mono text-xs font-bold text-gray-700">{v}</span>
+        <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#374151' }}>
+          {v}
+        </span>
       ),
     },
     {
-      key:    'entityName',
-      header: 'Entity',
+      key: 'entityName', header: 'Entity',
       render: (v, row) => (
         <div>
-          <p className="text-sm font-medium text-gray-800">{v || '—'}</p>
-          <Badge
-            variant={row.entityType === 'hospital' ? 'info' : 'success'}
-            size="sm"
-          >
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: '0 0 3px' }}>
+            {v || '—'}
+          </p>
+          <Badge variant={row.entityType === 'hospital' ? 'info' : 'success'} size="sm">
             {row.entityType}
           </Badge>
         </div>
       ),
     },
     {
-      key:    'netSettlementAmount',
-      header: 'Net Amount',
+      key: 'netSettlementAmount', header: 'Net Amount',
       render: (v) => (
-        <span className="font-bold text-emerald-600">{fmtRs(v)}</span>
+        <span style={{ fontWeight: 700, color: '#059669', fontSize: 14 }}>
+          {fmtRs(v)}
+        </span>
       ),
     },
     {
-      key:    'utrNumber',
-      header: 'UTR',
+      key: 'utrNumber', header: 'UTR',
       render: (v) => v
-        ? <span className="font-mono text-xs text-gray-700">{v}</span>
-        : <span className="text-gray-400 text-xs">—</span>,
+        ? <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#374151' }}>{v}</span>
+        : <span style={{ color: '#94a3b8', fontSize: 12 }}>—</span>,
     },
     {
-      key:    'transferMode',
-      header: 'Mode',
+      key: 'transferMode', header: 'Mode',
       render: (v) => v || '—',
     },
     {
-      key:    'status',
-      header: 'Status',
+      key: 'status', header: 'Status',
       render: (v) => (
         <Badge
-          variant={
-            v === 'completed' ? 'success'
-            : v === 'failed'  ? 'danger'
-            : 'warning'
-          }
-          size="sm"
-          dot
+          variant={v === 'completed' ? 'success' : v === 'failed' ? 'danger' : 'warning'}
+          size="sm" dot
         >
           {v}
         </Badge>
       ),
     },
     {
-      key:    'transferredAt',
-      header: 'Date',
+      key: 'transferredAt', header: 'Date',
       render: (v) =>
         mounted && v
           ? new Date(v).toLocaleDateString('en-IN', { dateStyle: 'medium' })
           : '—',
     },
     {
-      key:    'actions',
-      header: '',
+      key: 'actions', header: '',
       render: (_, row) => (
-        <div className="flex items-center gap-1.5">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             onClick={() => handleDownload(row.id, row.settlementNumber)}
             disabled={dlId === row.id}
-            className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 12, fontWeight: 600, color: '#2563eb',
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '5px 8px', borderRadius: 8,
+              opacity: dlId === row.id ? 0.5 : 1,
+            }}
           >
             {dlId === row.id
-              ? <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-              : <Download className="w-3.5 h-3.5" />}
-            PDF
+              ? <span style={{
+                  width: 12, height: 12,
+                  border: '2px solid #60a5fa', borderTopColor: 'transparent',
+                  borderRadius: '50%', animation: 'bk-spin .7s linear infinite',
+                  display: 'inline-block',
+                }} />
+              : <Download style={{ width: 13, height: 13 }} />
+            }
+            CSV
           </button>
           {tab === 'failed' && row.status === 'failed' && (
             <button
               onClick={() => retrySettlement(row)}
-              className="flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 px-2 py-1.5 rounded-lg hover:bg-amber-50 transition-colors"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontSize: 12, fontWeight: 600, color: '#d97706',
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '5px 8px', borderRadius: 8,
+              }}
             >
-              <RotateCcw className="w-3.5 h-3.5" /> Retry
+              <RotateCcw style={{ width: 13, height: 13 }} /> Retry
             </button>
           )}
         </div>
@@ -791,8 +876,11 @@ export default function SettlementsPage() {
     },
   ]
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div>
+      <style>{`@keyframes bk-spin{to{transform:rotate(360deg)}}`}</style>
+
       <AdminHeader
         title="Settlements"
         subtitle="Manage provider settlements manually"
@@ -812,28 +900,33 @@ export default function SettlementsPage() {
       {/* ── PENDING TAB ── */}
       {tab === 'pending' && (
         <div>
-          {/* Stats row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          {/* Stats */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))',
+            gap: 16, marginBottom: 24,
+          }}>
             <StatsCard
               title="Pending Entities"
-              value={pendingEntities.length}
-              icon={<Clock className="w-5 h-5" />}
+              value={notYetInitiated.length}
+              icon={<Clock style={{ width: 20, height: 20 }} />}
               color="orange"
             />
             <StatsCard
-              title="Processing Settlements"
+              title="Processing"
               value={processingSttlmnts.length}
-              icon={<Banknote className="w-5 h-5" />}
+              icon={<Banknote style={{ width: 20, height: 20 }} />}
               color="blue"
             />
-            {/* Initiate all card */}
-            <div
-              className="bg-white rounded-2xl border border-gray-100 p-5 flex items-center justify-between"
-              style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
-            >
+            <div style={{
+              background: '#fff', borderRadius: 20, border: '1px solid #f1f5f9',
+              padding: '16px 20px', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            }}>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Bulk Action</p>
-                <p className="text-sm font-medium text-gray-800">
+                <p style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Bulk Action</p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: 0 }}>
                   Initiate all pending
                 </p>
               </div>
@@ -842,54 +935,94 @@ export default function SettlementsPage() {
                 size="sm"
                 loading={initiatingAll}
                 onClick={handleInitiateAll}
-                disabled={pendingEntities.length === 0 || initiatingAll}
+                disabled={notYetInitiated.length === 0 || initiatingAll}
               >
                 Initiate All
               </Button>
             </div>
           </div>
 
-          {/* How it works banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-            <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-700 space-y-1">
-              <p className="font-semibold">Manual Settlement Flow</p>
-              <p>
-                1. Click <strong>Initiate Settlement</strong> — system shows bank transfer details.
-              </p>
-              <p>
-                2. Transfer the amount from your bank to the provider.
-              </p>
-              <p>
-                3. Go to <strong>Processing</strong> tab → click{' '}
-                <strong>Confirm with UTR</strong> → enter the UTR number.
+          {/* How it works */}
+          <div style={{
+            background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 14,
+            padding: '14px 18px', marginBottom: 24,
+            display: 'flex', gap: 12,
+          }}>
+            <Info style={{ width: 16, height: 16, color: '#2563eb', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontSize: 13, color: '#1d4ed8', lineHeight: 1.7 }}>
+              <p style={{ fontWeight: 700, margin: '0 0 4px' }}>Manual Settlement Flow</p>
+              <p style={{ margin: 0 }}>
+                1. Click <strong>Initiate Settlement</strong> → system shows bank transfer details.&nbsp;
+                2. Transfer the amount from your bank.&nbsp;
+                3. Go to <strong>Processing</strong> tab → <strong>Confirm with UTR</strong>.
               </p>
             </div>
           </div>
 
+          {/* Initiated banner */}
+          {initiatedIds.size > 0 && (
+            <div style={{
+              background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 14,
+              padding: '12px 18px', marginBottom: 20,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Clock style={{ width: 16, height: 16, color: '#d97706' }} />
+                <p style={{ fontSize: 13, color: '#92400e', margin: 0 }}>
+                  <strong>{initiatedIds.size}</strong> settlement{initiatedIds.size > 1 ? 's' : ''} initiated.
+                  Go to <strong>Processing</strong> tab to confirm with UTR numbers.
+                </p>
+              </div>
+              <button
+                onClick={() => { setTab('processing') }}
+                style={{
+                  fontSize: 12, fontWeight: 700, color: '#92400e',
+                  background: '#fde68a', border: 'none',
+                  padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                View Processing →
+              </button>
+            </div>
+          )}
+
+          {/* Entity cards */}
           {pendingLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
+              gap: 16,
+            }}>
               {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-2xl border border-gray-100 p-6 h-64 animate-pulse"
-                />
+                <div key={i} style={{
+                  background: '#f8fafc', borderRadius: 20,
+                  height: 280, opacity: 0.6,
+                }} />
               ))}
             </div>
           ) : pendingEntities.length === 0 ? (
             <Card>
-              <div className="flex items-center gap-3 py-10 px-6">
-                <CheckCircle className="w-8 h-8 text-emerald-500 flex-shrink-0" />
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '32px 24px',
+              }}>
+                <CheckCircle style={{ width: 32, height: 32, color: '#10b981', flexShrink: 0 }} />
                 <div>
-                  <p className="text-sm font-semibold text-emerald-800">All settled!</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#065f46', margin: '0 0 4px' }}>
+                    All settled!
+                  </p>
+                  <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
                     No pending settlements at this time.
                   </p>
                 </div>
               </div>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
+              gap: 16,
+            }}>
               {pendingEntities.map((entity, i) => (
                 <motion.div
                   key={entity.entityId}
@@ -899,8 +1032,10 @@ export default function SettlementsPage() {
                 >
                   <PendingEntityCard
                     entity={entity}
-                    result={settledResult[entity.entityId]}
                     onInitiate={handleInitiate}
+                    // ✅ Pass initiated and initiating states
+                    initiated={initiatedIds.has(entity.entityId)}
+                    initiating={initiatingId === entity.entityId}
                   />
                 </motion.div>
               ))}
@@ -914,28 +1049,31 @@ export default function SettlementsPage() {
         <div>
           {processingSttlmnts.length === 0 ? (
             <Card>
-              <div className="flex items-center gap-3 py-10 px-6">
-                <Clock className="w-8 h-8 text-gray-300 flex-shrink-0" />
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '32px 24px',
+              }}>
+                <Clock style={{ width: 32, height: 32, color: '#d1d5db', flexShrink: 0 }} />
                 <div>
-                  <p className="text-sm font-semibold text-gray-700">
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#374151', margin: '0 0 4px' }}>
                     No processing settlements
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
                     Settlements awaiting UTR confirmation will appear here.
                   </p>
                 </div>
               </div>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))',
+              gap: 16,
+            }}>
               {processingSttlmnts.map((s) => (
                 <ProcessingCard
                   key={s.id}
                   settlement={s}
-                  onConfirm={(settlement) => {
-                    setSelectedSettlement(settlement)
-                    setUtrModal(true)
-                  }}
+                  onConfirm={(sett) => { setSelectedSett(sett); setUtrModal(true) }}
                   onCancel={handleCancelSettlement}
                 />
               ))}
@@ -946,39 +1084,31 @@ export default function SettlementsPage() {
 
       {/* ── HISTORY / FAILED TAB ── */}
       {(tab === 'history' || tab === 'failed') && (
-        <div className="overflow-x-auto">
-          <DataTable
-            columns={historyCols}
-            data={history?.settlements || []}
-            loading={historyLoading}
-            page={page}
-            totalPages={history?.pagination?.totalPages || 1}
-            onPageChange={setPage}
-            emptyTitle={
-              tab === 'failed'
-                ? 'No failed settlements'
-                : 'No completed settlements'
-            }
-            keyField="id"
-          />
-        </div>
+        <DataTable
+          columns={historyCols}
+          data={history?.settlements || []}
+          loading={historyLoading}
+          page={page}
+          totalPages={history?.pagination?.totalPages || 1}
+          onPageChange={setPage}
+          emptyTitle={
+            tab === 'failed' ? 'No failed settlements' : 'No completed settlements'
+          }
+          keyField="id"
+        />
       )}
 
-      {/* ── Transfer Instructions Modal ── */}
+      {/* ── Modals ── */}
       <TransferInstructionsModal
         isOpen={instructionsModal}
         onClose={() => setInstructionsModal(false)}
         data={instructionsData}
       />
 
-      {/* ── Confirm UTR Modal ── */}
       <ConfirmUTRModal
         isOpen={utrModal}
-        onClose={() => {
-          setUtrModal(false)
-          setSelectedSettlement(null)
-        }}
-        settlement={selectedSettlement}
+        onClose={() => { setUtrModal(false); setSelectedSett(null) }}
+        settlement={selectedSett}
         onConfirmed={handleUTRConfirmed}
       />
     </div>

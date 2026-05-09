@@ -1,80 +1,65 @@
-import prisma from '@/lib/prisma'
-import { verifyAuth }                   from '@/lib/middleware/auth.middleware'
+import { NextResponse }                  from 'next/server'
+import { withAuth }                      from '@/lib/middleware/auth.middleware'
+import { prisma }                        from '@/lib/prisma'
 import { comparePassword, hashPassword } from '@/lib/utils/encryption'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
 
-export function OPTIONS() {
-  return handleOptions()
-}
+export async function POST(request) {
+  return withAuth(request, async (req, decoded) => {
+    try {
+      const { currentPassword, newPassword } = await request.json()
 
-export async function PUT(request) {
-  try {
-    const user = await verifyAuth(request)
-    const body = await request.json()
+      if (!currentPassword || !newPassword) {
+        return NextResponse.json(
+          { success: false, error: 'Both passwords are required' },
+          { status: 400 }
+        )
+      }
+      if (newPassword.length < 8) {
+        return NextResponse.json(
+          { success: false, error: 'New password must be at least 8 characters' },
+          { status: 400 }
+        )
+      }
 
-    const { oldPassword, newPassword } = body
+      const dbUser = await prisma.user.findUnique({
+        where:  { id: decoded.userId },
+        select: { id: true, passwordHash: true },  // ✅ correct field
+      })
 
-    if (!oldPassword || !newPassword) {
-      return errorResponse(
-        'Old password and new password are required',
-        'VALIDATION_ERROR',
-        400
+      if (!dbUser?.passwordHash) {
+        return NextResponse.json(
+          { success: false, error: 'No password set. Use OTP login.' },
+          { status: 400 }
+        )
+      }
+
+      const valid = await comparePassword(currentPassword, dbUser.passwordHash)
+      if (!valid) {
+        return NextResponse.json(
+          { success: false, error: 'Current password is incorrect' },
+          { status: 401 }
+        )
+      }
+
+      const newHash = await hashPassword(newPassword)
+
+      // ✅ Only update passwordHash — no refreshToken field on User
+      await prisma.user.update({
+        where: { id: decoded.userId },
+        data:  { passwordHash: newHash },
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: 'Password changed successfully. Please log in again.',
+      })
+
+    } catch (error) {
+      console.error('[POST /api/auth/change-password]', error)
+      return NextResponse.json(
+        { success: false, error: 'Internal server error' },
+        { status: 500 }
       )
     }
-
-    if (newPassword.length < 6) {
-      return errorResponse(
-        'New password must be at least 6 characters',
-        'VALIDATION_ERROR',
-        400
-      )
-    }
-
-    if (oldPassword === newPassword) {
-      return errorResponse(
-        'New password must be different from old password',
-        'VALIDATION_ERROR',
-        400
-      )
-    }
-
-    // Fetch full user with passwordHash
-    const fullUser = await prisma.user.findUnique({
-      where:  { id: user.id },
-      select: { id: true, passwordHash: true },
-    })
-
-    if (!fullUser?.passwordHash) {
-      return errorResponse(
-        'Password change not available for this account',
-        'NO_PASSWORD',
-        400
-      )
-    }
-
-    const isMatch = await comparePassword(oldPassword, fullUser.passwordHash)
-    if (!isMatch) {
-      return errorResponse('Old password is incorrect', 'INVALID_PASSWORD', 401)
-    }
-
-    const newHash = await hashPassword(newPassword)
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data:  { passwordHash: newHash },
-    })
-
-    return successResponse(
-      { message: 'Password changed successfully' },
-      'Password updated'
-    )
-  } catch (err) {
-    console.error('[Change Password]', err.message)
-
-    if (err.message.includes('token') || err.message.includes('auth')) {
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    }
-
-    return errorResponse('Failed to change password', 'SERVER_ERROR', 500)
-  }
+  })
 }

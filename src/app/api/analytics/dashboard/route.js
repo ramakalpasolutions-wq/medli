@@ -1,129 +1,144 @@
-// src/app/api/analytics/dashboard/route.js
-import prisma from '@/lib/prisma'
-import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
-import { cache } from '@/lib/cache'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { NextResponse } from 'next/server'
+import { prisma }       from '@/lib/prisma'
+import { verifyAuth }   from '@/lib/middleware/auth.middleware'
+import { checkRole }    from '@/lib/middleware/rbac.middleware'
+import { cache }        from '@/lib/cache'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+} from '@/lib/utils/apiResponse'
 
 export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
-  try {
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin', 'regional_manager')
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin', 'regional_manager')
 
-    const cacheKey = `analytics:dashboard:${user.id}`
-    const cached   = await cache.get(cacheKey)
-    if (cached) {
-      const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached
-      return successResponse(parsed, 'From cache')
-    }
+      const cacheKey = `analytics:dashboard:${user.role}:${user.userId}`
+      const cached   = await cache.get(cacheKey)
+      if (cached) return successResponse(cached)
 
-    const now        = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,  0,  0)
-    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+      const now   = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
-    const [
-      totalUsers,
-      totalHospitals,
-      totalLabs,
-      totalDoctors,
-      totalBookings,
-      confirmedBookings,
-      todayBookings,
-      todayRevenueAgg,
-      pendingSettlements,
-      pendingRefunds,
-      pendingHospitals,
-      pendingLabs,
-      rawRecentBookings,
-      bookingsByStatus,
-    ] = await Promise.all([
-      prisma.user.count({ where: { role: 'user' } }),
-      prisma.hospital.count({ where: { isApproved: true, isActive: true } }),
-      prisma.lab.count({ where: { isApproved: true, isActive: true } }),
-      prisma.doctor.count({ where: { isActive: true, isVerified: true } }),
-      prisma.booking.count(),
-      prisma.booking.count({ where: { status: 'confirmed' } }),
-      prisma.booking.count({ where: { createdAt: { gte: todayStart, lte: todayEnd } } }),
-      prisma.booking.aggregate({
-        where: { createdAt: { gte: todayStart, lte: todayEnd }, paymentStatus: 'paid' },
-        _sum:  { totalAmount: true },
-      }),
-      prisma.settlement.count({ where: { status: 'pending' } }),
-      prisma.refund.count({ where: { status: 'pending' } }),
-      prisma.hospital.count({ where: { isApproved: false, isActive: true } }),
-      prisma.lab.count({ where: { isApproved: false, isActive: true } }),
-      // ✅ Recent bookings — fetch raw first, then attach names
-      prisma.booking.findMany({
-        orderBy: { createdAt: 'desc' },
-        take:    10,
-        select: {
-          id:            true,
-          bookingId:     true,
-          userId:        true,
-          type:          true,
-          status:        true,
-          paymentStatus: true,
-          totalAmount:   true,
-          createdAt:     true,
-        },
-      }),
-      prisma.booking.groupBy({
-        by:     ['status'],
-        _count: { _all: true },
-      }),
-    ])
-
-    // ── Attach user names to recent bookings ──────────────────────────────────
-    const recentUserIds = [...new Set(rawRecentBookings.map((b) => b.userId).filter(Boolean))]
-    const recentUsers   = recentUserIds.length > 0
-      ? await prisma.user.findMany({
-          where:  { id: { in: recentUserIds } },
-          select: { id: true, name: true },
-        })
-      : []
-    const recentUserMap  = Object.fromEntries(recentUsers.map((u) => [u.id, u]))
-    const recentBookings = rawRecentBookings.map((b) => ({
-      ...b,
-      userName: recentUserMap[b.userId]?.name || null,
-    }))
-
-    const data = {
-      overview: {
+      // ── Overview counts ─────────────────────────────────────────────
+      const [
         totalUsers,
         totalHospitals,
         totalLabs,
         totalDoctors,
         totalBookings,
         confirmedBookings,
-      },
-      today: {
-        bookings: todayBookings,
-        revenue:  todayRevenueAgg._sum.totalAmount || 0,
-      },
-      alerts: {
-        pendingSettlements,
-        pendingRefunds,
+      ] = await Promise.all([
+        prisma.user.count(),
+        prisma.hospital.count({ where: { isApproved: true } }),
+        prisma.lab.count({ where: { isApproved: true } }),
+        prisma.doctor.count({ where: { isVerified: true } }),
+        prisma.booking.count(),
+        prisma.booking.count({ where: { status: 'confirmed' } }),
+      ])
+
+      // ── Today stats ─────────────────────────────────────────────────
+      const [todayBookings, todayRevenue] = await Promise.all([
+        prisma.booking.count({
+          where: { createdAt: { gte: today } },
+        }),
+        prisma.booking.findMany({
+          where:  {
+            createdAt:     { gte: today },
+            paymentStatus: 'paid',
+          },
+          select: { totalAmount: true },
+        }).then((b) => b.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0)),
+      ])
+
+      // ── Alerts ──────────────────────────────────────────────────────
+      const [
         pendingHospitals,
         pendingLabs,
-      },
-      recentBookings,
-      bookingsByStatus: bookingsByStatus.map((b) => ({
-        status: b.status,
-        count:  b._count._all,
-      })),
-      timestamp: new Date().toISOString(),
-    }
+        pendingSettlements,
+        pendingRefunds,
+      ] = await Promise.all([
+        prisma.hospital.count({ where: { isApproved: false } }),
+        prisma.lab.count({ where: { isApproved: false } }),
+        prisma.settlement.count({ where: { status: 'pending' } }),
+        prisma.refund.count({ where: { status: 'pending' } }),
+      ])
 
-    await cache.set(cacheKey, JSON.stringify(data), 60)
-    return successResponse(data)
-  } catch (err) {
-    console.error('[Analytics Dashboard]', err.message)
-    if (err.message?.includes('token') || err.message?.includes('auth'))
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    if (err.message?.includes('Access denied'))
-      return errorResponse(err.message, 'FORBIDDEN', 403)
-    return errorResponse('Failed to fetch analytics', 'SERVER_ERROR', 500)
-  }
+      // ── Recent bookings ─────────────────────────────────────────────
+      const recentBookingsRaw = await prisma.booking.findMany({
+        take:    10,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id:          true,
+          bookingId:   true,
+          userId:      true,
+          type:        true,
+          status:      true,
+          totalAmount: true,
+          createdAt:   true,
+        },
+      })
+
+      // Attach user names
+      const userIds = [...new Set(recentBookingsRaw.map((b) => b.userId))]
+      const users   = await prisma.user.findMany({
+        where:  { id: { in: userIds } },
+        select: { id: true, name: true },
+      })
+      const userMap = Object.fromEntries(users.map((u) => [u.id, u.name]))
+
+      const recentBookings = recentBookingsRaw.map((b) => ({
+        ...b,
+        userName: userMap[b.userId] || 'Unknown',
+      }))
+
+      // ── Bookings by status ──────────────────────────────────────────
+      const statusGroups = await prisma.booking.groupBy({
+        by:      ['status'],
+        _count:  { status: true },
+      })
+      const bookingsByStatus = statusGroups.map((g) => ({
+        status: g.status,
+        count:  g._count.status,
+      }))
+
+      const result = {
+        overview: {
+          totalUsers,
+          totalHospitals,
+          totalLabs,
+          totalDoctors,
+          totalBookings,
+          confirmedBookings,
+        },
+        today: {
+          bookings: todayBookings,
+          revenue:  todayRevenue,
+        },
+        alerts: {
+          pendingHospitals,
+          pendingLabs,
+          pendingSettlements,
+          pendingRefunds,
+        },
+        recentBookings,
+        bookingsByStatus,
+      }
+
+      // Cache for 60 seconds
+      await cache.set(cacheKey, result, 60)
+
+      return successResponse(result)
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[GET /api/analytics/dashboard]', error)
+      return errorResponse('Internal server error', 500)
+    }
+  })
 }

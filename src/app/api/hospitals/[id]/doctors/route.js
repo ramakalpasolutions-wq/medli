@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
 
 export function OPTIONS() {

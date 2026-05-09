@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { checkRole } from '@/lib/middleware/rbac.middleware'
 import { smsQueue, emailQueue, pushQueue } from '@/lib/queues/setup'

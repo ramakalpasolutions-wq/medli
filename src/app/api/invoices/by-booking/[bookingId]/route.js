@@ -1,6 +1,6 @@
 // src/app/api/invoices/by-booking/[bookingId]/route.js
 // ── Redirect helper: find invoice by bookingId, return invoice id ──────────
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
 

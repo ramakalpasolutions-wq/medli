@@ -4,7 +4,7 @@
 // Handles: createOrder, processCallback, verifyTransaction, refund
 // ─────────────────────────────────────────────────────────────────────────────
 
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import {
   onePayEncrypt,
   onePayDecrypt,

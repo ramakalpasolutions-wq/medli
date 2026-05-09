@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { validateCoupon } from './coupon.service'
 
 function round2(n) {

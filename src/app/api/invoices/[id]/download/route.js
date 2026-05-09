@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { generateInvoicePDF } from '@/lib/services/pdf.service'
 import { errorResponse, handleOptions } from '@/lib/utils/apiResponse'

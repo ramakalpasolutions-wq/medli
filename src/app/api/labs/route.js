@@ -1,114 +1,172 @@
-// src/app/api/labs/route.js
-import prisma from '@/lib/prisma'
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
-import { getPaginationParams, slugify } from '@/lib/utils/helpers'
-import { sanitizeInput } from '@/lib/utils/validators'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { checkRole }  from '@/lib/middleware/rbac.middleware'
+import {
+  getPaginationParams,
+  slugify,
+  buildPaginationMeta,
+} from '@/lib/utils/helpers'
+import {
+  sanitizeInput,
+  sanitizeName,
+  validateRequired,
+} from '@/lib/utils/validators'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+  paginatedResponse,
+} from '@/lib/utils/apiResponse'
 
 export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const adminOnly = searchParams.get('adminOnly') === 'true'
+    const search    = sanitizeInput(searchParams.get('search') || '')
+    const city      = sanitizeInput(searchParams.get('city')   || '')
+    const state     = sanitizeInput(searchParams.get('state')  || '')
+    const isApproved = searchParams.get('isApproved')
+    const isActive   = searchParams.get('isActive')
+    const adminOnly  = searchParams.get('adminOnly') === 'true'
 
-    // ✅ adminOnly — return only the lab for the logged-in lab_admin
-    if (adminOnly) {
-      const user = await verifyAuth(request)
-      const lab  = await prisma.lab.findFirst({
-        where: { adminUserId: user.id },
-      })
-      return successResponse({
-        labs:       lab ? [lab] : [],
-        pagination: { page: 1, limit: 1, total: lab ? 1 : 0, totalPages: lab ? 1 : 0 },
-      })
-    }
-
-    // Public listing
-    const { skip, take, page, limit } = getPaginationParams(
+    const { page, limit, skip, take } = getPaginationParams(
       searchParams.get('page'),
-      searchParams.get('limit')
+      searchParams.get('limit'),
     )
 
-    const city       = searchParams.get('city')
-    const state      = searchParams.get('state')
-    const isApproved = searchParams.get('isApproved')
-    const search     = searchParams.get('search')
+    if (adminOnly) {
+      return verifyAuth(request, async (req, user) => {
+        const lab = await prisma.lab.findFirst({
+          where: { adminUserId: user.userId },
+        })
+        return successResponse({
+          labs:       lab ? [lab] : [],
+          pagination: { page: 1, limit: 1, total: lab ? 1 : 0, totalPages: 1 },
+        })
+      })
+    }
 
     const where = {}
 
-    if (city) {
-      where.address = { is: { city: { equals: city, mode: 'insensitive' } } }
-    }
-    if (state) {
-      where.address = {
-        ...where.address,
-        is: { ...(where.address?.is || {}), state: { equals: state, mode: 'insensitive' } },
-      }
-    }
-    if (isApproved !== null && isApproved !== undefined && isApproved !== '') {
-      where.isApproved = isApproved === 'true'
-    }
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { slug: { contains: search.toLowerCase() } },
+        { slug: { contains: search, mode: 'insensitive' } },
       ]
     }
 
+    const addressFilter = {}
+    if (city)  addressFilter.city  = { equals: city,  mode: 'insensitive' }
+    if (state) addressFilter.state = { equals: state, mode: 'insensitive' }
+    if (Object.keys(addressFilter).length > 0) {
+      where.address = { is: addressFilter }
+    }
+
+    if (isApproved !== null && isApproved !== '' && isApproved !== undefined) {
+      where.isApproved = isApproved === 'true'
+    }
+    if (isActive !== null && isActive !== '' && isActive !== undefined) {
+      where.isActive = isActive === 'true'
+    }
+
+    const hasToken =
+      !!request.headers.get('authorization') ||
+      !!request.cookies.get('accessToken')?.value
+
+    if (!hasToken) {
+      where.isApproved = true
+      where.isActive   = true
+    }
+
     const [labs, total] = await Promise.all([
-      prisma.lab.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+      prisma.lab.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id:                 true,
+          name:               true,
+          slug:               true,
+          address:            true,
+          location:           true,
+          images:             true,
+          certifications:     true,
+          homeCollection:     true,
+          walkInSlots:        true,
+          contactPhone:       true,
+          contactEmail:       true,
+          rating:             true,
+          isApproved:         true,
+          isActive:           true,
+          platformFeePercent: true,
+          adminUserId:        true,
+          regionId:           true,
+          createdAt:          true,
+          updatedAt:          true,
+        },
+      }),
       prisma.lab.count({ where }),
     ])
 
-    return successResponse({
+    return paginatedResponse(
       labs,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    })
-  } catch (err) {
-    console.error('[Labs GET]', err.message)
-    if (err.message?.includes('token') || err.message?.includes('Unauthorized'))
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    return errorResponse('Failed to fetch labs', 'SERVER_ERROR', 500)
+      buildPaginationMeta(total, page, limit),
+      'labs',
+    )
+
+  } catch (error) {
+    console.error('[GET /api/labs]', error)
+    return errorResponse('Internal server error', 500)
   }
 }
 
 export async function POST(request) {
-  try {
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin')
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin', 'regional_manager')
 
-    const body = await request.json()
-    if (!body.name) return errorResponse('Lab name is required', 'VALIDATION_ERROR', 400)
+      const body    = await request.json()
+      const missing = validateRequired(body, ['name'])
+      if (missing.length) return errorResponse(`Missing: ${missing.join(', ')}`, 400)
 
-    const slug     = slugify(body.name)
-    const existing = await prisma.lab.findUnique({ where: { slug } })
-    if (existing) return errorResponse('Lab with this name already exists', 'DUPLICATE', 409)
+      const name = sanitizeName(body.name)
+      if (!name) return errorResponse('Invalid lab name', 400)
 
-    const lab = await prisma.lab.create({
-      data: {
-        name:               sanitizeInput(body.name),
-        slug,
-        address:            body.address            || null,
-        location:           body.location           || null,
-        images:             body.images             || null,
-        certifications:     body.certifications     || [],
-        homeCollection:     body.homeCollection     || null,
-        walkInSlots:        body.walkInSlots        || [],
-        contactPhone:       body.contactPhone       || null,
-        contactEmail:       body.contactEmail       || null,
-        adminUserId:        body.adminUserId        || null,
-        regionId:           body.regionId           || null,
-        platformFeePercent: body.platformFeePercent ?? parseFloat(process.env.DEFAULT_PLATFORM_FEE_LAB || '8'),
-      },
-    })
+      let slug     = slugify(name)
+      const exists = await prisma.lab.findUnique({ where: { slug } })
+      if (exists)  slug = `${slug}-${Date.now()}`
 
-    return successResponse(lab, 'Lab created', 201)
-  } catch (err) {
-    console.error('[Labs POST]', err.message)
-    if (err.message?.includes('Access denied') || err.message?.includes('token'))
-      return errorResponse(err.message, 'AUTH_ERROR', 403)
-    return errorResponse('Failed to create lab', 'SERVER_ERROR', 500)
-  }
+      const lab = await prisma.lab.create({
+        data: {
+          name,
+          slug,
+          address:            body.address         || undefined,
+          location:           body.location         || undefined,
+          images:             body.images           || undefined,
+          certifications:     body.certifications   || [],
+          homeCollection:     body.homeCollection   || undefined,
+          walkInSlots:        body.walkInSlots      || [],
+          contactPhone:       sanitizeInput(body.contactPhone || ''),
+          contactEmail:       sanitizeInput(body.contactEmail || ''),
+          adminUserId:        body.adminUserId       || undefined,
+          regionId:           body.regionId          || undefined,
+          platformFeePercent: Number(body.platformFeePercent) ||
+                              parseFloat(process.env.DEFAULT_PLATFORM_FEE_LAB || '8'),
+          isApproved: false,
+          isActive:   true,
+        },
+      })
+
+      return successResponse(lab, 'Lab created successfully', 201)
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[POST /api/labs]', error)
+      return errorResponse('Internal server error', 500)
+    }
+  })
 }

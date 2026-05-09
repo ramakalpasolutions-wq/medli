@@ -1,45 +1,76 @@
-import prisma from '@/lib/prisma'
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { getPaginationParams } from '@/lib/utils/helpers'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import {
+  getPaginationParams,
+  buildPaginationMeta,
+  generateInvoiceNumber,
+} from '@/lib/utils/helpers'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+  paginatedResponse,
+} from '@/lib/utils/apiResponse'
 
 export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
-  try {
-    const user = await verifyAuth(request)
-    const { searchParams } = new URL(request.url)
-    const { skip, take, page, limit } = getPaginationParams(
-      searchParams.get('page'), searchParams.get('limit')
-    )
+  return verifyAuth(request, async (req, user) => {
+    try {
+      const { searchParams } = new URL(request.url)
+      const type = searchParams.get('type') || ''
 
-    const where = {}
+      const { page, limit, skip, take } = getPaginationParams(
+        searchParams.get('page'),
+        searchParams.get('limit'),
+      )
 
-    if (user.role === 'user') {
-      where.userId = user.id
-    } else if (user.role === 'hospital_admin') {
-      const hospital = await prisma.hospital.findFirst({ where: { adminUserId: user.id } })
-      if (hospital) { where.entityType = 'hospital'; where.entityId = hospital.id }
-    } else if (user.role === 'lab_admin') {
-      const lab = await prisma.lab.findFirst({ where: { adminUserId: user.id } })
-      if (lab) { where.entityType = 'lab'; where.entityId = lab.id }
-    } else if (!['super_admin', 'regional_manager'].includes(user.role)) {
-      return errorResponse('Access denied', 'FORBIDDEN', 403)
+      const where = {}
+
+      // Role-based access
+      if (user.role === 'user') {
+        where.userId = user.userId
+      } else if (user.role === 'hospital_admin') {
+        const hospital = await prisma.hospital.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true },
+        })
+        if (hospital) {
+          where.entityType = 'hospital'
+          where.entityId   = hospital.id
+        }
+      } else if (user.role === 'lab_admin') {
+        const lab = await prisma.lab.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true },
+        })
+        if (lab) {
+          where.entityType = 'lab'
+          where.entityId   = lab.id
+        }
+      }
+
+      if (type) where.type = type
+
+      const [invoices, total] = await Promise.all([
+        prisma.invoice.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.invoice.count({ where }),
+      ])
+
+      return paginatedResponse(
+        invoices,
+        buildPaginationMeta(total, page, limit),
+        'invoices',
+      )
+
+    } catch (error) {
+      console.error('[GET /api/invoices]', error)
+      return errorResponse('Internal server error', 500)
     }
-
-    const [invoices, total] = await Promise.all([
-      prisma.invoice.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
-      prisma.invoice.count({ where }),
-    ])
-
-    return successResponse({
-      invoices,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    })
-  } catch (err) {
-    console.error('[Invoices GET]', err.message)
-    if (err.message.includes('token') || err.message.includes('auth'))
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    return errorResponse('Failed to fetch invoices', 'SERVER_ERROR', 500)
-  }
+  })
 }

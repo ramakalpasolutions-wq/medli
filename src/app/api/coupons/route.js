@@ -1,102 +1,138 @@
-import prisma from '@/lib/prisma'
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { getPaginationParams } from '@/lib/utils/helpers'
+import { checkRole }  from '@/lib/middleware/rbac.middleware'
+import {
+  getPaginationParams,
+  buildPaginationMeta,
+} from '@/lib/utils/helpers'
 import { sanitizeInput } from '@/lib/utils/validators'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+  paginatedResponse,
+} from '@/lib/utils/apiResponse'
 
 export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
-  try {
-    const user = await verifyAuth(request)
-    const { searchParams } = new URL(request.url)
-    const { skip, take, page, limit } = getPaginationParams(
-      searchParams.get('page'), searchParams.get('limit')
-    )
+  return verifyAuth(request, async (req, user) => {
+    try {
+      const { searchParams } = new URL(request.url)
+      const couponType = searchParams.get('couponType') || ''
+      const isActive   = searchParams.get('isActive')
 
-    const where = {}
+      const { page, limit, skip, take } = getPaginationParams(
+        searchParams.get('page'),
+        searchParams.get('limit'),
+      )
 
-    // Role-scoped
-    if (user.role === 'hospital_admin') {
-      where.couponType = 'hospital'
-      where.createdBy = { is: { userId: user.id } }
-    } else if (user.role === 'lab_admin') {
-      where.couponType = 'lab'
-      where.createdBy = { is: { userId: user.id } }
-    } else if (!['super_admin', 'regional_manager'].includes(user.role)) {
-      return errorResponse('Access denied', 'FORBIDDEN', 403)
+      const where = {}
+      if (couponType) where.couponType = couponType
+      if (isActive !== null && isActive !== '' && isActive !== undefined) {
+        where.isActive = isActive === 'true'
+      }
+
+      // hospital_admin / lab_admin — only their coupons
+      if (user.role === 'hospital_admin') {
+        const hospital = await prisma.hospital.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true },
+        })
+        if (hospital) {
+          where.couponType  = 'hospital'
+          where.hospitalIds = { has: hospital.id }
+        }
+      } else if (user.role === 'lab_admin') {
+        const lab = await prisma.lab.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true },
+        })
+        if (lab) {
+          where.couponType = 'lab'
+          where.labIds     = { has: lab.id }
+        }
+      } else {
+        checkRole(user, 'super_admin', 'regional_manager', 'hospital_admin', 'lab_admin')
+      }
+
+      const [coupons, total] = await Promise.all([
+        prisma.coupon.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.coupon.count({ where }),
+      ])
+
+      return paginatedResponse(
+        coupons,
+        buildPaginationMeta(total, page, limit),
+        'coupons',
+      )
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[GET /api/coupons]', error)
+      return errorResponse('Internal server error', 500)
     }
-
-    const [coupons, total] = await Promise.all([
-      prisma.coupon.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
-      prisma.coupon.count({ where }),
-    ])
-
-    return successResponse({
-      coupons,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    })
-  } catch (err) {
-    console.error('[Coupons GET]', err.message)
-    if (err.message.includes('token') || err.message.includes('auth'))
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    return errorResponse('Failed to fetch coupons', 'SERVER_ERROR', 500)
-  }
+  })
 }
 
 export async function POST(request) {
-  try {
-    const user = await verifyAuth(request)
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin', 'hospital_admin', 'lab_admin')
 
-    if (!['super_admin', 'hospital_admin', 'lab_admin'].includes(user.role))
-      return errorResponse('Access denied', 'FORBIDDEN', 403)
+      const body = await request.json()
 
-    const body = await request.json()
+      if (!body.code)          return errorResponse('Code is required', 400)
+      if (!body.couponType)    return errorResponse('Coupon type is required', 400)
+      if (!body.discountType)  return errorResponse('Discount type is required', 400)
+      if (!body.discountValue) return errorResponse('Discount value is required', 400)
 
-    if (!body.code || !body.couponType || !body.discountType || body.discountValue === undefined)
-      return errorResponse('code, couponType, discountType, discountValue required', 'VALIDATION_ERROR', 400)
+      const existing = await prisma.coupon.findUnique({
+        where: { code: body.code.toUpperCase() },
+      })
+      if (existing) return errorResponse('Coupon code already exists', 409)
 
-    // Force type by role
-    let forcedType = body.couponType
-    if (user.role === 'hospital_admin') forcedType = 'hospital'
-    if (user.role === 'lab_admin') forcedType = 'lab'
-
-    const existing = await prisma.coupon.findUnique({ where: { code: body.code } })
-    if (existing) return errorResponse('Coupon code already exists', 'DUPLICATE', 409)
-
-    const coupon = await prisma.coupon.create({
-      data: {
-        code: sanitizeInput(body.code).toUpperCase(),
-        name: body.name || null,
-        description: body.description || null,
-        createdBy: {
-          role: user.role,
-          userId: user.id,
-          entityId: body.entityId || null,
-          entityName: body.entityName || null,
+      const coupon = await prisma.coupon.create({
+        data: {
+          code:              body.code.toUpperCase(),
+          name:              body.name              || undefined,
+          description:       body.description       || undefined,
+          couponType:        body.couponType,
+          discountType:      body.discountType,
+          discountValue:     Number(body.discountValue),
+          maxDiscountAmount: body.maxDiscountAmount ? Number(body.maxDiscountAmount) : undefined,
+          minOrderAmount:    Number(body.minOrderAmount)    || 0,
+          totalUsageLimit:   body.totalUsageLimit ? Number(body.totalUsageLimit) : undefined,
+          perUserLimit:      Number(body.perUserLimit)      || 1,
+          validFrom:         body.validFrom  ? new Date(body.validFrom)  : undefined,
+          validUntil:        body.validUntil ? new Date(body.validUntil) : undefined,
+          hospitalIds:       body.hospitalIds || [],
+          labIds:            body.labIds      || [],
+          isActive:          true,
+          createdBy: {
+            role:       user.role,
+            userId:     user.userId,
+            entityId:   body.entityId   || undefined,
+            entityName: body.entityName || undefined,
+          },
         },
-        couponType: forcedType,
-        discountType: body.discountType,
-        discountValue: parseFloat(body.discountValue),
-        maxDiscountAmount: body.maxDiscountAmount ? parseFloat(body.maxDiscountAmount) : null,
-        minOrderAmount: parseFloat(body.minOrderAmount || 0),
-        validFrom: body.validFrom ? new Date(body.validFrom) : null,
-        validUntil: body.validUntil ? new Date(body.validUntil) : null,
-        totalUsageLimit: body.totalUsageLimit ? parseInt(body.totalUsageLimit) : null,
-        perUserLimit: parseInt(body.perUserLimit || 1),
-        applicableFor: body.applicableFor || 'all',
-        hospitalIds: body.hospitalIds || [],
-        labIds: body.labIds || [],
-        testIds: body.testIds || [],
-        applicableBookingTypes: body.applicableBookingTypes || [],
-      },
-    })
+      })
 
-    return successResponse(coupon, 'Coupon created', 201)
-  } catch (err) {
-    console.error('[Coupons POST]', err.message)
-    if (err.message.includes('token') || err.message.includes('auth'))
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    return errorResponse('Failed to create coupon', 'SERVER_ERROR', 500)
-  }
+      return successResponse(coupon, 'Coupon created', 201)
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[POST /api/coupons]', error)
+      return errorResponse('Internal server error', 500)
+    }
+  })
 }

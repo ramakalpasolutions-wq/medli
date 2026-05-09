@@ -1,92 +1,132 @@
-import prisma from '@/lib/prisma'
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
-import { getPaginationParams } from '@/lib/utils/helpers'
+import { checkRole }  from '@/lib/middleware/rbac.middleware'
+import {
+  getPaginationParams,
+  buildPaginationMeta,
+} from '@/lib/utils/helpers'
 import { sanitizeInput } from '@/lib/utils/validators'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+  paginatedResponse,
+} from '@/lib/utils/apiResponse'
 
-export function OPTIONS() {
-  return handleOptions()
-}
+export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const { skip, take, page, limit } = getPaginationParams(
+    const search     = sanitizeInput(searchParams.get('search') || '')
+    const hospitalId = searchParams.get('hospitalId') || ''
+    const isVerified = searchParams.get('isVerified')
+    const isActive   = searchParams.get('isActive')
+
+    const { page, limit, skip, take } = getPaginationParams(
       searchParams.get('page'),
-      searchParams.get('limit')
+      searchParams.get('limit'),
     )
 
-    const hospitalId = searchParams.get('hospitalId')
-    const specialization = searchParams.get('specialization')
-    const search = searchParams.get('search')
+    const where = {}
 
-    const where = { isActive: true }
-
-    if (hospitalId) where.hospitalId = hospitalId
-    if (specialization) where.specialization = { has: specialization }
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
+        { name:           { contains: search, mode: 'insensitive' } },
+        { specialization: { has: search } },
       ]
+    }
+    if (hospitalId) where.hospitalId = hospitalId
+    if (isVerified !== null && isVerified !== '' && isVerified !== undefined) {
+      where.isVerified = isVerified === 'true'
+    }
+    if (isActive !== null && isActive !== '' && isActive !== undefined) {
+      where.isActive = isActive === 'true'
+    }
+
+    const hasToken =
+      !!request.headers.get('authorization') ||
+      !!request.cookies.get('accessToken')?.value
+
+    if (!hasToken) {
+      where.isVerified = true
+      where.isActive   = true
     }
 
     const [doctors, total] = await Promise.all([
-      prisma.doctor.findMany({ where, skip, take, orderBy: { name: 'asc' } }),
+      prisma.doctor.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id:               true,
+          userId:           true,
+          hospitalId:       true,
+          name:             true,
+          specialization:   true,
+          qualifications:   true,
+          experience:       true,
+          avatar:           true,
+          consultationFee:  true,
+          consultationTypes:true,
+          availability:     true,
+          isVerified:       true,
+          isActive:         true,
+          rating:           true,
+          createdAt:        true,
+          updatedAt:        true,
+        },
+      }),
       prisma.doctor.count({ where }),
     ])
 
-    return successResponse({
+    return paginatedResponse(
       doctors,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    })
-  } catch (err) {
-    console.error('[Doctors GET]', err.message)
-    return errorResponse('Failed to fetch doctors', 'SERVER_ERROR', 500)
+      buildPaginationMeta(total, page, limit),
+      'doctors',
+    )
+
+  } catch (error) {
+    console.error('[GET /api/doctors]', error)
+    return errorResponse('Internal server error', 500)
   }
 }
 
 export async function POST(request) {
-  try {
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin', 'hospital_admin')
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin', 'hospital_admin')
 
-    const body = await request.json()
+      const body = await request.json()
 
-    if (!body.name || !body.hospitalId) {
-      return errorResponse('Name and hospitalId are required', 'VALIDATION_ERROR', 400)
-    }
+      if (!body.name)       return errorResponse('Name is required', 400)
+      if (!body.hospitalId) return errorResponse('Hospital ID is required', 400)
 
-    // hospital_admin can only add to their hospital
-    if (user.role === 'hospital_admin') {
-      const hospital = await prisma.hospital.findUnique({ where: { id: body.hospitalId } })
-      if (!hospital || hospital.adminUserId !== user.id) {
-        return errorResponse('Access denied', 'FORBIDDEN', 403)
+      const doctor = await prisma.doctor.create({
+        data: {
+          name:             sanitizeInput(body.name),
+          hospitalId:       body.hospitalId,
+          userId:           body.userId           || undefined,
+          specialization:   body.specialization   || [],
+          qualifications:   body.qualifications   || [],
+          experience:       body.experience        ? Number(body.experience) : undefined,
+          avatar:           body.avatar            || undefined,
+          consultationFee:  body.consultationFee   || undefined,
+          consultationTypes:body.consultationTypes || [],
+          isVerified:       false,
+          isActive:         true,
+        },
+      })
+
+      return successResponse(doctor, 'Doctor created successfully', 201)
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
       }
+      console.error('[POST /api/doctors]', error)
+      return errorResponse('Internal server error', 500)
     }
-
-    const doctor = await prisma.doctor.create({
-      data: {
-        name: sanitizeInput(body.name),
-        hospitalId: body.hospitalId,
-        userId: body.userId || null,
-        specialization: body.specialization || [],
-        qualifications: body.qualifications || [],
-        experience: body.experience || null,
-        avatar: body.avatar || null,
-        consultationFee: body.consultationFee || null,
-        consultationTypes: body.consultationTypes || [],
-        availability: body.availability || [],
-        exceptions: [],
-      },
-    })
-
-    return successResponse(doctor, 'Doctor created', 201)
-  } catch (err) {
-    console.error('[Doctors POST]', err.message)
-    if (err.message.includes('Access denied') || err.message.includes('token')) {
-      return errorResponse(err.message, 'AUTH_ERROR', 403)
-    }
-    return errorResponse('Failed to create doctor', 'SERVER_ERROR', 500)
-  }
+  })
 }

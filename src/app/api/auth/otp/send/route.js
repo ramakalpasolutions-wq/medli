@@ -1,88 +1,46 @@
-// src/app/api/auth/otp/send/route.js
-
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import { cache } from '@/lib/cache'
-import { generateOTP } from '@/lib/utils/helpers'
-import { smsQueue, emailQueue } from '@/lib/queues/setup'
-
-export async function OPTIONS() {
-  return handleOptions()
-}
+import { NextResponse }  from 'next/server'
+import { withRateLimit } from '@/lib/middleware/rateLimit.middleware'
+import { validatePhone } from '@/lib/utils/validators'
 
 export async function POST(request) {
-  try {
-    const body  = await request.json()
-    const { phone, email } = body
+  return withRateLimit(request, 'otp', async () => {
+    try {
+      const { phone } = await request.json()
 
-    if (!phone && !email) {
-      return errorResponse('Phone or email is required', 'MISSING_FIELD', 400)
-    }
-
-    const otp = generateOTP()
-
-    // ── Phone OTP ─────────────────────────────────────────────────────────
-    if (phone) {
-      const cleaned = phone.toString().replace(/\D/g, '')
-      if (cleaned.length !== 10) {
-        return errorResponse('Invalid 10-digit phone number', 'INVALID_PHONE', 400)
+      if (!phone) {
+        return NextResponse.json(
+          { success: false, error: 'Phone number is required' },
+          { status: 400 }
+        )
       }
-
-      // Rate limit: max 3 per 10 min
-      const rateKey  = `otp_rate:phone:${cleaned}`
-      const attempts = await cache.get(rateKey)
-      if (attempts && parseInt(attempts) >= 3) {
-        return errorResponse(
-          'Too many OTP requests. Please wait 10 minutes.',
-          'RATE_LIMIT',
-          429
+      if (!validatePhone(phone)) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid phone number' },
+          { status: 400 }
         )
       }
 
-      await cache.set(`otp:phone:${cleaned}`, otp, 300)              // 5 min
-      await cache.set(rateKey, String(parseInt(attempts || 0) + 1), 600) // 10 min
+      const { sendOtp } = await import('@/lib/utils/msg91')
+      const result = await sendOtp(String(phone).trim())
 
-      await smsQueue.add('send_otp', {
-        phone:      cleaned,
-        otp,
-        templateId: process.env.MSG91_TEMPLATE_ID_OTP,
+      if (!result?.success) {
+        return NextResponse.json(
+          { success: false, error: result?.error || 'Failed to send OTP' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `OTP sent to ${phone}`,
       })
 
-      // Dev only — remove in production
-      console.log(`[OTP] Phone +91${cleaned} → ${otp}`)
-
-      return successResponse({ channel: 'phone' }, 'OTP sent to your mobile number')
+    } catch (error) {
+      console.error('[POST /api/auth/otp/send]', error)
+      return NextResponse.json(
+        { success: false, error: 'Internal server error' },
+        { status: 500 }
+      )
     }
-
-    // ── Email OTP ─────────────────────────────────────────────────────────
-    if (email) {
-      const cleaned = email.trim().toLowerCase()
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned)) {
-        return errorResponse('Invalid email address', 'INVALID_EMAIL', 400)
-      }
-
-      // Rate limit: max 3 per 10 min
-      const rateKey  = `otp_rate:email:${cleaned}`
-      const attempts = await cache.get(rateKey)
-      if (attempts && parseInt(attempts) >= 3) {
-        return errorResponse(
-          'Too many OTP requests. Please wait 10 minutes.',
-          'RATE_LIMIT',
-          429
-        )
-      }
-
-      await cache.set(`otp:email:${cleaned}`, otp, 300)
-      await cache.set(rateKey, String(parseInt(attempts || 0) + 1), 600)
-
-      await emailQueue.add('send_otp_email', { email: cleaned, otp })
-
-      // Dev only — remove in production
-      console.log(`[OTP] Email ${cleaned} → ${otp}`)
-
-      return successResponse({ channel: 'email' }, 'OTP sent to your email address')
-    }
-  } catch (err) {
-    console.error('OTP send error:', err)
-    return errorResponse(err.message, 'OTP_ERROR', 500)
-  }
+  })
 }

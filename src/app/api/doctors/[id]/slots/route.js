@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { cache } from '@/lib/cache'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
 

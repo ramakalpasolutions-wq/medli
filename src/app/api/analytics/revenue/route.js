@@ -1,102 +1,95 @@
-// src/app/api/analytics/revenue/route.js
-import prisma from '@/lib/prisma'
-import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { getDateRange } from '@/lib/utils/helpers'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { NextResponse }  from 'next/server'
+import { prisma }        from '@/lib/prisma'
+import { verifyAuth }    from '@/lib/middleware/auth.middleware'
+import { getDateRange, buildChartData, getPaginationParams } from '@/lib/utils/helpers'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+} from '@/lib/utils/apiResponse'
 
 export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
-  try {
-    const user = await verifyAuth(request)
+  return verifyAuth(request, async (req, user) => {
+    try {
+      // Only admins and regional managers
+      const allowed = ['super_admin', 'regional_manager', 'hospital_admin', 'lab_admin']
+      if (!allowed.includes(user.role)) {
+        return errorResponse('Access denied', 403)
+      }
 
-    const allowed = ['super_admin', 'regional_manager', 'hospital_admin', 'lab_admin']
-    if (!allowed.includes(user.role)) {
-      return errorResponse('Access denied', 'FORBIDDEN', 403)
-    }
+      const { searchParams } = new URL(request.url)
+      const preset   = searchParams.get('preset')   || 'last30'
+      const dateFrom = searchParams.get('dateFrom')  || ''
+      const dateTo   = searchParams.get('dateTo')    || ''
 
-    const { searchParams } = new URL(request.url)
-    const preset   = searchParams.get('preset')   || 'last30'
-    const dateFrom = searchParams.get('dateFrom')
-    const dateTo   = searchParams.get('dateTo')
-    const { from, to } = getDateRange(preset, dateFrom, dateTo)
+      const { from, to } = getDateRange(preset, dateFrom, dateTo)
 
-    // ── Base filter ───────────────────────────────────────────────────────────
-    const where = {
-      createdAt:     { gte: from, lte: to },
-      paymentStatus: 'paid',
-    }
+      // Build entity filter based on role
+      const bookingFilter = {
+        createdAt:     { gte: from, lte: to },
+        paymentStatus: 'paid',
+      }
 
-    // ── Scope by role ─────────────────────────────────────────────────────────
-    if (user.role === 'hospital_admin') {
-      const hospital = await prisma.hospital.findFirst({
-        where: { adminUserId: user.id }, select: { id: true },
+      if (user.role === 'hospital_admin') {
+        // Find the hospital this admin manages
+        const hospital = await prisma.hospital.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true },
+        })
+        if (hospital) bookingFilter.hospitalId = hospital.id
+      } else if (user.role === 'lab_admin') {
+        const lab = await prisma.lab.findFirst({
+          where:  { adminUserId: user.userId },
+          select: { id: true },
+        })
+        if (lab) bookingFilter.labId = lab.id
+      }
+
+      // Fetch all paid bookings in range
+      const bookings = await prisma.booking.findMany({
+        where:  bookingFilter,
+        select: {
+          id:          true,
+          type:        true,
+          totalAmount: true,
+          platformFee: true,
+          gst:         true,
+          createdAt:   true,
+        },
       })
-      if (hospital) where.hospitalId = hospital.id
-      else          where.hospitalId = 'none' // no results
-    } else if (user.role === 'lab_admin') {
-      const lab = await prisma.lab.findFirst({
-        where: { adminUserId: user.id }, select: { id: true },
+
+      // Summary
+      const totalRevenue     = bookings.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0)
+      const totalPlatformFee = bookings.reduce((s, b) => s + (Number(b.platformFee) || 0), 0)
+      const totalGst         = bookings.reduce((s, b) => s + (Number(b.gst) || 0), 0)
+      const totalBookings    = bookings.length
+
+      // Breakdown by booking type
+      const breakdown = {}
+      for (const b of bookings) {
+        breakdown[b.type] = (breakdown[b.type] || 0) + (Number(b.totalAmount) || 0)
+      }
+
+      // Chart data — one point per day
+      const chartData = buildChartData(bookings, from, to)
+
+      return successResponse({
+        summary: {
+          totalRevenue,
+          totalPlatformFee,
+          totalGst,
+          totalBookings,
+        },
+        breakdown,
+        chartData,
+        period: { from, to, preset },
       })
-      if (lab) where.labId = lab.id
-      else     where.labId = 'none'
+
+    } catch (error) {
+      console.error('[GET /api/analytics/revenue]', error)
+      return errorResponse('Internal server error', 500)
     }
-
-    const bookings = await prisma.booking.findMany({
-      where,
-      select: {
-        totalAmount:  true,
-        platformFee:  true,
-        gst:          true,
-        type:         true,
-        createdAt:    true,
-        status:       true,
-      },
-      orderBy: { createdAt: 'asc' },
-    })
-
-    // Aggregate
-    const summary = {
-      totalRevenue:     0,
-      totalPlatformFee: 0,
-      totalGst:         0,
-      totalBookings:    bookings.length,
-    }
-
-    const byType    = {}
-    const chartMap  = {}
-
-    bookings.forEach((b) => {
-      summary.totalRevenue     += b.totalAmount  || 0
-      summary.totalPlatformFee += b.platformFee  || 0
-      summary.totalGst         += b.gst          || 0
-
-      byType[b.type] = (byType[b.type] || 0) + (b.totalAmount || 0)
-
-      const day = new Date(b.createdAt).toISOString().split('T')[0]
-      if (!chartMap[day]) chartMap[day] = { date: day, revenue: 0, bookings: 0, platformFee: 0 }
-      chartMap[day].revenue     += b.totalAmount || 0
-      chartMap[day].bookings    += 1
-      chartMap[day].platformFee += b.platformFee || 0
-    })
-
-    const round = (n) => Math.round(n * 100) / 100
-
-    return successResponse({
-      summary: {
-        totalRevenue:     round(summary.totalRevenue),
-        totalPlatformFee: round(summary.totalPlatformFee),
-        totalGst:         round(summary.totalGst),
-        totalBookings:    summary.totalBookings,
-      },
-      chartData: Object.values(chartMap).sort((a, b) => a.date.localeCompare(b.date)),
-      breakdown: byType,
-      dateRange: { from, to },
-    })
-  } catch (err) {
-    console.error('[Analytics Revenue]', err.message)
-    if (err.message?.includes('token') || err.message?.includes('Unauthorized'))
-      return errorResponse(err.message, 'AUTH_ERROR', 401)
-    return errorResponse('Failed to fetch revenue analytics', 'SERVER_ERROR', 500)
-  }
+  })
 }

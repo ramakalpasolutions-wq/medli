@@ -1,31 +1,36 @@
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { NextResponse } from 'next/server'
 
-export function OPTIONS() {
-  return handleOptions()
-}
-
-export async function POST(request) {
+// No DB update needed — no refreshToken stored on User model
+export async function POST() {
   try {
-    const response = successResponse(
-      { message: 'Logged out successfully' },
-      'Logged out'
-    )
+    const response = NextResponse.json({
+      success: true,
+      message: 'Logged out successfully',
+    })
 
-    // Clear access token cookie
-    response.headers.append(
-      'Set-Cookie',
-      'accessToken=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict'
-    )
-
-    // Clear refresh token cookie
-    response.headers.append(
-      'Set-Cookie',
-      'refreshToken=; HttpOnly; Path=/; Max-Age=0; SameSite=Strict'
-    )
+    // Clear both cookies
+    response.cookies.set('accessToken', '', {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge:   0,
+      path:     '/',
+    })
+    response.cookies.set('refreshToken', '', {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge:   0,
+      path:     '/',
+    })
 
     return response
-  } catch (err) {
-    console.error('[Logout]', err.message)
-    return errorResponse('Logout failed', 'SERVER_ERROR', 500)
+
+  } catch (error) {
+    console.error('[POST /api/auth/logout]', error)
+    return NextResponse.json(
+      { success: false, error: 'Logout failed' },
+      { status: 500 }
+    )
   }
 }

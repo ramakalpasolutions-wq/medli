@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { cache } from '@/lib/cache'
 import { cancelConsultationEvent } from '@/lib/services/meet.service'

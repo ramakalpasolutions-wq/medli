@@ -3,7 +3,7 @@
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { checkRole } from '@/lib/middleware/rbac.middleware'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 
 export async function OPTIONS() {
   return handleOptions()

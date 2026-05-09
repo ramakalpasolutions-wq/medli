@@ -1,38 +1,93 @@
-// src/lib/middleware/audit.middleware.js
-// ⚠️ SAVE THIS FILE — then restart: rm -rf .next && npm run dev
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 
-export async function logAdminAction({
+/**
+ * AuditLog schema fields:
+ *   actorId, actorRole, action, targetType, targetId,
+ *   details (Json), ipAddress, createdAt
+ */
+export async function createAuditLog({
   actorId    = null,
   actorRole  = null,
-  action     = 'unknown',
+  action,
   targetType = null,
   targetId   = null,
+  ipAddress  = 'unknown',
+  userAgent  = '',
   details    = null,
-  request    = null,
+  oldValues  = null,
+  newValues  = null,
 }) {
   try {
-    let ipAddress = null
-    if (request?.headers) {
-      ipAddress =
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip') ||
-        null
+    const detailsPayload = {
+      ...(details   || {}),
+      ...(oldValues ? { oldValues } : {}),
+      ...(newValues ? { newValues } : {}),
+      ...(userAgent ? { userAgent } : {}),
     }
+
     await prisma.auditLog.create({
       data: {
-        actorId:    actorId    || null,
-        actorRole:  actorRole  || null,
-        action:     String(action),
-        targetType: targetType || null,
-        targetId:   targetId   || null,
-        details:    details    || null,
-        ipAddress:  ipAddress  || null,
+        actorId:    actorId    || undefined,
+        actorRole:  actorRole  || undefined,
+        action,
+        targetType: targetType || undefined,
+        targetId:   targetId   || undefined,
+        ipAddress,
+        details:    Object.keys(detailsPayload).length > 0
+                      ? detailsPayload
+                      : undefined,
       },
     })
-  } catch (err) {
-    console.warn('[AuditLog silent fail]', err.message)
+  } catch (error) {
+    // Never crash the main request
+    console.error('[AuditLog] Failed:', error?.message)
   }
 }
 
-export default logAdminAction
+/**
+ * logAdminAction — convenient alias used by admin routes.
+ *
+ * Usage:
+ *   await logAdminAction(request, user, 'CANCEL_SETTLEMENT', 'Settlement', id, {
+ *     reason: 'duplicate'
+ *   })
+ */
+export async function logAdminAction(
+  request,
+  user,
+  action,
+  targetType,
+  targetId,
+  details = {},
+) {
+  const ip = request?.headers?.get('x-forwarded-for') ||
+             request?.headers?.get('x-real-ip') ||
+             'unknown'
+  const ua = request?.headers?.get('user-agent') || ''
+
+  return createAuditLog({
+    actorId:    user?.userId || user?.id || null,
+    actorRole:  user?.role   || null,
+    action,
+    targetType: targetType   || null,
+    targetId:   targetId     || null,
+    ipAddress:  ip,
+    userAgent:  ua,
+    details,
+  })
+}
+
+/**
+ * withAuditLog — wraps a handler and logs after success.
+ */
+export async function withAuditLog(request, logParams, handler) {
+  const response = await handler(request)
+  if (response?.status >= 200 && response?.status < 300) {
+    const ip = request.headers.get('x-forwarded-for') ||
+               request.headers.get('x-real-ip') || 'unknown'
+    await createAuditLog({ ipAddress: ip, ...logParams })
+  }
+  return response
+}
+
+export default { createAuditLog, logAdminAction, withAuditLog }

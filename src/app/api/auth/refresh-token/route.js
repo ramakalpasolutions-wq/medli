@@ -1,46 +1,74 @@
-import { verifyRefreshToken, generateAccessToken } from '@/lib/utils/jwt'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { NextResponse }                              from 'next/server'
+import { verifyRefreshToken, generateAccessToken,
+         generateRefreshToken }                      from '@/lib/utils/jwt'
 
-export function OPTIONS() {
-  return handleOptions()
-}
-
+// NOTE: refreshToken is NOT stored in DB (no field on User model).
+// We use stateless JWT verification only.
 export async function POST(request) {
   try {
-    let token = null
+    const cookieToken = request.cookies.get('refreshToken')?.value
+    const bodyToken   = await request.json()
+                          .then((b) => b?.refreshToken)
+                          .catch(() => null)
 
-    // Try body first
+    const token = cookieToken || bodyToken
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Refresh token required' },
+        { status: 401 }
+      )
+    }
+
+    let decoded
     try {
-      const body = await request.json()
-      token      = body.refreshToken || null
+      decoded = verifyRefreshToken(token)
     } catch {
-      // Body might be empty
+      return NextResponse.json(
+        { success: false, error: 'Invalid or expired refresh token' },
+        { status: 401 }
+      )
     }
 
-    // Fallback to cookie
-    if (!token) {
-      const cookieHeader = request.headers.get('cookie') || ''
-      const match        = cookieHeader.match(/(?:^|;\s*)refreshToken=([^;]+)/)
-      if (match) token   = match[1]
+    // Generate new tokens
+    const payload = {
+      userId: decoded.userId,
+      role:   decoded.role,
+      phone:  decoded.phone,
+      email:  decoded.email,
     }
 
-    if (!token) {
-      return errorResponse('Refresh token is required', 'TOKEN_MISSING', 400)
-    }
+    const newAccessToken  = generateAccessToken(payload)
+    const newRefreshToken = generateRefreshToken(payload)
 
-    const payload     = verifyRefreshToken(token)
-    const accessToken = generateAccessToken({ id: payload.id, role: payload.role })
+    const response = NextResponse.json({
+      success:      true,
+      accessToken:  newAccessToken,
+      refreshToken: newRefreshToken,
+    })
 
-    const response = successResponse({ accessToken }, 'Token refreshed')
-
-    response.headers.set(
-      'Set-Cookie',
-      `accessToken=${accessToken}; HttpOnly; Path=/; Max-Age=900; SameSite=Strict`
-    )
+    response.cookies.set('accessToken', newAccessToken, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge:   15 * 60,
+      path:     '/',
+    })
+    response.cookies.set('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure:   process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge:   30 * 24 * 60 * 60,
+      path:     '/',
+    })
 
     return response
-  } catch (err) {
-    console.error('[Refresh Token]', err.message)
-    return errorResponse('Invalid or expired refresh token', 'TOKEN_INVALID', 401)
+
+  } catch (error) {
+    console.error('[POST /api/auth/refresh-token]', error)
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

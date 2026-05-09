@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { getPaginationParams } from '@/lib/utils/helpers'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'

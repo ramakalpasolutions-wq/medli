@@ -1,41 +1,80 @@
-// src/app/api/settlements/[id]/cancel/route.js
-
-import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
+import { prisma }         from '@/lib/prisma'
+import { verifyAuth }     from '@/lib/middleware/auth.middleware'
+import { checkRole }      from '@/lib/middleware/rbac.middleware'
 import { logAdminAction } from '@/lib/middleware/audit.middleware'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import { cancelSettlement } from '@/lib/services/settlement.service'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+} from '@/lib/utils/apiResponse'
 
-export async function OPTIONS() {
-  return handleOptions()
-}
+export function OPTIONS() { return handleOptions() }
 
 export async function POST(request, { params }) {
-  try {
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin')
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin', 'regional_manager')
 
-    const body = await request.json()
-    const { reason } = body
+      const { id }  = await params
+      const body    = await request.json().catch(() => ({}))
+      const reason  = body?.reason || 'Cancelled by admin'
 
-    const settlement = await cancelSettlement({
-      settlementId: params.id,
-      reason,
-      cancelledBy:  user.id
-    })
+      const settlement = await prisma.settlement.findUnique({
+        where: { id },
+      })
 
-    await logAdminAction({
-      actorId:    user.id,
-      actorRole:  user.role,
-      action:     'settlement.cancelled',
-      targetType: 'settlement',
-      targetId:   params.id,
-      details:    { reason },
-      request
-    })
+      if (!settlement) {
+        return errorResponse('Settlement not found', 404)
+      }
 
-    return successResponse(settlement, 'Settlement cancelled')
-  } catch (err) {
-    return errorResponse(err.message, 'SETTLEMENT_ERROR', 400)
-  }
+      // ✅ Allow cancel for any non-final status
+      const FINAL_STATUSES = ['completed', 'failed']
+      if (FINAL_STATUSES.includes(settlement.status)) {
+        return errorResponse(
+          `Cannot cancel a settlement that is already ${settlement.status}`,
+          400
+        )
+      }
+
+      // ✅ Schema SettlementStatus enum: pending | processing | completed | failed | on_hold
+      const updated = await prisma.settlement.update({
+        where: { id },
+        data: {
+          status:        'failed',      // 'cancelled' is not in schema — use 'failed'
+          failureReason: reason,
+        },
+      })
+
+      // Fire and forget audit log
+      logAdminAction(
+        request,
+        user,
+        'CANCEL_SETTLEMENT',
+        'Settlement',
+        id,
+        {
+          settlementNumber: settlement.settlementNumber,
+          previousStatus:   settlement.status,
+          reason,
+        }
+      ).catch((e) => console.warn('[audit] cancel settlement:', e?.message))
+
+      return successResponse(
+        {
+          id:               updated.id,
+          settlementNumber: updated.settlementNumber,
+          status:           updated.status,
+          failureReason:    updated.failureReason,
+        },
+        'Settlement cancelled successfully'
+      )
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[POST /api/settlements/[id]/cancel]', error)
+      return errorResponse('Internal server error', 500)
+    }
+  })
 }

@@ -279,10 +279,12 @@ function LoginContent() {
       const body = tab === 'phone'
         ? { phone: phone.replace(/\D/g, '') }
         : { email: email.trim().toLowerCase() }
-      const res  = await fetch('/api/auth/otp/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+     const res = await fetch('/api/auth/login', {
+  method:  'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify({ phone, password }),
+})
       const json = await res.json()
       if (json.success) { setOtpSent(true); setCountdown(30) }
       else setError(json.error || 'Failed to send OTP')

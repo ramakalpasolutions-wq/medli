@@ -1,64 +1,81 @@
-import prisma from '@/lib/prisma'
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
-import { getDateRange, formatCurrency } from '@/lib/utils/helpers'
+import { checkRole }  from '@/lib/middleware/rbac.middleware'
+import { getDateRange } from '@/lib/utils/helpers'
 import { errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { NextResponse } from 'next/server'
 
 export function OPTIONS() { return handleOptions() }
 
 export async function GET(request) {
-  try {
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin', 'regional_manager')
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin', 'regional_manager')
 
-    const { searchParams } = new URL(request.url)
-    const format = searchParams.get('format') || 'csv'
-    const preset = searchParams.get('preset') || 'last30'
-    const { from, to } = getDateRange(preset, searchParams.get('dateFrom'), searchParams.get('dateTo'))
+      const { searchParams } = new URL(request.url)
+      const preset   = searchParams.get('preset')  || 'last30'
+      const dateFrom = searchParams.get('dateFrom') || ''
+      const dateTo   = searchParams.get('dateTo')   || ''
+      const format   = searchParams.get('format')   || 'csv'
 
-    const bookings = await prisma.booking.findMany({
-      where: { createdAt: { gte: from, lte: to } },
-      orderBy: { createdAt: 'desc' },
-      take: 10000,
-    })
+      const { from, to } = getDateRange(preset, dateFrom, dateTo)
 
-    if (format === 'csv') {
-      const headers = [
-        'Booking ID', 'Type', 'Status', 'Payment Status',
-        'Base Fee', 'Coupon Discount', 'Platform Fee', 'GST', 'Total Amount',
-        'Created At',
-      ]
-
-      const rows = bookings.map((b) => [
-        b.bookingId,
-        b.type,
-        b.status,
-        b.paymentStatus,
-        b.baseFee,
-        b.couponDiscount,
-        b.platformFee,
-        b.gst,
-        b.totalAmount,
-        new Date(b.createdAt).toLocaleString('en-IN'),
-      ])
-
-      const csv = [headers, ...rows]
-        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-        .join('\n')
-
-      return new Response(csv, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/csv',
-          'Content-Disposition': `attachment; filename=medli-export-${Date.now()}.csv`,
-          'Cache-Control': 'no-store',
+      const bookings = await prisma.booking.findMany({
+        where:   { createdAt: { gte: from, lte: to } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          bookingId:   true,
+          type:        true,
+          status:      true,
+          paymentStatus: true,
+          baseFee:     true,
+          platformFee: true,
+          gst:         true,
+          totalAmount: true,
+          createdAt:   true,
         },
       })
-    }
 
-    return errorResponse('Unsupported format', 'VALIDATION_ERROR', 400)
-  } catch (err) {
-    console.error('[Analytics Export]', err.message)
-    return errorResponse('Failed to export data', 'SERVER_ERROR', 500)
-  }
+      if (format === 'csv') {
+        const headers = [
+          'Booking ID', 'Type', 'Status', 'Payment Status',
+          'Base Fee', 'Platform Fee', 'GST', 'Total Amount', 'Date',
+        ]
+
+        const rows = bookings.map((b) => [
+          b.bookingId,
+          b.type,
+          b.status,
+          b.paymentStatus,
+          b.baseFee,
+          b.platformFee,
+          b.gst,
+          b.totalAmount,
+          new Date(b.createdAt).toLocaleDateString('en-IN'),
+        ])
+
+        const csv = [
+          headers.join(','),
+          ...rows.map((r) => r.map((v) => `"${v ?? ''}"`).join(',')),
+        ].join('\n')
+
+        return new NextResponse(csv, {
+          status: 200,
+          headers: {
+            'Content-Type':        'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="analytics-${preset}.csv"`,
+          },
+        })
+      }
+
+      return errorResponse('Unsupported format. Use ?format=csv', 400)
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[GET /api/analytics/export]', error)
+      return errorResponse('Internal server error', 500)
+    }
+  })
 }

@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { sanitizeInput } from '@/lib/utils/validators'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'

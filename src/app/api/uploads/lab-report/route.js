@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { checkRole } from '@/lib/middleware/rbac.middleware'
 import { uploadToR2, R2Keys } from '@/lib/utils/cloudflare'

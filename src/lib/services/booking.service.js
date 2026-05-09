@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { cache } from '@/lib/cache'
 import { calculateBookingPrice } from './pricing.service'
 import { recordCouponUsage } from './coupon.service'

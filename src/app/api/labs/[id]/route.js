@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 import { cache } from '@/lib/cache'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { checkRole } from '@/lib/middleware/rbac.middleware'
