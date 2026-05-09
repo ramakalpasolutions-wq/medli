@@ -1,90 +1,87 @@
-// src/app/api/users/[id]/family/route.js
-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import { prisma } from '@/lib/prisma'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+} from '@/lib/utils/apiResponse'
 
-export async function OPTIONS() { return handleOptions() }
+export function OPTIONS() { return handleOptions() }
 
-// GET all family members
 export async function GET(request, { params }) {
-  try {
-    const user = await verifyAuth(request)
+  return verifyAuth(request, async (req, user) => {
+    try {
+      const { id } = await params  // ✅ await
 
-    // Only own profile or super_admin
-    if (user.id !== params.id && user.role !== 'super_admin') {
-      return errorResponse('Access denied', 'FORBIDDEN', 403)
+      // ✅ user.userId
+      if (user.userId !== id && user.role !== 'super_admin') {
+        return errorResponse('Access denied', 403)
+      }
+
+      const profile = await prisma.user.findUnique({
+        where:  { id },
+        select: { familyMembers: true },
+      })
+
+      return successResponse(profile?.familyMembers || [])
+    } catch (error) {
+      console.error('[GET /api/users/[id]/family]', error)
+      return errorResponse('Internal server error', 500)
     }
-
-    const profile = await prisma.user.findUnique({
-      where:  { id: params.id },
-      select: { familyMembers: true },
-    })
-
-    return successResponse(profile?.familyMembers || [])
-  } catch (err) {
-    return errorResponse(err.message, 'FAMILY_ERROR', 500)
-  }
+  })
 }
 
-// POST add family member
 export async function POST(request, { params }) {
-  try {
-    const user = await verifyAuth(request)
+  return verifyAuth(request, async (req, user) => {
+    try {
+      const { id } = await params  // ✅ await
 
-    if (user.id !== params.id && user.role !== 'super_admin') {
-      return errorResponse('Access denied', 'FORBIDDEN', 403)
+      // ✅ user.userId
+      if (user.userId !== id && user.role !== 'super_admin') {
+        return errorResponse('Access denied', 403)
+      }
+
+      const body = await request.json()
+      const { name, relation, age, gender, bloodGroup, phone, notes } = body
+
+      if (!name?.trim()) return errorResponse('Name is required', 400)
+
+      const profile = await prisma.user.findUnique({
+        where:  { id },
+        select: { familyMembers: true },
+      })
+
+      const existing = profile?.familyMembers || []
+
+      if (existing.length >= 10) {
+        return errorResponse('Maximum 10 family members allowed', 400)
+      }
+
+      const newMember = {
+        id:         `fm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        name:       name.trim(),
+        relation:   relation    || 'other',
+        age:        age         ? Number(age) : null,
+        gender:     gender      || null,
+        bloodGroup: bloodGroup  || null,
+        phone:      phone       || null,
+        notes:      notes       || null,
+        createdAt:  new Date().toISOString(),
+        updatedAt:  new Date().toISOString(),
+      }
+
+      await prisma.user.update({
+        where: { id },
+        data:  { familyMembers: [...existing, newMember] },
+      })
+
+      return successResponse(newMember, 'Family member added', 201)
+    } catch (error) {
+      console.error('[POST /api/users/[id]/family]', error)
+      return errorResponse('Internal server error', 500)
     }
-
-    const body = await request.json()
-    const { name, relation, age, gender, bloodGroup, phone, notes } = body
-
-    if (!name?.trim()) {
-      return errorResponse('Name is required', 'MISSING_NAME', 400)
-    }
-
-    // Generate a simple ID for the family member
-    const memberId = `fm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-
-    const newMember = {
-      id:          memberId,
-      name:        name.trim(),
-      relation:    relation    || 'other',
-      age:         age         ? Number(age) : null,
-      gender:      gender      || 'male',
-      bloodGroup:  bloodGroup  || null,
-      phone:       phone       || null,
-      notes:       notes       || null,
-      createdAt:   new Date().toISOString(),
-    }
-
-    // Get current family members
-    const profile = await prisma.user.findUnique({
-      where:  { id: params.id },
-      select: { familyMembers: true },
-    })
-
-    const existing = profile?.familyMembers || []
-
-    // Max 10 family members
-    if (existing.length >= 10) {
-      return errorResponse(
-        'Maximum 10 family members allowed',
-        'MAX_LIMIT',
-        400
-      )
-    }
-
-    await prisma.user.update({
-      where: { id: params.id },
-      data:  { familyMembers: [...existing, newMember] },
-    })
-
-    return successResponse(newMember, 'Family member added', 201)
-  } catch (err) {
-    return errorResponse(err.message, 'FAMILY_ERROR', 500)
-  }
+  })
 }

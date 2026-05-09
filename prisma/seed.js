@@ -1658,7 +1658,7 @@ async function main() {
   console.log('   hospital_admin 2  → admin@apolloguntur.in')
   console.log('   lab_admin 1       → admin@sridiagnostics.in')
   console.log('   lab_admin 2       → admin@thyrocareguntur.in')
-  console.log('   doctor 1          → dr.venkata@medli.in')
+  console.log('   doctor 1          → dr.venkata@medli.in') 
   console.log('   doctor 2          → dr.anitha@medli.in')
   console.log('   patient 1         → srinivas@gmail.com')
   console.log('   patient 2         → kavitha@gmail.com')
