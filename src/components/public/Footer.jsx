@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 const LINKS = {
   Platform: [
@@ -16,30 +17,31 @@ const LINKS = {
     { label: 'Contact', href: '/contact', icon: '📬' },
   ],
   Legal: [
-    { label: 'Privacy Policy',   href: '/privacy', icon: '🔒' },
-    { label: 'Terms of Service', href: '/terms',   icon: '📜' },
-    { label: 'Refund Policy',    href: '/refunds', icon: '↩️' },
+    { label: 'Privacy Policy',        href: '/privacy',       icon: '🔒' },
+    { label: 'Terms of Service',      href: '/terms',         icon: '📜' },
+    { label: 'Refund Policy',         href: '/refunds',       icon: '↩️' },
+    { label: 'Admin Dashboard Policy',href: '/admin-policy',  icon: '🛡️' },
   ],
 }
 
 const STATS = [
-  { value: '50K+',  label: 'Patients Served'   },
-  { value: '1,200+',label: 'Hospitals'          },
-  { value: '800+',  label: 'Certified Labs'     },
-  { value: '3,500+',label: 'Doctors'            },
+  { value: '50K+',   label: 'Patients Served' },
+  { value: '1,200+', label: 'Hospitals'        },
+  { value: '800+',   label: 'Certified Labs'   },
+  { value: '3,500+', label: 'Doctors'          },
 ]
 
 const SOCIALS = [
-  { icon: '𝕏',  href: '#', label: 'Twitter'   },
-  { icon: 'in', href: '#', label: 'LinkedIn'   },
-  { icon: 'f',  href: '#', label: 'Facebook'   },
-  { icon: '▶',  href: '#', label: 'YouTube'    },
+  { icon: '𝕏',  href: '#', label: 'Twitter'  },
+  { icon: 'in', href: '#', label: 'LinkedIn'  },
+  { icon: 'f',  href: '#', label: 'Facebook'  },
+  { icon: '▶',  href: '#', label: 'YouTube'   },
 ]
 
 export default function Footer() {
   const year = new Date().getFullYear()
-  const [email, setEmail] = useState('')
-  const [subbed, setSubbed] = useState(false)
+  const [email, setEmail]     = useState('')
+  const [subbed, setSubbed]   = useState(false)
   const [subHover, setSubHover] = useState(false)
 
   const handleSubscribe = (e) => {
@@ -54,10 +56,6 @@ export default function Footer() {
           0%,100% { transform:translateY(0); }
           50%      { transform:translateY(-4px); }
         }
-        @keyframes ft-shimmer {
-          0%   { background-position:200% 0; }
-          100% { background-position:-200% 0; }
-        }
         .ft-link {
           display:flex; align-items:center; gap:8px;
           color:#475569; text-decoration:none; font-size:13px;
@@ -65,7 +63,7 @@ export default function Footer() {
           transition:all .15s ease;
         }
         .ft-link:hover { color:#818cf8; transform:translateX(3px); }
-        .ft-social { 
+        .ft-social {
           display:flex; align-items:center; justify-content:center;
           width:34px; height:34px; border-radius:9px;
           background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08);
@@ -86,14 +84,16 @@ export default function Footer() {
         }
         .ft-input::placeholder { color:#475569; }
         .ft-input:focus { border-color:rgba(99,102,241,.5); background:rgba(255,255,255,.09); }
+        @media(max-width:900px) { .ft-grid { grid-template-columns: 1fr 1fr !important; } }
+        @media(max-width:560px) { .ft-grid { grid-template-columns: 1fr !important; } }
       `}</style>
 
       <footer style={{
-        background:   'linear-gradient(180deg,#0d0d1a 0%,#080810 100%)',
-        color:        '#94a3b8',
-        borderTop:    '1px solid rgba(255,255,255,.06)',
-        position:     'relative',
-        overflow:     'hidden',
+        background:  'linear-gradient(180deg,#0d0d1a 0%,#080810 100%)',
+        color:       '#94a3b8',
+        borderTop:   '1px solid rgba(255,255,255,.06)',
+        position:    'relative',
+        overflow:    'hidden',
       }}>
         {/* Background decorations */}
         <div style={{
@@ -110,11 +110,11 @@ export default function Footer() {
         }}/>
 
         <div style={{
-          maxWidth:  1280,
-          margin:    '0 auto',
-          padding:   'clamp(48px,7vw,80px) clamp(16px,3vw,32px) 0',
-          position:  'relative',
-          zIndex:    1,
+          maxWidth: 1280,
+          margin:   '0 auto',
+          padding:  'clamp(48px,7vw,80px) clamp(16px,3vw,32px) 0',
+          position: 'relative',
+          zIndex:   1,
         }}>
 
           {/* ── Stats bar ── */}
@@ -128,31 +128,20 @@ export default function Footer() {
             border:              '1px solid rgba(255,255,255,.07)',
             overflow:            'hidden',
           }}>
-            {STATS.map((s, i) => (
-              <StatItem key={i} value={s.value} label={s.label} />
-            ))}
+            {STATS.map((s, i) => <StatItem key={i} value={s.value} label={s.label} />)}
           </div>
 
           {/* ── Main grid ── */}
-          <div style={{
-            display:             'grid',
-            gridTemplateColumns: 'clamp(220px,30%,320px) repeat(3,1fr)',
-            gap:                 'clamp(24px,4vw,56px)',
-            marginBottom:        56,
-            alignItems:          'start',
-          }}
-            /* Responsive via inline media fallback */
+          <div
             className="ft-grid"
+            style={{
+              display:             'grid',
+              gridTemplateColumns: 'clamp(220px,30%,320px) repeat(3,1fr)',
+              gap:                 'clamp(24px,4vw,56px)',
+              marginBottom:        56,
+              alignItems:          'start',
+            }}
           >
-            <style>{`
-              @media(max-width:900px) {
-                .ft-grid { grid-template-columns: 1fr 1fr !important; }
-              }
-              @media(max-width:560px) {
-                .ft-grid { grid-template-columns: 1fr !important; }
-              }
-            `}</style>
-
             {/* Brand column */}
             <div>
               {/* Logo */}
@@ -177,12 +166,9 @@ export default function Footer() {
                 </div>
               </div>
 
-              <p style={{
-                fontSize:13, color:'#475569',
-                lineHeight:1.85, marginBottom:22,
-              }}>
+              <p style={{ fontSize:13, color:'#475569', lineHeight:1.85, marginBottom:22 }}>
                 Making quality healthcare accessible to every Indian.
-                Book hospitals, labs & doctors — anytime, anywhere.
+                Book hospitals, labs &amp; doctors — anytime, anywhere.
               </p>
 
               {/* Newsletter */}
@@ -250,10 +236,10 @@ export default function Footer() {
                 </h4>
                 <div style={{ display:'flex', flexDirection:'column' }}>
                   {items.map((item) => (
-                    <a key={item.href} href={item.href} className="ft-link">
+                    <Link key={item.href} href={item.href} className="ft-link">
                       <span style={{ fontSize:14, flexShrink:0 }}>{item.icon}</span>
                       {item.label}
-                    </a>
+                    </Link>
                   ))}
                 </div>
               </div>
@@ -272,11 +258,12 @@ export default function Footer() {
             gap:            12,
           }}>
             <div style={{ display:'flex', flexWrap:'wrap', gap:'8px 20px', alignItems:'center' }}>
+              {/* ✅ Company name updated to Sectirmeld */}
               <span style={{ fontSize:12, color:'#334155', fontWeight:500 }}>
-                © {year} MEDLI Healthcare Pvt. Ltd.
+                © {year} Sectirmeld — medli Healthcare Platform
               </span>
               <span style={{
-                fontSize:10, color:'#1e293b',
+                fontSize:10,
                 background:'rgba(99,102,241,.08)',
                 border:'1px solid rgba(99,102,241,.12)',
                 borderRadius:100, padding:'2px 8px',
@@ -306,12 +293,12 @@ function StatItem({ value, label }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        padding:    'clamp(16px,3vw,24px)',
-        textAlign:  'center',
+        padding:     'clamp(16px,3vw,24px)',
+        textAlign:   'center',
         borderRight: '1px solid rgba(255,255,255,.05)',
-        background: h ? 'rgba(99,102,241,.06)' : 'transparent',
-        transition: 'background .2s ease',
-        cursor:     'default',
+        background:  h ? 'rgba(99,102,241,.06)' : 'transparent',
+        transition:  'background .2s ease',
+        cursor:      'default',
       }}
     >
       <div style={{
