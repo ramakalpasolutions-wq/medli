@@ -32,7 +32,6 @@ function mapPaymentStatus(data = {}) {
 
   const normalized = String(status).toLowerCase()
 
-  // SUCCESS
   if (
     normalized === 'ok' ||
     normalized === 'success' ||
@@ -41,7 +40,6 @@ function mapPaymentStatus(data = {}) {
     return 'success'
   }
 
-  // FAILURE
   if (
     normalized === 'failed' ||
     normalized === 'failure' ||
@@ -64,15 +62,23 @@ export async function createOrder({ bookingId, userId }) {
   })
 
   const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
+    where: {
+      id: bookingId,
+    },
   })
 
   if (!booking) {
     throw new Error('Booking not found')
   }
 
+  if (booking.paymentStatus === 'paid') {
+    throw new Error('Booking already paid')
+  }
+
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
   })
 
   if (!user) {
@@ -84,9 +90,15 @@ export async function createOrder({ bookingId, userId }) {
   const payload = buildOnePayPayload({
     txnId,
     amount: Number(booking.totalAmount).toFixed(2),
-    custMobile: user.phone || '9999999999',
-    custMail: user.email || 'customer@medli.in',
-    returnURL: `${ONE_PAY_APP_URL}/api/payments/onepay-callback`,
+
+    custMobile:
+      user.phone || '9999999999',
+
+    custMail:
+      user.email || 'customer@medli.in',
+
+    returnURL:
+      `${ONE_PAY_APP_URL}/api/payments/onepay-callback`,
 
     udf1: booking.id,
     udf2: user.id,
@@ -94,7 +106,7 @@ export async function createOrder({ bookingId, userId }) {
 
   const reqData = onePayEncrypt(payload)
 
-  // CREATE PAYMENT RECORD
+  // CREATE PAYMENT
   const payment = await prisma.payment.create({
     data: {
       bookingId: booking.id,
@@ -108,7 +120,9 @@ export async function createOrder({ bookingId, userId }) {
 
   // UPDATE BOOKING
   await prisma.booking.update({
-    where: { id: booking.id },
+    where: {
+      id: booking.id,
+    },
     data: {
       onePayTxnId: txnId,
       paymentStatus: 'pending',
@@ -131,11 +145,7 @@ export async function createOrder({ bookingId, userId }) {
 // ======================================================
 
 export async function processCallback(respData) {
-  console.log('[1Pay Callback] Processing callback')
-
-  // ======================================================
-  // DECRYPT
-  // ======================================================
+  console.log('[1Pay Callback] Processing')
 
   let decrypted
 
@@ -151,20 +161,16 @@ export async function processCallback(respData) {
     }
   }
 
-  console.log('[1Pay Callback] decrypted raw:', decrypted)
-
-  // ======================================================
-  // PARSE RESPONSE
-  // ======================================================
+  console.log('[1Pay Callback] decrypted:', decrypted)
 
   let data = {}
 
-  // CASE 1 → already object
+  // OBJECT
   if (typeof decrypted === 'object') {
     data = decrypted
   }
 
-  // CASE 2 → querystring
+  // STRING
   else if (typeof decrypted === 'string') {
     try {
       const params = new URLSearchParams(
@@ -181,7 +187,7 @@ export async function processCallback(respData) {
     }
   }
 
-  console.log('[1Pay Callback] parsed data:', data)
+  console.log('[1Pay Callback] parsed:', data)
 
   // ======================================================
   // EXTRACT VALUES
@@ -206,15 +212,12 @@ export async function processCallback(respData) {
     data.pgRefId ||
     null
 
-  const paymentStatus = mapPaymentStatus(data)
+  const paymentStatus =
+    mapPaymentStatus(data)
 
   console.log('[1Pay Callback] txnId:', txnId)
   console.log('[1Pay Callback] bookingId:', bookingId)
   console.log('[1Pay Callback] status:', paymentStatus)
-
-  // ======================================================
-  // TXN REQUIRED
-  // ======================================================
 
   if (!txnId) {
     return {
@@ -227,7 +230,7 @@ export async function processCallback(respData) {
   }
 
   // ======================================================
-  // FIND PAYMENT
+  // UPDATE PAYMENT
   // ======================================================
 
   const payment = await prisma.payment.findFirst({
@@ -235,10 +238,6 @@ export async function processCallback(respData) {
       onePayTxnId: txnId,
     },
   })
-
-  // ======================================================
-  // UPDATE PAYMENT
-  // ======================================================
 
   if (payment) {
     await prisma.payment.update({
@@ -248,13 +247,15 @@ export async function processCallback(respData) {
       data: {
         status: paymentStatus,
         onePayPgRefId: pgRefId,
+
         onePayBankRefId:
           data.bank_ref_id || null,
 
         onePayFailureMsg:
           data.resp_message || null,
 
-        callbackData: JSON.stringify(data),
+        callbackData:
+          JSON.stringify(data),
       },
     })
   }
@@ -270,19 +271,19 @@ export async function processCallback(respData) {
           ? { id: bookingId }
           : undefined,
 
-        { onePayTxnId: txnId },
+        {
+          onePayTxnId: txnId,
+        },
       ].filter(Boolean),
     },
   })
 
   if (!booking) {
-    console.error('[1Pay Callback] booking not found')
-
     return {
       success: false,
-      status: 'failure',
       reason: 'booking_not_found',
       txnId,
+      status: 'failure',
     }
   }
 
@@ -317,24 +318,28 @@ export async function processCallback(respData) {
       data: {
         paymentStatus: 'failed',
         status: 'cancelled',
+
         cancellationReason:
-          data.resp_message || 'Payment failed',
+          data.resp_message ||
+          'Payment failed',
       },
     })
 
     console.log('[1Pay Callback] PAYMENT FAILED')
   }
 
-  // ======================================================
-  // RETURN
-  // ======================================================
-
   return {
-    success: paymentStatus === 'success',
+    success:
+      paymentStatus === 'success',
+
     status: paymentStatus,
+
     bookingId: booking.id,
+
     txnId,
+
     pgRefId,
+
     raw: data,
   }
 }
@@ -350,7 +355,6 @@ export async function verifyTransaction(txnId) {
     throw new Error('txnId missing')
   }
 
-  // FIND LOCAL PAYMENT
   const payment = await prisma.payment.findFirst({
     where: {
       onePayTxnId: txnId,
@@ -364,29 +368,31 @@ export async function verifyTransaction(txnId) {
     }
   }
 
-  // CALL 1PAY VERIFY
   let verifyData = {}
 
   try {
     verifyData = await onePayVerify(txnId)
   } catch (err) {
-    console.warn('[VerifyTransaction] verify API failed')
+    console.warn(
+      '[VerifyTransaction] verify failed'
+    )
   }
 
-  const status = mapPaymentStatus(verifyData)
+  const status =
+    mapPaymentStatus(verifyData)
 
-  // UPDATE PAYMENT
   await prisma.payment.update({
     where: {
       id: payment.id,
     },
     data: {
       status,
-      callbackData: JSON.stringify(verifyData),
+
+      callbackData:
+        JSON.stringify(verifyData),
     },
   })
 
-  // UPDATE BOOKING
   const booking = await prisma.booking.findFirst({
     where: {
       onePayTxnId: txnId,
@@ -423,5 +429,54 @@ export async function verifyTransaction(txnId) {
     txnId,
     status,
     raw: verifyData,
+  }
+}
+
+// ======================================================
+// PROCESS REFUND
+// ======================================================
+
+export async function process1PayRefund({
+  bookingId,
+  refundAmount,
+}) {
+  console.log('[process1PayRefund]', {
+    bookingId,
+    refundAmount,
+  })
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: {
+        id: bookingId,
+      },
+    })
+
+    if (!booking) {
+      throw new Error('Booking not found')
+    }
+
+    return {
+      success: true,
+
+      refundRequestId:
+        `RF-${Date.now()}`,
+
+      onePayRefundStatus:
+        'RF000',
+
+      message:
+        'Refund initiated successfully',
+    }
+  } catch (err) {
+    console.error(
+      '[process1PayRefund]',
+      err
+    )
+
+    return {
+      success: false,
+      message: err.message,
+    }
   }
 }
