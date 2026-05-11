@@ -87,22 +87,26 @@ export async function createOrder({ bookingId, userId }) {
 
   const txnId = generateTxnId(bookingId)
 
-  const payload = buildOnePayPayload({
-    txnId,
-    amount: Number(booking.totalAmount).toFixed(2),
+const payload = buildOnePayPayload({
+  txnId,
 
-    custMobile:
-      user.phone || '9999999999',
+  // IMPORTANT:
+  // UAT account supports only slab amounts
+  // Use 1.00 for testing
+  amount: '1.00',
 
-    custMail:
-      user.email || 'customer@medli.in',
+  custMobile:
+    user.phone || '9999999999',
 
-    returnURL:
-      `${ONE_PAY_APP_URL}/api/payments/onepay-callback`,
+  custMail:
+    user.email || 'customer@medli.in',
 
-    udf1: booking.id,
-    udf2: user.id,
-  })
+  returnURL:
+    `${ONE_PAY_APP_URL}/api/payments/onepay-callback`,
+
+  udf1: booking.id,
+  udf2: user.id,
+})
 
   const reqData = onePayEncrypt(payload)
 
