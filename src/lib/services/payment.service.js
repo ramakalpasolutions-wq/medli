@@ -1,527 +1,427 @@
 // src/lib/services/payment.service.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Payment Service
-// Handles: createOrder, processCallback, verifyTransaction, refund
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { prisma } from '@/lib/prisma'
+
 import {
   onePayEncrypt,
   onePayDecrypt,
-  onePayPost,
   verifyTransaction as onePayVerify,
   buildOnePayPayload,
   generateTxnId,
-  mapStatus,
-  ONE_PAY_API_BASE,
   ONE_PAY_PAY_PAGE_URL,
   ONE_PAY_APP_URL,
   MERCHANT_ID,
 } from '@/lib/utils/onepay'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CREATE ORDER
-// ─────────────────────────────────────────────────────────────────────────────
-export async function createOrder({ bookingId, userId }) {
-  console.log('[PaymentService][createOrder]', { bookingId, userId })
+// ======================================================
+// STATUS MAPPER
+// ======================================================
 
-  // 1. Fetch booking
+function mapPaymentStatus(data = {}) {
+  const status =
+    data.trans_status ||
+    data.transstatus ||
+    data.status ||
+    data.STATUS ||
+    ''
+
+  const respCode =
+    data.resp_code ||
+    data.respcode ||
+    ''
+
+  const normalized = String(status).toLowerCase()
+
+  // SUCCESS
+  if (
+    normalized === 'ok' ||
+    normalized === 'success' ||
+    respCode === '00000'
+  ) {
+    return 'success'
+  }
+
+  // FAILURE
+  if (
+    normalized === 'failed' ||
+    normalized === 'failure' ||
+    normalized === 'error'
+  ) {
+    return 'failure'
+  }
+
+  return 'pending'
+}
+
+// ======================================================
+// CREATE ORDER
+// ======================================================
+
+export async function createOrder({ bookingId, userId }) {
+  console.log('[PaymentService][createOrder]', {
+    bookingId,
+    userId,
+  })
+
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
   })
 
-  if (!booking) throw new Error(`Booking not found: ${bookingId}`)
-  if (booking.paymentStatus === 'paid') throw new Error('Booking is already paid')
-
-  // 2. Fetch user
-  const user = await prisma.user.findUnique({
-    where:  { id: userId },
-    select: { phone: true, email: true, name: true },
-  })
-
-  if (!user) throw new Error(`User not found: ${userId}`)
-
-  const custMobile = user.phone || '9999999999'
-  const custMail   = user.email || 'customer@medli.in'
-  const returnURL  = `${ONE_PAY_APP_URL}/api/payments/onepay-callback`
-
-  // 3. Generate txnId
-  const txnId = generateTxnId(bookingId)
-  console.log('[PaymentService][createOrder] txnId:', txnId)
-  console.log('[PaymentService][createOrder] paymentUrl:', ONE_PAY_PAY_PAGE_URL)
-
-  // 4. Build payload
-  const payload = buildOnePayPayload({
-    txnId,
-    amount:    booking.totalAmount,
-    custMobile,
-    custMail,
-    returnURL,
-    udf1:      bookingId, // Used in callback to find booking
-    udf2:      userId,
-  })
-
-  console.log('[PaymentService][createOrder] Payload:', JSON.stringify(payload, null, 2))
-
-  // 5. Encrypt payload
-  const reqData = onePayEncrypt(payload)
-  console.log('[PaymentService][createOrder] reqData length:', reqData.length)
-
-  // 6. Save payment record BEFORE redirecting
-  let payment
-  try {
-    payment = await prisma.payment.create({
-      data: {
-        bookingId,
-        userId,
-        onePayTxnId: txnId,
-        amount:      booking.totalAmount,
-        currency:    'INR',
-        status:      'created',
-      },
-    })
-    console.log('[PaymentService][createOrder] Payment record created:', payment.id)
-  } catch (dbErr) {
-    console.error('[PaymentService][createOrder] DB error:', dbErr.message)
-    throw new Error('Failed to create payment record')
+  if (!booking) {
+    throw new Error('Booking not found')
   }
 
-  // 7. Update booking status
-  await prisma.booking.update({
-    where: { id: bookingId },
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  })
+
+  if (!user) {
+    throw new Error('User not found')
+  }
+
+  const txnId = generateTxnId(bookingId)
+
+  const payload = buildOnePayPayload({
+    txnId,
+    amount: Number(booking.totalAmount).toFixed(2),
+    custMobile: user.phone || '9999999999',
+    custMail: user.email || 'customer@medli.in',
+    returnURL: `${ONE_PAY_APP_URL}/api/payments/onepay-callback`,
+
+    udf1: booking.id,
+    udf2: user.id,
+  })
+
+  const reqData = onePayEncrypt(payload)
+
+  // CREATE PAYMENT RECORD
+  const payment = await prisma.payment.create({
     data: {
-      onePayTxnId:   txnId,
-      paymentStatus: 'pending',
-      status:        'pending_payment',
+      bookingId: booking.id,
+      userId: user.id,
+      onePayTxnId: txnId,
+      amount: booking.totalAmount,
+      currency: 'INR',
+      status: 'pending',
     },
   })
 
-  // 8. Return form data for frontend
+  // UPDATE BOOKING
+  await prisma.booking.update({
+    where: { id: booking.id },
+    data: {
+      onePayTxnId: txnId,
+      paymentStatus: 'pending',
+      status: 'pending_payment',
+    },
+  })
+
   return {
-    paymentId:  payment.id,
+    success: true,
+    paymentId: payment.id,
     txnId,
     merchantId: MERCHANT_ID,
     reqData,
     paymentUrl: ONE_PAY_PAY_PAGE_URL,
-    amount:     booking.totalAmount,
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ======================================================
 // PROCESS CALLBACK
-// Called when 1Pay POSTs encrypted respData to /api/payments/onepay-callback
-// ─────────────────────────────────────────────────────────────────────────────
+// ======================================================
+
 export async function processCallback(respData) {
-  console.log('[PaymentService][processCallback] Processing...')
+  console.log('[1Pay Callback] Processing callback')
 
-  // 1. Decrypt from 1Pay
-  let cbDataRaw
+  // ======================================================
+  // DECRYPT
+  // ======================================================
+
+  let decrypted
+
   try {
-    cbDataRaw = onePayDecrypt(respData)
+    decrypted = onePayDecrypt(respData)
   } catch (err) {
-    console.error('[PaymentService][processCallback] Decrypt failed:', err.message)
-    throw new Error('Failed to decrypt callback data')
-  }
-
-  console.log('[PaymentService][processCallback] cbDataRaw:', cbDataRaw)
-
-  // 2. Normalise cbData to plain object
-  let cbData = cbDataRaw
-  if (typeof cbDataRaw === 'string') {
-    try {
-      cbData = JSON.parse(cbDataRaw)
-      console.log('[PaymentService][processCallback] Parsed JSON cbData keys:', Object.keys(cbData))
-    } catch {
-      const params = new URLSearchParams(cbDataRaw.replace(/,\s*/g, '&'))
-      cbData = Object.fromEntries(params.entries())
-      console.log('[PaymentService][processCallback] Parsed querystring cbData keys:', Object.keys(cbData))
-    }
-  } else {
-    console.log('[PaymentService][processCallback] Decrypted object keys:', Object.keys(cbData))
-  }
-
-  console.log('[PaymentService][processCallback] Normalised cbData:', cbData)
-
-  // 3. Normalise keys from 1Pay
-  const {
-    // transaction ids
-    txnId,
-    txnid,
-    TXNID,
-    merchantTxnId,
-
-    // PG reference
-    pgRefId,
-    pgrefid,
-    PGREFID,
-
-    // status
-    status,
-    transstatus,
-    STATUS,
-
-    // amounts
-    Amount,
-    amount,
-    txnamount,
-    AMOUNT,
-
-    // udf fields (we used udf1 = bookingId, udf2 = userId)
-    udf1: bookingId,
-    udf2: userId,
-
-    // bank refs & messages
-    bankRefId,
-    bankrefid,
-    BANKREFID,
-    failureMsg,
-    respmessage,
-    message,
-    respcode,
-
-    // instrument / payment mode
-    instrumentType,
-    paymentmode,
-  } = cbData
-
-  const finalTxnId      = txnId || txnid || TXNID || merchantTxnId
-  const finalPgRefId    = pgRefId || pgrefid || PGREFID || null
-  const rawStatus       = status || transstatus || STATUS || null
-  const finalAmount     = Amount || amount || txnamount || AMOUNT || null
-  const finalBankRefId  = bankRefId || bankrefid || BANKREFID || null
-  const finalFailureMsg = failureMsg || respmessage || message || null
-
-  console.log('[PaymentService][processCallback] Extracted fields:', {
-    txnId,
-    txnid,
-    TXNID,
-    merchantTxnId,
-    finalTxnId,
-    transstatus,
-    status,
-    STATUS,
-    rawStatus,
-    finalAmount,
-    respmessage,
-    respcode,
-  })
-
-  // If still no txnId, log everything and return a structured failure (no throw)
-  if (!finalTxnId) {
-    console.error(
-      '[PaymentService][processCallback] Missing txnId in cbData keys:',
-      Object.keys(cbData)
-    )
-    console.error(
-      '[PaymentService][processCallback] cbData payload:',
-      cbData
-    )
+    console.error('[1Pay Callback] decrypt failed', err)
 
     return {
-      success:   false,
-      reason:    'missing_txn_id',
-      txnId:     null,
-      bookingId: bookingId || null,
-      pgRefId:   null,
-      status:    'failure',
-      raw:       cbData,
+      success: false,
+      status: 'failure',
+      reason: 'decrypt_failed',
     }
   }
 
-  console.log('[PaymentService][processCallback] Using txnId:', finalTxnId)
+  console.log('[1Pay Callback] decrypted raw:', decrypted)
 
-  // 4. Cross-verify with 1Pay TxnStatus
-  let verifiedStatus = rawStatus
-  try {
-    const verified = await onePayVerify(finalTxnId)
-    console.log('[PaymentService][processCallback] Verified raw:', verified)
-    verifiedStatus  = verified.status || verified.transstatus || rawStatus
-    console.log('[PaymentService][processCallback] Verified status:', verifiedStatus)
-  } catch (err) {
-    console.warn(
-      '[PaymentService][processCallback] Verify failed, using callback status:',
-      err.message
-    )
+  // ======================================================
+  // PARSE RESPONSE
+  // ======================================================
+
+  let data = {}
+
+  // CASE 1 → already object
+  if (typeof decrypted === 'object') {
+    data = decrypted
   }
 
-  const finalStatus = mapStatus(verifiedStatus)
-  console.log('[PaymentService][processCallback] Final status:', finalStatus)
+  // CASE 2 → querystring
+  else if (typeof decrypted === 'string') {
+    try {
+      const params = new URLSearchParams(
+        decrypted.replace(/,/g, '&')
+      )
 
-  // 5. Update Payment record
+      data = Object.fromEntries(params.entries())
+    } catch {
+      try {
+        data = JSON.parse(decrypted)
+      } catch {
+        data = {}
+      }
+    }
+  }
+
+  console.log('[1Pay Callback] parsed data:', data)
+
+  // ======================================================
+  // EXTRACT VALUES
+  // ======================================================
+
+  const txnId =
+    data.txn_id ||
+    data.txnId ||
+    data.txnid ||
+    null
+
+  const bookingId =
+    data.udf1 ||
+    null
+
+  const userId =
+    data.udf2 ||
+    null
+
+  const pgRefId =
+    data.pg_ref_id ||
+    data.pgRefId ||
+    null
+
+  const paymentStatus = mapPaymentStatus(data)
+
+  console.log('[1Pay Callback] txnId:', txnId)
+  console.log('[1Pay Callback] bookingId:', bookingId)
+  console.log('[1Pay Callback] status:', paymentStatus)
+
+  // ======================================================
+  // TXN REQUIRED
+  // ======================================================
+
+  if (!txnId) {
+    return {
+      success: false,
+      reason: 'missing_txn_id',
+      bookingId,
+      raw: data,
+      status: 'failure',
+    }
+  }
+
+  // ======================================================
+  // FIND PAYMENT
+  // ======================================================
+
   const payment = await prisma.payment.findFirst({
-    where: { onePayTxnId: finalTxnId },
+    where: {
+      onePayTxnId: txnId,
+    },
   })
+
+  // ======================================================
+  // UPDATE PAYMENT
+  // ======================================================
 
   if (payment) {
     await prisma.payment.update({
-      where: { id: payment.id },
+      where: {
+        id: payment.id,
+      },
       data: {
-        status: finalStatus === 'success'
-          ? 'success'
-          : finalStatus === 'failure'
-            ? 'failure'
-            : 'pending',
-        onePayPgRefId:        finalPgRefId,
-        onePayBankRefId:      finalBankRefId,
-        onePayFailureMsg:     finalFailureMsg,
-        onePayInstrumentType: instrumentType || paymentmode || null,
-        callbackData:         cbData,
+        status: paymentStatus,
+        onePayPgRefId: pgRefId,
+        onePayBankRefId:
+          data.bank_ref_id || null,
+
+        onePayFailureMsg:
+          data.resp_message || null,
+
+        callbackData: data,
       },
     })
-    console.log('[PaymentService][processCallback] Payment updated:', payment.id)
-  } else {
-    console.warn(
-      '[PaymentService][processCallback] Payment record not found for txnId:',
-      finalTxnId
-    )
   }
 
-  // 6. Find booking — try udf1 (bookingId) first, else match by txnId
+  // ======================================================
+  // FIND BOOKING
+  // ======================================================
+
   const booking = await prisma.booking.findFirst({
     where: {
       OR: [
-        bookingId ? { id: bookingId } : undefined,
-        { onePayTxnId: finalTxnId },
+        bookingId
+          ? { id: bookingId }
+          : undefined,
+
+        { onePayTxnId: txnId },
       ].filter(Boolean),
     },
   })
 
   if (!booking) {
-    console.error('[PaymentService][processCallback] Booking not found:', {
-      bookingId,
-      txnId: finalTxnId,
+    console.error('[1Pay Callback] booking not found')
+
+    return {
+      success: false,
+      status: 'failure',
+      reason: 'booking_not_found',
+      txnId,
+    }
+  }
+
+  // ======================================================
+  // SUCCESS
+  // ======================================================
+
+  if (paymentStatus === 'success') {
+    await prisma.booking.update({
+      where: {
+        id: booking.id,
+      },
+      data: {
+        paymentStatus: 'paid',
+        status: 'confirmed',
+        onePayPgRefId: pgRefId,
+      },
     })
-    throw new Error(`Booking not found for txnId: ${finalTxnId}`)
+
+    console.log('[1Pay Callback] PAYMENT SUCCESS')
   }
 
-  // 7. Update Booking
-  const bookingUpdate = { onePayPgRefId: finalPgRefId }
+  // ======================================================
+  // FAILURE
+  // ======================================================
 
-  if (finalStatus === 'success') {
-    bookingUpdate.paymentStatus = 'paid'
-    bookingUpdate.status        = 'confirmed'
-  } else if (finalStatus === 'failure') {
-    bookingUpdate.paymentStatus      = 'failed'
-    bookingUpdate.status            = 'cancelled'
-    bookingUpdate.cancellationReason = finalFailureMsg || 'Payment failed'
-  } else {
-    bookingUpdate.paymentStatus = 'pending'
+  else if (paymentStatus === 'failure') {
+    await prisma.booking.update({
+      where: {
+        id: booking.id,
+      },
+      data: {
+        paymentStatus: 'failed',
+        status: 'cancelled',
+        cancellationReason:
+          data.resp_message || 'Payment failed',
+      },
+    })
+
+    console.log('[1Pay Callback] PAYMENT FAILED')
   }
 
-  await prisma.booking.update({
-    where: { id: booking.id },
-    data:  bookingUpdate,
-  })
-
-  console.log(
-    '[PaymentService][processCallback] Booking updated:',
-    booking.id, '→', finalStatus
-  )
-
-  // 8. Create invoice on success
-  if (finalStatus === 'success') {
-    await createInvoice(booking, finalPgRefId)
-  }
+  // ======================================================
+  // RETURN
+  // ======================================================
 
   return {
-    success:   finalStatus === 'success',
-    reason:    finalStatus,
-    txnId:     finalTxnId,
+    success: paymentStatus === 'success',
+    status: paymentStatus,
     bookingId: booking.id,
-    pgRefId:   finalPgRefId,
-    status:    finalStatus,
+    txnId,
+    pgRefId,
+    raw: data,
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VERIFY TRANSACTION — manual status check
-// ─────────────────────────────────────────────────────────────────────────────
+// ======================================================
+// VERIFY TRANSACTION
+// ======================================================
+
 export async function verifyTransaction(txnId) {
-  console.log('[PaymentService][verifyTransaction]', txnId)
+  console.log('[VerifyTransaction]', txnId)
 
-  // 1. Verify with 1Pay
-  const verifiedData = await onePayVerify(txnId)
-  const finalStatus  = mapStatus(verifiedData.status || verifiedData.transstatus)
-
-  // 2. Update payment record
-  const payment = await prisma.payment.findFirst({
-    where: { onePayTxnId: txnId },
-  })
-
-  if (payment) {
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status:           finalStatus,
-        onePayPgRefId:    verifiedData.pgRefId   || verifiedData.pgrefid   || null,
-        onePayBankRefId:  verifiedData.bankRefId || verifiedData.bankrefid || null,
-      },
-    })
+  if (!txnId) {
+    throw new Error('txnId missing')
   }
 
-  // 3. Confirm booking if success
-  if (finalStatus === 'success') {
-    const booking = await prisma.booking.findFirst({
-      where: { onePayTxnId: txnId },
-    })
+  // FIND LOCAL PAYMENT
+  const payment = await prisma.payment.findFirst({
+    where: {
+      onePayTxnId: txnId,
+    },
+  })
 
-    if (booking && booking.paymentStatus !== 'paid') {
+  if (!payment) {
+    return {
+      success: false,
+      status: 'not_found',
+    }
+  }
+
+  // CALL 1PAY VERIFY
+  let verifyData = {}
+
+  try {
+    verifyData = await onePayVerify(txnId)
+  } catch (err) {
+    console.warn('[VerifyTransaction] verify API failed')
+  }
+
+  const status = mapPaymentStatus(verifyData)
+
+  // UPDATE PAYMENT
+  await prisma.payment.update({
+    where: {
+      id: payment.id,
+    },
+    data: {
+      status,
+      callbackData: verifyData,
+    },
+  })
+
+  // UPDATE BOOKING
+  const booking = await prisma.booking.findFirst({
+    where: {
+      onePayTxnId: txnId,
+    },
+  })
+
+  if (booking) {
+    if (status === 'success') {
       await prisma.booking.update({
-        where: { id: booking.id },
+        where: {
+          id: booking.id,
+        },
         data: {
           paymentStatus: 'paid',
-          status:        'confirmed',
-          onePayPgRefId: verifiedData.pgRefId || verifiedData.pgrefid || null,
+          status: 'confirmed',
         },
       })
-      console.log('[PaymentService][verifyTransaction] Booking confirmed:', booking.id)
-      await createInvoice(booking, verifiedData.pgRefId || verifiedData.pgrefid)
+    }
+
+    if (status === 'failure') {
+      await prisma.booking.update({
+        where: {
+          id: booking.id,
+        },
+        data: {
+          paymentStatus: 'failed',
+        },
+      })
     }
   }
 
   return {
+    success: true,
     txnId,
-    status:  finalStatus,
-    rawData: verifiedData,
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INITIATE REFUND — direct admin use
-// ─────────────────────────────────────────────────────────────────────────────
-export async function initiateRefund({ bookingId, amount, reason, initiatedBy }) {
-  console.log('[PaymentService][initiateRefund]', { bookingId, amount })
-
-  const booking = await prisma.booking.findUnique({ where: { id: bookingId } })
-  if (!booking)                          throw new Error('Booking not found')
-  if (booking.paymentStatus !== 'paid')  throw new Error('Booking is not paid')
-
-  const refundAmount = amount || booking.totalAmount
-  const refundNumber = `REF-${Date.now()}-${Math.random()
-    .toString(36).substring(2, 6).toUpperCase()}`
-
-  const refund = await prisma.refund.create({
-    data: {
-      refundNumber,
-      bookingId,
-      userId:        booking.userId,
-      bookingAmount: booking.totalAmount,
-      refundAmount,
-      reason:        reason || 'Customer requested',
-      status:        'pending',
-      initiatedBy:   initiatedBy || booking.userId,
-    },
-  })
-
-  await prisma.booking.update({
-    where: { id: bookingId },
-    data: {
-      paymentStatus: 'refunded',
-      status:        'refunded',
-      refundAmount,
-    },
-  })
-
-  console.log('[PaymentService][initiateRefund] Refund created:', refund.id)
-  return refund
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PROCESS 1PAY REFUND
-// Called by refund.service.js
-// Returns: { success, refundRequestId, onePayRefundStatus, message }
-// ─────────────────────────────────────────────────────────────────────────────
-export async function process1PayRefund({ bookingId, refundAmount }) {
-  console.log('[PaymentService][process1PayRefund]', { bookingId, refundAmount })
-
-  // 1. Validate
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-  })
-
-  if (!booking) throw new Error('Booking not found')
-
-  const txnId = booking.onePayTxnId
-  console.log('[process1PayRefund] txnId:', txnId, '| amount:', refundAmount)
-
-  // 2. Prevent duplicate refunds
-  const existing = await prisma.refund.findFirst({
-    where: {
-      bookingId,
-      status: { in: ['pending', 'processing', 'completed'] },
-    },
-  })
-
-  if (existing) {
-    console.warn('[process1PayRefund] Refund already exists:', existing.id)
-    return {
-      success:            true,
-      refundRequestId:    existing.onePayRefundRequestId || existing.refundNumber,
-      onePayRefundStatus: existing.onePayRefundStatus    || 'RF000',
-      message:            'Refund already in progress',
-    }
-  }
-
-  // 3. Call 1Pay Refund API (placeholder)
-  return {
-    success:            true,
-    refundRequestId:    `RFQ-${Date.now()}`,
-    onePayRefundStatus: 'RF000',
-    message:            'Refund initiated successfully',
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CREATE INVOICE — internal helper
-// ─────────────────────────────────────────────────────────────────────────────
-async function createInvoice(booking, pgRefId) {
-  try {
-    const existing = await prisma.invoice.findFirst({
-      where: { bookingId: booking.id },
-    })
-
-    if (existing) {
-      console.log('[PaymentService][createInvoice] Already exists:', existing.id)
-      return existing
-    }
-
-    const invoiceNumber = `INV-${Date.now()}-${Math.random()
-      .toString(36).substring(2, 6).toUpperCase()}`
-
-    const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        bookingId:           booking.id,
-        userId:              booking.userId,
-        baseFee:             booking.baseFee             || 0,
-        couponCode:          booking.couponCode          || null,
-        couponDiscount:      booking.couponDiscount      || 0,
-        couponType:          booking.couponType          || null,
-        discountedFee:       booking.discountedFee       || 0,
-        platformFeePercent:  booking.platformFeePercent  || 0,
-        platformFee:         booking.platformFee         || 0,
-        gstPercent:          booking.gstPercent          || 18,
-        gst:                 booking.gst                 || 0,
-        subtotal:            booking.subtotal            || 0,
-        adminCouponDiscount: booking.adminCouponDiscount || 0,
-        totalAmount:         booking.totalAmount         || 0,
-        onePayPgRefId:       pgRefId                     || null,
-        type:                'invoice',
-        items: [
-          {
-            description: `${booking.type} booking`,
-            quantity:    1,
-            rate:        booking.baseFee     || 0,
-            amount:      booking.totalAmount || 0,
-          },
-        ],
-      },
-    })
-
-    console.log('[PaymentService][createInvoice] Created:', invoice.id)
-    return invoice
-
-  } catch (err) {
-    console.error('[PaymentService][createInvoice] Failed:', err.message)
+    status,
+    raw: verifyData,
   }
 }
