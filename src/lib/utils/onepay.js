@@ -3,28 +3,29 @@
 import crypto from 'crypto'
 import axios from 'axios'
 
-// ── Env — trim all whitespace ─────────────────────────────────────────────────
-const MERCHANT_ID = (process.env.ONE_PAY_MERCHANT_ID || '').trim()
-const API_KEY     = (process.env.ONE_PAY_API_KEY     || '').trim()
-const SECRET_KEY  = (process.env.ONE_PAY_SECRET_KEY  || '').trim()
+// ─────────────────────────────────────────────────────────────────────────────
+// ENV
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ── IV = first 16 characters of API_KEY ──────────────────────────────────────
+const MERCHANT_ID = (process.env.ONE_PAY_MERCHANT_ID || '').trim()
+const API_KEY     = (process.env.ONE_PAY_API_KEY || '').trim()
+const SECRET_KEY  = (process.env.ONE_PAY_SECRET_KEY || '').trim()
+
+// IV = first 16 chars of API_KEY
 const SECRET_IV = API_KEY.substring(0, 16)
 
-const IS_PROD = process.env.NODE_ENV === 'production'
-
-// ── API base (server-to-server) ───────────────────────────────────────────────
 const API_BASE =
   process.env.ONE_PAY_API_BASE_UAT ||
   'https://pa-preprod.1pay.in'
 
-// ── Payment PAGE (where user is sent to enter card/UPI details) ───────────────
 const PAY_PAGE_URL =
   process.env.ONE_PAY_PAY_PAGE_UAT ||
   'https://pa-preprod.1pay.in/payment/payprocessorV2'
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
-  .replace(/\/+$/, '')
+const APP_URL = (
+  process.env.NEXT_PUBLIC_APP_URL ||
+  'http://localhost:3000'
+).replace(/\/+$/, '')
 
 console.log('[1Pay] API_BASE:', API_BASE)
 console.log('[1Pay] PAY_PAGE_URL:', PAY_PAGE_URL)
@@ -33,114 +34,148 @@ console.log('[1Pay] APP_URL:', APP_URL)
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDATE KEYS
 // ─────────────────────────────────────────────────────────────────────────────
+
 function validateKeys() {
   const issues = []
 
+  if (!MERCHANT_ID) {
+    issues.push('ONE_PAY_MERCHANT_ID missing')
+  }
+
   if (!API_KEY) {
-    issues.push('ONE_PAY_API_KEY is not set')
-  } else if (API_KEY.length < 16) {
-    issues.push(
-      `ONE_PAY_API_KEY must be at least 16 chars (got ${API_KEY.length}). ` +
-      `First 16 chars are used as IV`
-    )
+    issues.push('ONE_PAY_API_KEY missing')
+  }
+
+  if (API_KEY.length < 16) {
+    issues.push('ONE_PAY_API_KEY must be minimum 16 chars')
   }
 
   if (!SECRET_KEY) {
-    issues.push('ONE_PAY_SECRET_KEY is not set')
-  } else if (SECRET_KEY.length !== 32) {
-    issues.push(
-      `ONE_PAY_SECRET_KEY must be exactly 32 chars (got ${SECRET_KEY.length}). ` +
-      `32 UTF-8 chars = 32 bytes = AES-256`
-    )
+    issues.push('ONE_PAY_SECRET_KEY missing')
   }
 
-  if (!MERCHANT_ID) {
-    issues.push('ONE_PAY_MERCHANT_ID is not set')
+  if (SECRET_KEY.length !== 32) {
+    issues.push('ONE_PAY_SECRET_KEY must be exactly 32 chars')
   }
 
-  if (issues.length > 0) {
-    const msg = '[1Pay Config Error]\n' + issues.map(i => '  • ' + i).join('\n')
+  if (issues.length) {
+    const msg = issues.join('\n')
     console.error(msg)
     throw new Error(msg)
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ENCRYPT — AES-256-CBC
+// ENCRYPT
 // ─────────────────────────────────────────────────────────────────────────────
+
 export function onePayEncrypt(data) {
   validateKeys()
 
-  const keyBuf = Buffer.from(SECRET_KEY, 'utf8') // 32 bytes
-  const ivBuf  = Buffer.from(SECRET_IV,  'utf8') // 16 bytes
+  const keyBuf = Buffer.from(SECRET_KEY, 'utf8')
+  const ivBuf  = Buffer.from(SECRET_IV, 'utf8')
 
-  console.log('[1Pay][Encrypt] Key:', keyBuf.length, 'bytes | IV:', ivBuf.length, 'bytes')
-  console.log('[1Pay][Encrypt] IV source: first 16 chars of API_KEY =', SECRET_IV)
+  const plainText =
+    typeof data === 'object'
+      ? JSON.stringify(data)
+      : String(data)
 
-  const text   = typeof data === 'object' ? JSON.stringify(data) : String(data)
-  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuf, ivBuf)
+  const cipher = crypto.createCipheriv(
+    'aes-256-cbc',
+    keyBuf,
+    ivBuf
+  )
+
   cipher.setAutoPadding(true)
 
-  let enc  = cipher.update(text, 'utf8', 'base64')
-  enc     += cipher.final('base64')
+  let encrypted = cipher.update(
+    plainText,
+    'utf8',
+    'base64'
+  )
 
-  console.log('[1Pay][Encrypt] Input length:', text.length, '| Output length:', enc.length)
-  return enc
+  encrypted += cipher.final('base64')
+
+  console.log('[1Pay][Encrypt] Success')
+
+  return encrypted
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DECRYPT — AES-256-CBC
+// DECRYPT
 // ─────────────────────────────────────────────────────────────────────────────
+
 export function onePayDecrypt(ciphertext) {
   validateKeys()
 
-  const keyBuf   = Buffer.from(SECRET_KEY, 'utf8')
-  const ivBuf    = Buffer.from(SECRET_IV,  'utf8')
-  const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuf, ivBuf)
+  const keyBuf = Buffer.from(SECRET_KEY, 'utf8')
+  const ivBuf  = Buffer.from(SECRET_IV, 'utf8')
+
+  const decipher = crypto.createDecipheriv(
+    'aes-256-cbc',
+    keyBuf,
+    ivBuf
+  )
+
   decipher.setAutoPadding(true)
 
-  let dec  = decipher.update(ciphertext, 'base64', 'utf8')
-  dec     += decipher.final('utf8')
+  let decrypted = decipher.update(
+    ciphertext,
+    'base64',
+    'utf8'
+  )
 
-  console.log('[1Pay][Decrypt] Output length:', dec.length)
-  console.log('[1Pay][Decrypt] Raw decrypted:', dec)
+  decrypted += decipher.final('utf8')
 
-  // 1) Try JSON
+  console.log('[1Pay][Decrypt] Raw:', decrypted)
+
+  // Try JSON
   try {
-    const obj = JSON.parse(dec)
-    console.log('[1Pay][Decrypt] Parsed as JSON, keys:', Object.keys(obj))
-    return obj
-  } catch {
-    // 2) Try querystring style: "k=v,k=v,..." → replace commas with &
-    try {
-      const qs = dec.replace(/,\s*/g, '&')
-      const params = new URLSearchParams(qs)
-      const obj = Object.fromEntries(params.entries())
-      console.log('[1Pay][Decrypt] Parsed as querystring, keys:', Object.keys(obj))
-      return obj
-    } catch {
-      console.warn('[1Pay][Decrypt] Could not parse JSON or querystring')
-      return { raw: dec }
+    return JSON.parse(decrypted)
+  } catch {}
+
+  // Try querystring
+  try {
+    const normalized = decrypted
+      .replace(/,\s*/g, '&')
+      .replace(/\r/g, '')
+      .replace(/\n/g, '&')
+
+    const params = new URLSearchParams(normalized)
+
+    const obj = {}
+
+    for (const [key, value] of params.entries()) {
+      obj[key.trim()] = value.trim()
     }
-  }
+
+    return obj
+  } catch {}
+
+  return { raw: decrypted }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GENERATE TRANSACTION ID — unique per attempt
+// GENERATE TXN ID
 // ─────────────────────────────────────────────────────────────────────────────
+
 export function generateTxnId(bookingId = '') {
   const short = bookingId.slice(-6).toUpperCase()
   const ts    = Date.now().toString(36).toUpperCase()
   const rand  = Math.random().toString(36).substring(2, 6).toUpperCase()
+
   return `MED-${short}-${ts}-${rand}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET DATE TIME — dd-MM-yyyy HH:mm:ss (for logs / internal)
+// GET DATETIME
 // ─────────────────────────────────────────────────────────────────────────────
+
 export function getDateTime() {
   const now = new Date()
+
   const pad = (n) => String(n).padStart(2, '0')
+
   return (
     `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()} ` +
     `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
@@ -148,8 +183,9 @@ export function getDateTime() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BUILD PAYLOAD — 1Pay PaymentAuthorization
+// BUILD PAYLOAD
 // ─────────────────────────────────────────────────────────────────────────────
+
 export function buildOnePayPayload({
   txnId,
   amount,
@@ -161,151 +197,222 @@ export function buildOnePayPayload({
 }) {
   const payload = {
     merchantId: MERCHANT_ID,
-    apiKey:     API_KEY,
+    apiKey: API_KEY,
 
-    txnId:    String(txnId),
-    amount:   parseFloat(amount).toFixed(2),
+    txnId: String(txnId),
+
+    amount: parseFloat(amount).toFixed(2),
+
     dateTime: getDateTime(),
 
     custMobile: String(custMobile || '9999999999'),
-    custMail:   String(custMail   || 'customer@medli.in'),
+    custMail: String(custMail || 'customer@medli.in'),
 
     channelId: '0',
-    txnType:   'DIRECT',
+    txnType: 'DIRECT',
 
     returnURL: String(returnURL),
 
-    productId:        'DEFAULT',
+    productId: 'DEFAULT',
+
     isMultiSettlement: '0',
 
-    udf1: String(udf1 || 'NA'),
-    udf2: String(udf2 || 'NA'),
+    udf1: String(udf1),
+    udf2: String(udf2),
     udf3: 'NA',
     udf4: 'NA',
     udf5: 'NA',
     udf6: 'NA',
 
     instrumentId: 'NA',
-    cardDetails:  'NA',
-    cardType:     'NA',
+    cardDetails: 'NA',
+    cardType: 'NA',
   }
 
-  console.log('[1Pay][Payload]', JSON.stringify(payload, null, 2))
+  console.log('[1Pay][Payload]', payload)
+
   return payload
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POST helper (JSON) — kept for future APIs
+// VERIFY TRANSACTION
 // ─────────────────────────────────────────────────────────────────────────────
-export async function onePayPost(endpoint, payload) {
-  const url = `${API_BASE}${endpoint}`
-  console.log('[1Pay][POST]', url)
-  console.log('[1Pay][POST] Payload keys:', Object.keys(payload))
 
-  try {
-    const response = await axios.post(url, payload, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 30000,
-    })
-    console.log('[1Pay][POST] Status:', response.status)
-    console.log('[1Pay][POST] Response:', JSON.stringify(response.data).substring(0, 300))
-    return response.data
-  } catch (err) {
-    if (err.code === 'ECONNABORTED') throw new Error('GATEWAY_TIMEOUT')
-    if (err.code === 'ECONNREFUSED') throw new Error('GATEWAY_UNREACHABLE')
-    if (err.response) {
-      console.error('[1Pay][POST] HTTP Error:', err.response.status, err.response.data)
-      throw new Error(`Gateway HTTP ${err.response.status}`)
-    }
-    throw err
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VERIFY TRANSACTION — 1Pay Transaction Status Query
-// URL: baseurl/payment/getTxnDetails
-// Request: merchantId & txnId
-// Response: "txnid=...,paymentmode=...,transstatus=Ok,..."
-// ─────────────────────────────────────────────────────────────────────────────
 export async function verifyTransaction(txnId) {
   console.log('[1Pay][Verify] txnId:', txnId)
 
   const url = `${API_BASE}/payment/getTxnDetails`
-  console.log('[1Pay][Verify] URL:', url)
 
   try {
     const body = new URLSearchParams({
       merchantId: MERCHANT_ID,
-      txnId:      String(txnId),
+      txnId: String(txnId),
     }).toString()
 
     const res = await axios.post(url, body, {
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type':
+          'application/x-www-form-urlencoded',
       },
       timeout: 30000,
     })
 
-    console.log('[1Pay][Verify] HTTP:', res.status, res.data)
+    console.log('[1Pay][Verify] Raw:', res.data)
 
-    const raw = typeof res.data === 'string' ? res.data : String(res.data)
+    const raw =
+      typeof res.data === 'string'
+        ? res.data
+        : JSON.stringify(res.data)
 
-    // Convert "a=b, c=d, ..." → "a=b&c=d&..."
-    const qs = raw.replace(/,\s*/g, '&')
-    const params = new URLSearchParams(qs)
-    const obj = Object.fromEntries(params.entries())
+    const normalized = raw
+      .replace(/,\s*/g, '&')
+      .replace(/\r/g, '')
+      .replace(/\n/g, '&')
+
+    const params = new URLSearchParams(normalized)
+
+    const obj = {}
+
+    for (const [key, value] of params.entries()) {
+      obj[key.trim()] = value.trim()
+    }
 
     console.log('[1Pay][Verify] Parsed:', obj)
+
     return obj
+
   } catch (err) {
     console.error('[1Pay][Verify] Error:', err.message)
-    if (err.code === 'ECONNABORTED') throw new Error('GATEWAY_TIMEOUT')
-    if (err.code === 'ECONNREFUSED') throw new Error('GATEWAY_UNREACHABLE')
-    if (err.response) {
-      console.error('[1Pay][Verify] HTTP Error:', err.response.status, err.response.data)
-      throw new Error(`Gateway HTTP ${err.response.status}`)
+
+    if (err.code === 'ECONNABORTED') {
+      throw new Error('GATEWAY_TIMEOUT')
     }
+
+    if (err.code === 'ECONNREFUSED') {
+      throw new Error('GATEWAY_UNREACHABLE')
+    }
+
+    if (err.response) {
+      console.error(
+        '[1Pay][Verify] HTTP:',
+        err.response.status,
+        err.response.data
+      )
+
+      throw new Error(
+        `Gateway HTTP ${err.response.status}`
+      )
+    }
+
     throw err
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAP STATUS — 1Pay → internal
+// MAP STATUS
 // ─────────────────────────────────────────────────────────────────────────────
-export function mapStatus(onePayStatus) {
-  const map = {
-    Ok:      'success',
-    ok:      'success',
-    OK:      'success',
-    S:       'success',
-    success: 'success',
-    SUCCESS: 'success',
 
-    F:       'failure',
-    failure: 'failure',
-    FAILURE: 'failure',
-    failed:  'failure',
-    FAILED:  'failure',
+export function mapStatus(onePayStatus = '') {
+  const status = String(onePayStatus)
+    .trim()
+    .toLowerCase()
 
-    To:      'timeout',
-    timeout: 'timeout',
-    TIMEOUT: 'timeout',
+  console.log('[1Pay][mapStatus] RAW:', onePayStatus)
+  console.log('[1Pay][mapStatus] NORMALIZED:', status)
 
-    Pending: 'pending',
-    PENDING: 'pending',
-    pending: 'pending',
-    P:       'pending',
+  // SUCCESS
+  if (
+    status === 'ok' ||
+    status === 'success' ||
+    status === 's' ||
+    status === '0300' ||
+    status === 'txn_success' ||
+    status.includes('success')
+  ) {
+    return 'success'
   }
-  return map[onePayStatus] || 'pending'
+
+  // FAILURE
+  if (
+    status === 'f' ||
+    status === 'failure' ||
+    status === 'failed' ||
+    status === '0399' ||
+    status.includes('fail') ||
+    status.includes('declined')
+  ) {
+    return 'failure'
+  }
+
+  // TIMEOUT
+  if (
+    status === 'to' ||
+    status === 'timeout'
+  ) {
+    return 'timeout'
+  }
+
+  // PENDING
+  if (
+    status === 'pending' ||
+    status === 'p'
+  ) {
+    return 'pending'
+  }
+
+  console.warn('[1Pay][mapStatus] Unknown:', onePayStatus)
+
+  return 'pending'
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GENERIC POST
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function onePayPost(endpoint, payload) {
+  const url = `${API_BASE}${endpoint}`
+
+  try {
+    const response = await axios.post(
+      url,
+      payload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      }
+    )
+
+    return response.data
+
+  } catch (err) {
+    if (err.code === 'ECONNABORTED') {
+      throw new Error('GATEWAY_TIMEOUT')
+    }
+
+    if (err.code === 'ECONNREFUSED') {
+      throw new Error('GATEWAY_UNREACHABLE')
+    }
+
+    if (err.response) {
+      throw new Error(
+        `Gateway HTTP ${err.response.status}`
+      )
+    }
+
+    throw err
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────────────────────────────────────
+
 export {
-  API_BASE     as ONE_PAY_API_BASE,
+  API_BASE as ONE_PAY_API_BASE,
   PAY_PAGE_URL as ONE_PAY_PAY_PAGE_URL,
-  APP_URL      as ONE_PAY_APP_URL,
+  APP_URL as ONE_PAY_APP_URL,
   MERCHANT_ID,
   API_KEY,
 }
