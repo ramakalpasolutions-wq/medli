@@ -254,7 +254,7 @@ export async function processCallback(respData) {
         onePayFailureMsg:
           data.resp_message || null,
 
-        callbackData: data,
+        callbackData: JSON.stringify(data),
       },
     })
   }
@@ -382,7 +382,7 @@ export async function verifyTransaction(txnId) {
     },
     data: {
       status,
-      callbackData: verifyData,
+      callbackData: JSON.stringify(verifyData),
     },
   })
 
