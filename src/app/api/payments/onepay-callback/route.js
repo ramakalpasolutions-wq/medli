@@ -3,54 +3,120 @@ export const runtime = 'nodejs'
 
 import { processCallback } from '@/lib/services/payment.service'
 
+// ======================================================
+// REDIRECT URL BUILDER
+// ======================================================
+
+function getRedirectUrl(
+  status,
+  bookingId,
+  txnId
+) {
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    'http://localhost:3000'
+
+  // your actual pages
+  if (status === 'success') {
+    return `${base}/user/bookings/${bookingId}/success?txnId=${txnId}`
+  }
+
+  if (status === 'failure') {
+    return `${base}/user/bookings/${bookingId}/failed?txnId=${txnId}`
+  }
+
+  return `${base}/user/bookings/${bookingId}/pending?txnId=${txnId}`
+}
+
+// ======================================================
+// OPTIONS
+// ======================================================
+
 export async function OPTIONS() {
   return new Response(null, {
     status: 204,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods':
+        'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers':
+        'Content-Type',
     },
   })
 }
 
+// ======================================================
+// POST CALLBACK
+// ======================================================
+
 export async function POST(request) {
-  console.log('[1Pay Callback] POST received')
+  console.log(
+    '[1Pay Callback] POST received'
+  )
 
   try {
-    const contentType = request.headers.get('content-type') || ''
+    const contentType =
+      request.headers.get(
+        'content-type'
+      ) || ''
+
     let respData = null
 
-    if (contentType.includes('application/x-www-form-urlencoded')) {
-      const text = await request.text()
+    // ======================================================
+    // FORM DATA
+    // ======================================================
 
-      console.log('[1Pay Callback RAW]', text)
+    if (
+      contentType.includes(
+        'application/x-www-form-urlencoded'
+      )
+    ) {
+      const text =
+        await request.text()
 
-      const params = new URLSearchParams(text)
+      console.log(
+        '[1Pay Callback RAW]',
+        text
+      )
+
+      const params =
+        new URLSearchParams(text)
 
       respData =
         params.get('respData') ||
         params.get('encRespData')
+    }
 
-    } else {
-      const body = await request.json()
+    // ======================================================
+    // JSON
+    // ======================================================
 
-      console.log('[1Pay Callback JSON]', body)
+    else {
+      const body =
+        await request.json()
+
+      console.log(
+        '[1Pay Callback JSON]',
+        body
+      )
 
       respData =
         body.respData ||
         body.encRespData
     }
 
-    if (!respData) {
-      console.error('[1Pay Callback] No respData')
+    // ======================================================
+    // VALIDATE
+    // ======================================================
 
-      return Response.json(
-        {
-          success: false,
-          error: 'No respData',
-        },
-        { status: 200 }
+    if (!respData) {
+      console.error(
+        '[1Pay Callback] No respData'
+      )
+
+      return Response.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/payment-error`,
+        302
       )
     }
 
@@ -59,34 +125,62 @@ export async function POST(request) {
       respData.length
     )
 
-    const result = await processCallback(respData)
+    // ======================================================
+    // PROCESS CALLBACK
+    // ======================================================
 
-    console.log('[1Pay Callback Result]', result)
+    const result =
+      await processCallback(
+        respData
+      )
 
-    return Response.json(
-      {
-        success: true,
-        result,
-      },
-      { status: 200 }
+    console.log(
+      '[1Pay Callback Result]',
+      result
+    )
+
+    // ======================================================
+    // REDIRECT USER
+    // ======================================================
+
+    const redirectUrl =
+      getRedirectUrl(
+        result.status,
+        result.bookingId,
+        result.txnId
+      )
+
+    console.log(
+      '[1Pay Callback Redirect]',
+      redirectUrl
+    )
+
+    return Response.redirect(
+      redirectUrl,
+      302
     )
 
   } catch (error) {
-    console.error('[1Pay Callback ERROR]', error)
+    console.error(
+      '[1Pay Callback ERROR]',
+      error
+    )
 
-    return Response.json(
-      {
-        success: false,
-        error: error.message,
-      },
-      { status: 200 }
+    return Response.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL}/payment-error`,
+      302
     )
   }
 }
 
+// ======================================================
+// GET
+// ======================================================
+
 export async function GET() {
   return Response.json({
     success: true,
-    message: '1Pay callback working',
+    message:
+      '1Pay callback working',
   })
 }
