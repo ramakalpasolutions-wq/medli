@@ -1,21 +1,20 @@
-// src/components/maps/LeafletMap.jsx
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 export default function LeafletMap({
-  markers = [],
+  markers     = [],
   selected,
   onSelect,
-  height = '400px',
-  zoom = 13,
+  height      = '400px',
+  zoom        = 13,
   accentColor = '#1286f5',
 }) {
-  const mapRef      = useRef(null)
-  const mapInst     = useRef(null)
-  const markerRefs  = useRef([])
-  const tileAdded   = useRef(false)
-  const userMarker  = useRef(null)
+  const mapRef     = useRef(null)
+  const mapInst    = useRef(null)
+  const markerRefs = useRef([])
+  const userMarker = useRef(null)
+  const mountedRef = useRef(true)
 
   const [userLocation, setUserLocation] = useState(null)
   const [locLoading,   setLocLoading]   = useState(false)
@@ -46,6 +45,7 @@ export default function LeafletMap({
 
     navigator.geolocation.getCurrentPosition(
       ({ coords: { latitude: lat, longitude: lng } }) => {
+        if (!mountedRef.current) return
         setUserLocation({ lat, lng })
         setLocLoading(false)
         const dist = {}
@@ -56,6 +56,7 @@ export default function LeafletMap({
         mapInst.current?.setView([lat, lng], Math.max(zoom, 13), { animate: true })
       },
       (err) => {
+        if (!mountedRef.current) return
         setLocLoading(false)
         setLocError(
           err.code === 1 ? 'Permission denied' :
@@ -66,7 +67,7 @@ export default function LeafletMap({
     )
   }, [markers, calcDistance, zoom])
 
-  // Recalc distances on marker/location change
+  // ── Recalc distances ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!userLocation) return
     const dist = {}
@@ -82,192 +83,214 @@ export default function LeafletMap({
     if (!mapRef.current || markers.length === 0) return
 
     import('leaflet').then((Lmod) => {
-      const L = Lmod.default || Lmod
+      if (!mountedRef.current || !mapRef.current) return
 
-      // Fix default icon path (webpack)
-      delete L.Icon.Default.prototype._getIconUrl
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-      })
+      try {
+        const L = Lmod.default || Lmod
 
-      // ── Init map ──────────────────────────────────────────────────────────
-      if (!mapInst.current) {
-        const center = [markers[0].lat, markers[0].lng]
-
-        mapInst.current = L.map(mapRef.current, {
-          center,
-          zoom,
-          zoomControl:        false,
-          scrollWheelZoom:    false,
-          attributionControl: false,
+        delete L.Icon.Default.prototype._getIconUrl
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+          iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+          shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
         })
 
-        L.tileLayer(
-          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          { maxZoom: 19, subdomains: 'abcd' }
-        ).addTo(mapInst.current)
+        // ── Init map only once ──────────────────────────────────────────────
+        if (!mapInst.current) {
+            if (mapRef.current._leaflet_id) return   // ← ADD THIS LINE
 
-        L.control.attribution({ position: 'bottomright', prefix: false })
-          .addAttribution('© <a href="https://carto.com">CARTO</a>')
-          .addTo(mapInst.current)
-
-        L.control.zoom({ position: 'bottomright' }).addTo(mapInst.current)
-        tileAdded.current = true
-      }
-
-      // ── Invalidate size (fixes blank map on tab/view switch) ──────────────
-      setTimeout(() => mapInst.current?.invalidateSize(), 100)
-
-      // ── User dot ──────────────────────────────────────────────────────────
-      if (userLocation) {
-        userMarker.current?.remove()
-
-        const userIcon = L.divIcon({
-          className: '',
-          html: `
-            <div style="position:relative;width:20px;height:20px;">
-              <div style="
-                position:absolute;inset:0;
-                background:${accentColor};border:3px solid #fff;
-                border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.3);z-index:2;
-              "></div>
-              <div style="
-                position:absolute;top:50%;left:50%;
-                transform:translate(-50%,-50%);
-                width:40px;height:40px;
-                background:${accentColor}30;border-radius:50%;
-                animation:pulse-ring 2s infinite;z-index:1;
-              "></div>
-            </div>`,
-          iconSize: [20, 20], iconAnchor: [10, 10],
-        })
-
-        userMarker.current = L.marker([userLocation.lat, userLocation.lng], {
-          icon: userIcon, zIndexOffset: 1000,
-        })
-          .addTo(mapInst.current)
-          .bindPopup('<div style="font-family:Arial;font-size:13px;font-weight:600;color:#1a1a2e;padding:4px 2px;">📍 You are here</div>',
-            { maxWidth: 160, closeButton: false })
-      }
-
-      // ── Clear old markers ─────────────────────────────────────────────────
-      markerRefs.current.forEach((m) => m.remove())
-      markerRefs.current = []
-
-      // ── Plot markers ──────────────────────────────────────────────────────
-      markers.forEach((item) => {
-        if (!item.lat || !item.lng) return
-
-        const isSelected = selected?.id === item.id
-        const pinColor   = isSelected ? '#f59e0b' : (item.color || accentColor)
-        const pinW       = isSelected ? 36 : 30
-        const pinH       = isSelected ? 48 : 40
-        const dist       = distances[item.id]
-
-        const icon = L.divIcon({
-          className: '',
-          html: `
-            <div style="
-              position:relative;width:${pinW}px;height:${pinH}px;
-              cursor:pointer;
-              filter:drop-shadow(0 3px 6px rgba(0,0,0,.28));
-            ">
-              <svg viewBox="0 0 36 48" width="${pinW}" height="${pinH}" xmlns="http://www.w3.org/2000/svg">
-                <path d="M18 0C10.268 0 4 6.268 4 14C4 24.5 18 48 18 48C18 48 32 24.5 32 14C32 6.268 25.732 0 18 0Z"
-                  fill="${pinColor}" stroke="#fff" stroke-width="2"/>
-                <circle cx="18" cy="14" r="7" fill="#fff" opacity="0.92"/>
-                <text x="18" y="19" font-size="9" text-anchor="middle" font-family="Arial,sans-serif">${item.emoji || '📍'}</text>
-              </svg>
-              ${isSelected ? `<div style="
-                position:absolute;bottom:-3px;left:50%;
-                transform:translateX(-50%);
-                width:14px;height:4px;
-                background:rgba(0,0,0,.15);border-radius:50%;filter:blur(2px);
-              "></div>` : ''}
-            </div>`,
-          iconSize:    [pinW, pinH],
-          iconAnchor:  [pinW / 2, pinH],
-          popupAnchor: [0, -(pinH + 2)],
-        })
-
-        const distBadge = dist != null
-          ? `<span style="
-               display:inline-flex;align-items:center;gap:3px;
-               background:${pinColor}18;border:1px solid ${pinColor}50;
-               color:${pinColor};font-size:10px;font-weight:600;
-               padding:2px 8px;border-radius:20px;margin-bottom:7px;
-             ">📍 ${formatDist(dist)} away</span>`
-          : ''
-
-        const popupHtml = `
-          <div style="min-width:210px;max-width:260px;padding:8px 2px 4px;font-family:Arial,sans-serif;">
-            <p style="font-weight:700;font-size:13px;color:#1a1a2e;margin:0 0 3px;line-height:1.3;">${item.name}</p>
-            ${item.address ? `<p style="font-size:11px;color:#6b7280;margin:0 0 5px;">📍 ${item.address}</p>` : ''}
-            ${distBadge}
-            ${item.rating ? `<p style="font-size:11px;color:#f59e0b;margin:0 0 5px;">⭐ ${item.rating}</p>` : ''}
-            ${item.extra || ''}
-            <div style="display:flex;gap:5px;margin-top:9px;">
-              <a href="${item.href}" style="
-                flex:1;text-align:center;background:${pinColor};color:#fff;
-                text-decoration:none;padding:7px 10px;border-radius:9px;
-                font-size:11px;font-weight:600;">View Details</a>
-              <a href="https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}"
-                target="_blank" rel="noreferrer" style="
-                text-align:center;background:#f3f4f6;color:#374151;
-                text-decoration:none;padding:7px 10px;border-radius:9px;
-                font-size:11px;font-weight:500;">Directions</a>
-            </div>
-          </div>`
-
-        const marker = L.marker([item.lat, item.lng], { icon })
-          .addTo(mapInst.current)
-          .bindPopup(popupHtml, { maxWidth: 280, closeButton: true, className: 'medli-popup' })
-
-        marker.on('click', () => onSelect?.(item))
-
-        if (isSelected) {
-          marker.openPopup()
-          mapInst.current.setView([item.lat, item.lng], Math.max(zoom, 15), {
-            animate: true, duration: 0.4,
+          const center = [markers[0].lat, markers[0].lng]
+          mapInst.current = L.map(mapRef.current, {
+            center,
+            zoom,
+            zoomControl:        false,
+            scrollWheelZoom:    false,
+            attributionControl: false,
           })
+
+          L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+            { maxZoom: 19, subdomains: 'abcd' }
+          ).addTo(mapInst.current)
+
+          L.control.attribution({ position: 'bottomright', prefix: false })
+            .addAttribution('© <a href="https://carto.com">CARTO</a>')
+            .addTo(mapInst.current)
+
+          L.control.zoom({ position: 'bottomright' }).addTo(mapInst.current)
         }
 
-        markerRefs.current.push(marker)
-      })
+        if (!mountedRef.current || !mapInst.current) return
 
-      // Fit bounds only if nothing selected
-      if (markers.length > 1 && !selected) {
-        const valid = markers.filter((m) => m.lat && m.lng)
-        if (valid.length > 1) {
-          mapInst.current.fitBounds(
-            L.latLngBounds(valid.map((m) => [m.lat, m.lng])),
-            { padding: [50, 50], maxZoom: 15 }
-          )
+        setTimeout(() => {
+          if (mountedRef.current) mapInst.current?.invalidateSize()
+        }, 100)
+
+        // ── User dot ────────────────────────────────────────────────────────
+        if (userLocation) {
+          try { userMarker.current?.remove() } catch (_) {}
+
+          const userIcon = L.divIcon({
+            className: '',
+            html: `
+              <div style="position:relative;width:20px;height:20px;">
+                <div style="
+                  position:absolute;inset:0;
+                  background:${accentColor};border:3px solid #fff;
+                  border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.3);z-index:2;
+                "></div>
+                <div style="
+                  position:absolute;top:50%;left:50%;
+                  transform:translate(-50%,-50%);
+                  width:40px;height:40px;
+                  background:${accentColor}30;border-radius:50%;
+                  animation:pulse-ring 2s infinite;z-index:1;
+                "></div>
+              </div>`,
+            iconSize: [20, 20], iconAnchor: [10, 10],
+          })
+
+          userMarker.current = L.marker([userLocation.lat, userLocation.lng], {
+            icon: userIcon, zIndexOffset: 1000,
+          })
+            .addTo(mapInst.current)
+            .bindPopup(
+              '<div style="font-family:Arial;font-size:13px;font-weight:600;color:#1a1a2e;padding:4px 2px;">📍 You are here</div>',
+              { maxWidth: 160, closeButton: false }
+            )
         }
+
+        // ── Clear old markers ───────────────────────────────────────────────
+        markerRefs.current.forEach((m) => { try { m.remove() } catch (_) {} })
+        markerRefs.current = []
+
+        // ── Plot markers ────────────────────────────────────────────────────
+        markers.forEach((item) => {
+          if (!item.lat || !item.lng) return
+
+          const isSelected = selected?.id === item.id
+          const pinColor   = isSelected ? '#f59e0b' : (item.color || accentColor)
+          const pinW       = isSelected ? 36 : 30
+          const pinH       = isSelected ? 48 : 40
+          const dist       = distances[item.id]
+
+          const icon = L.divIcon({
+            className: '',
+            html: `
+              <div style="
+                position:relative;width:${pinW}px;height:${pinH}px;
+                cursor:pointer;
+                filter:drop-shadow(0 3px 6px rgba(0,0,0,.28));
+              ">
+                <svg viewBox="0 0 36 48" width="${pinW}" height="${pinH}" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M18 0C10.268 0 4 6.268 4 14C4 24.5 18 48 18 48C18 48 32 24.5 32 14C32 6.268 25.732 0 18 0Z"
+                    fill="${pinColor}" stroke="#fff" stroke-width="2"/>
+                  <circle cx="18" cy="14" r="7" fill="#fff" opacity="0.92"/>
+                  <text x="18" y="19" font-size="9" text-anchor="middle" font-family="Arial,sans-serif">${item.emoji || '📍'}</text>
+                </svg>
+                ${isSelected ? `<div style="
+                  position:absolute;bottom:-3px;left:50%;
+                  transform:translateX(-50%);
+                  width:14px;height:4px;
+                  background:rgba(0,0,0,.15);border-radius:50%;filter:blur(2px);
+                "></div>` : ''}
+              </div>`,
+            iconSize:    [pinW, pinH],
+            iconAnchor:  [pinW / 2, pinH],
+            popupAnchor: [0, -(pinH + 2)],
+          })
+
+          const distBadge = dist != null
+            ? `<span style="
+                 display:inline-flex;align-items:center;gap:3px;
+                 background:${pinColor}18;border:1px solid ${pinColor}50;
+                 color:${pinColor};font-size:10px;font-weight:600;
+                 padding:2px 8px;border-radius:20px;margin-bottom:7px;
+               ">📍 ${formatDist(dist)} away</span>`
+            : ''
+
+          const popupHtml = `
+            <div style="min-width:210px;max-width:260px;padding:8px 2px 4px;font-family:Arial,sans-serif;">
+              <p style="font-weight:700;font-size:13px;color:#1a1a2e;margin:0 0 3px;line-height:1.3;">${item.name}</p>
+              ${item.address ? `<p style="font-size:11px;color:#6b7280;margin:0 0 5px;">📍 ${item.address}</p>` : ''}
+              ${distBadge}
+              ${item.rating ? `<p style="font-size:11px;color:#f59e0b;margin:0 0 5px;">⭐ ${item.rating}</p>` : ''}
+              ${item.extra || ''}
+              <div style="display:flex;gap:5px;margin-top:9px;">
+                <a href="${item.href}" style="
+                  flex:1;text-align:center;background:${pinColor};color:#fff;
+                  text-decoration:none;padding:7px 10px;border-radius:9px;
+                  font-size:11px;font-weight:600;">View Details</a>
+                <a href="https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}"
+                  target="_blank" rel="noreferrer" style="
+                  text-align:center;background:#f3f4f6;color:#374151;
+                  text-decoration:none;padding:7px 10px;border-radius:9px;
+                  font-size:11px;font-weight:500;">Directions</a>
+              </div>
+            </div>`
+
+          const marker = L.marker([item.lat, item.lng], { icon })
+            .addTo(mapInst.current)
+            .bindPopup(popupHtml, { maxWidth: 280, closeButton: true, className: 'medli-popup' })
+
+          marker.on('click', () => onSelect?.(item))
+
+          if (isSelected) {
+            marker.openPopup()
+            mapInst.current.setView([item.lat, item.lng], Math.max(zoom, 15), {
+              animate: true, duration: 0.4,
+            })
+          }
+
+          markerRefs.current.push(marker)
+        })
+
+        // ── Fit bounds only if nothing selected ─────────────────────────────
+        if (markers.length > 1 && !selected) {
+          const valid = markers.filter((m) => m.lat && m.lng)
+          if (valid.length > 1) {
+            mapInst.current.fitBounds(
+              L.latLngBounds(valid.map((m) => [m.lat, m.lng])),
+              { padding: [50, 50], maxZoom: 15 }
+            )
+          }
+        }
+      } catch (err) {
+        if (mountedRef.current) console.error('[LeafletMap]', err)
       }
     })
   }, [markers, selected, onSelect, zoom, userLocation, distances, accentColor])
 
-  // ── Cleanup on unmount ────────────────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      markerRefs.current.forEach((m) => m.remove())
-      userMarker.current?.remove()
-      if (mapInst.current) {
+  // ── Mount / unmount lifecycle ─────────────────────────────────────────────
+useEffect(() => {
+  mountedRef.current = true
+  return () => {
+    mountedRef.current = false
+    markerRefs.current.forEach((m) => { try { m.remove() } catch (_) {} })
+    markerRefs.current = []
+    try { userMarker.current?.remove() } catch (_) {}
+    userMarker.current = null
+    if (mapInst.current) {
+      try {
+        mapInst.current.off()
         mapInst.current.remove()
-        mapInst.current  = null
-        tileAdded.current = false
-      }
+      } catch (_) {}
+      mapInst.current = null
     }
-  }, [])
+    // ✅ Manually clear the leaflet_id stamp from the DOM node
+    if (mapRef.current) {
+      delete mapRef.current._leaflet_id   // ← ADD THIS LINE
+    }
+  }
+}, [])
 
+  // ── Empty state ───────────────────────────────────────────────────────────
   if (markers.length === 0) {
     return (
-      <div className="w-full rounded-2xl bg-gray-50 border border-gray-100
-                      flex flex-col items-center justify-center gap-2"
-        style={{ height }}>
+      <div
+        className="w-full rounded-2xl bg-gray-50 border border-gray-100 flex flex-col items-center justify-center gap-2"
+        style={{ height }}
+      >
         <span className="text-3xl">📍</span>
         <p className="text-xs text-gray-400">No locations to display</p>
       </div>
@@ -276,8 +299,10 @@ export default function LeafletMap({
 
   return (
     <>
-      <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+      <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+      />
       <style>{`
         @keyframes pulse-ring {
           0%   { transform:translate(-50%,-50%) scale(0.8); opacity:.6; }
@@ -288,31 +313,41 @@ export default function LeafletMap({
           border-radius:16px!important;
           box-shadow:0 8px 32px rgba(0,0,0,.12)!important;
           border:1px solid #f1f5f9!important;
-          padding:0!important;overflow:hidden;
+          padding:0!important;
+          overflow:hidden;
         }
         .medli-popup .leaflet-popup-content { margin:12px 12px 10px!important; }
         .medli-popup .leaflet-popup-tip-container { margin-top:-1px; }
-        .leaflet-control-zoom { border:none!important; box-shadow:0 2px 12px rgba(0,0,0,.1)!important; border-radius:10px!important; overflow:hidden; }
+        .leaflet-control-zoom {
+          border:none!important;
+          box-shadow:0 2px 12px rgba(0,0,0,.1)!important;
+          border-radius:10px!important;
+          overflow:hidden;
+        }
         .leaflet-control-zoom a { border:none!important; }
       `}</style>
 
       <div style={{ position: 'relative', height, width: '100%' }}>
-        {/* ── Map container ── */}
-        <div ref={mapRef} style={{ height: '100%', width: '100%' }}
-          className="rounded-2xl overflow-hidden" />
 
-        {/* ── Locate FAB ── */}
+        {/* Map container */}
+        <div
+          ref={mapRef}
+          style={{ height: '100%', width: '100%' }}
+          className="rounded-2xl overflow-hidden"
+        />
+
+        {/* Locate FAB */}
         <button
           onClick={fetchUserLocation}
           disabled={locLoading}
           title={userLocation ? 'Refresh location' : 'Find my location'}
           style={{
-            position: 'absolute', top: 12, right: 12, zIndex: 1000,
+            position:  'absolute', top: 12, right: 12, zIndex: 1000,
             width: 42, height: 42, borderRadius: 12,
-            background:  userLocation ? accentColor : '#fff',
-            color:       userLocation ? '#fff'       : '#374151',
-            border:     `1.5px solid ${userLocation ? accentColor : '#e5e7eb'}`,
-            boxShadow:  '0 2px 12px rgba(0,0,0,.12)',
+            background: userLocation ? accentColor : '#fff',
+            color:      userLocation ? '#fff'       : '#374151',
+            border:    `1.5px solid ${userLocation ? accentColor : '#e5e7eb'}`,
+            boxShadow: '0 2px 12px rgba(0,0,0,.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: locLoading ? 'wait' : 'pointer',
             transition: 'all .2s ease',
@@ -324,35 +359,37 @@ export default function LeafletMap({
           }
         </button>
 
-        {/* ── Error tooltip ── */}
+        {/* Error tooltip */}
         {locError && (
           <div style={{
-            position: 'absolute', top: 58, right: 12, zIndex: 1000,
+            position:   'absolute', top: 58, right: 12, zIndex: 1000,
             background: '#fee2e2', color: '#dc2626',
             fontSize: 11, fontWeight: 500,
-            padding: '5px 10px', borderRadius: 8,
+            padding:    '5px 10px', borderRadius: 8,
             whiteSpace: 'nowrap',
-            boxShadow: '0 2px 8px rgba(0,0,0,.1)',
-            border: '1px solid #fecaca',
+            boxShadow:  '0 2px 8px rgba(0,0,0,.1)',
+            border:     '1px solid #fecaca',
           }}>
             ⚠️ {locError}
           </div>
         )}
 
-        {/* ── Distance legend ── */}
+        {/* Distance legend */}
         {userLocation && Object.keys(distances).length > 0 && (
           <div style={{
-            position: 'absolute', bottom: 52, left: 12, zIndex: 1000,
-            background: '#ffffffee', backdropFilter: 'blur(8px)',
-            border: '1px solid #e5e7eb', borderRadius: 10,
-            padding: '5px 10px', fontSize: 11, color: '#6b7280',
-            boxShadow: '0 2px 8px rgba(0,0,0,.08)',
-            display: 'flex', alignItems: 'center', gap: 6,
+            position:       'absolute', bottom: 52, left: 12, zIndex: 1000,
+            background:     '#ffffffee', backdropFilter: 'blur(8px)',
+            border:         '1px solid #e5e7eb', borderRadius: 10,
+            padding:        '5px 10px', fontSize: 11, color: '#6b7280',
+            boxShadow:      '0 2px 8px rgba(0,0,0,.08)',
+            display:        'flex', alignItems: 'center', gap: 6,
           }}>
             <span style={{
               width: 10, height: 10,
-              background: accentColor, borderRadius: '50%',
-              display: 'inline-block', flexShrink: 0,
+              background:   accentColor,
+              borderRadius: '50%',
+              display:      'inline-block',
+              flexShrink:   0,
             }} />
             Distances from your location
           </div>
@@ -379,7 +416,7 @@ function SpinIcon({ color }) {
       stroke={color} strokeWidth="2.5" strokeLinecap="round"
       style={{ animation: 'spin .8s linear infinite' }}>
       <path d="M12 2a10 10 0 1 0 10 10" />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </svg>
   )
 }

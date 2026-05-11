@@ -1,32 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Tell Next.js these Node.js-only packages
-  // should never be bundled for browser or edge runtime
-  serverExternalPackages: [
-    'bullmq',
-    'ioredis',
-    '@prisma/client',
-    'prisma',
-    'pdfkit',
-    'nodemailer',
-    'firebase-admin',
-    'googleapis',
-    'crypto',
-    'fs',
-    'path',
-  ],
+  reactStrictMode: false,  // ← ADD THIS LINE
 
+  serverExternalPackages: [
+    'bullmq', 'ioredis', '@prisma/client', 'prisma',
+    'pdfkit', 'nodemailer', 'firebase-admin',
+    'googleapis', 'crypto', 'fs', 'path',
+  ],
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'cdn.medli.in',
-        port:     '',
-        pathname: '/**',
-      },
+      { protocol: 'https', hostname: 'cdn.medli.in', port: '', pathname: '/**' },
     ],
   },
-
   async headers() {
     return [
       {
@@ -41,16 +26,8 @@ const nextConfig = {
       },
     ]
   },
-
-  // Disable eslint errors blocking build
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
-  // Disable typescript errors blocking build
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  eslint:     { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
 }
 
 export default nextConfig
