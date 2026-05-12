@@ -37,10 +37,10 @@ function StepBar({ step }) {
   return (
     <div style={{ display:'flex', alignItems:'center', marginBottom:24 }}>
       {steps.map((label, i) => {
-        const idx     = i + 1
-        const done    = idx < step
-        const active  = idx === step
-        const isLast  = i === steps.length - 1
+        const idx    = i + 1
+        const done   = idx < step
+        const active = idx === step
+        const isLast = i === steps.length - 1
         return (
           <div key={label} style={{ display:'flex', alignItems:'center', flex: isLast?0:1 }}>
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
@@ -135,7 +135,7 @@ function NInput({ label, icon, ...props }) {
         <input
           {...props}
           onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
-          onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
+          onBlur={(e)  => { setFocused(false); props.onBlur?.(e) }}
           style={{
             width:'100%', padding: icon?'11px 14px 11px 40px':'11px 14px',
             fontSize:13, fontFamily:'inherit', borderRadius:12,
@@ -279,11 +279,12 @@ function NewBookingContent() {
     : doctor ? (isOnline ? (doctor.consultationFee?.online||0) : (doctor.consultationFee?.offline||0)) : 0
 
   const platformFeePercent = isLab ? (lab?.platformFeePercent||8) : (doctor?.platformFeePercent||10)
-  const couponDiscount = couponResult?.discountAmount || 0
-  const discountedFee  = Math.max(0, baseFee - couponDiscount)
-  const platformFee    = Math.round(discountedFee * platformFeePercent / 100)
-  const gst            = Math.round(platformFee * 18 / 100)
-  const totalAmount    = discountedFee + platformFee + gst
+  const couponDiscount     = couponResult?.discountAmount || 0
+  const discountedFee      = Math.max(0, baseFee - couponDiscount)
+  const platformFee        = Math.round(discountedFee * platformFeePercent / 100)
+  const gst                = Math.round(platformFee * 18 / 100)
+  const subtotal           = discountedFee + platformFee
+  const totalAmount        = subtotal + gst
 
   const bookingTypeLabel = isLab ? 'Lab Test' : isOnline ? 'Online Consultation' : 'Hospital Visit'
 
@@ -293,22 +294,42 @@ function NewBookingContent() {
 
   const todayStr = mounted ? new Date().toISOString().split('T')[0] : ''
 
+  // ─────────────────────────────────────────────────────────────────────
+  // CREATE BOOKING
+  // IMPORTANT: all pricing fields MUST be sent so DB stores the real
+  // totalAmount. Without these, totalAmount saves as 0 and 1Pay
+  // receives 0.00 causing error BL0002.
+  // ─────────────────────────────────────────────────────────────────────
   const createBooking = async () => {
     if (!step1Valid) { toast.error(isLab ? 'Select date, time and address' : 'No slot selected'); return }
     setLoading(true)
     try {
-      const res  = await fetch('/api/bookings', {
-        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
-          type:             isLab?'lab':isOnline?'online':'hospital',
-          doctorId:         doctorId||undefined,
-          labId:            labId||undefined,
+          // ── Booking details ──────────────────────────────────────────
+          type:              isLab ? 'lab' : isOnline ? 'online' : 'hospital',
+          doctorId:          doctorId          || undefined,
+          labId:             labId             || undefined,
           testIds,
-          startTime:        isLab?labStartTime:doctorStartTime,
-          endTime:          isLab?null:doctorEndTime,
-          collectionType:   isLab?collectionType:undefined,
-          collectionAddress:isLab&&collectionType==='home'?collectionAddr:undefined,
-          couponCode:       couponCode||undefined,
+          startTime:         isLab ? labStartTime  : doctorStartTime,
+          endTime:           isLab ? null           : doctorEndTime,
+          collectionType:    isLab ? collectionType : undefined,
+          collectionAddress: isLab && collectionType === 'home' ? collectionAddr : undefined,
+          couponCode:        couponCode         || undefined,
+
+          // ── Pricing fields — ALL required so totalAmount is correct ──
+          baseFee,
+          platformFeePercent,
+          platformFee,
+          gstPercent:    18,
+          gst,
+          subtotal,
+          couponDiscount: couponDiscount || 0,
+          discountedFee,
+          totalAmount,       // ← THIS is what 1Pay receives — must not be 0
         }),
       })
       const json = await res.json()
@@ -344,9 +365,9 @@ function NewBookingContent() {
       if (!json.success) { toast.error(json.error||'Payment initiation failed'); setLoading(false); return }
       const { merchantId, reqData, paymentUrl } = json.data
       if (!merchantId||!reqData||!paymentUrl) { toast.error('Invalid payment data'); setLoading(false); return }
-      const form       = document.createElement('form')
-      form.method      = 'POST'
-      form.action      = paymentUrl
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = paymentUrl
       form.style.display = 'none'
       const addField = (n,v) => { const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=String(v); form.appendChild(i) }
       addField('merchantId', merchantId)
@@ -394,7 +415,7 @@ function NewBookingContent() {
                   <div>
                     {doctor ? (
                       <>
-                        <InfoRow label="Doctor"    value={`Dr. ${doctor.name}`} />
+                        <InfoRow label="Doctor" value={`Dr. ${doctor.name}`} />
                         {doctor.specialization?.length>0 && <InfoRow label="Specialization" value={doctor.specialization.slice(0,2).join(', ')} />}
                       </>
                     ) : (
@@ -526,7 +547,6 @@ function NewBookingContent() {
                 <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Coupon & Pricing</h2>
                 <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>Apply a coupon to save on your booking</p>
 
-                {/* Coupon input */}
                 <div style={{ display:'flex', gap:8, marginBottom:12 }}>
                   <NInput icon="🏷️" placeholder="Enter coupon code" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} />
                   <PBtn variant="outline" onClick={applyCoupon} loading={applyingCoupon} disabled={!couponCode.trim()||applyingCoupon} sx={{ flexShrink:0, padding:'11px 16px' }}>Apply</PBtn>
@@ -543,14 +563,13 @@ function NewBookingContent() {
                   </div>
                 )}
 
-                {/* Price breakdown */}
                 <div style={{ background:'#f8fafc', borderRadius:14, padding:16, marginBottom:20 }}>
-                  <PriceRow label="Base Fee"                                     value={fmtRs(baseFee)} />
+                  <PriceRow label="Base Fee"                                      value={fmtRs(baseFee)} />
                   {couponDiscount>0 && <PriceRow label={`Coupon (${couponCode})`} value={`- ${fmtRs(couponDiscount)}`} green />}
                   {couponDiscount>0 && <PriceRow label="Discounted Fee"           value={fmtRs(discountedFee)} />}
-                  <PriceRow label={`Platform Fee (${platformFeePercent}%)`}       value={fmtRs(platformFee)} />
-                  <PriceRow label="GST (18%)"                                     value={fmtRs(gst)} />
-                  <PriceRow label="Total Amount"                                  value={fmtRs(totalAmount)} bold />
+                  <PriceRow label={`Platform Fee (${platformFeePercent}%)`}        value={fmtRs(platformFee)} />
+                  <PriceRow label="GST (18%)"                                      value={fmtRs(gst)} />
+                  <PriceRow label="Total Amount"                                   value={fmtRs(totalAmount)} bold />
                 </div>
 
                 <div style={{ display:'flex', gap:10 }}>
@@ -568,7 +587,6 @@ function NewBookingContent() {
                 <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Pay Securely</h2>
                 <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>You will be redirected to 1Pay secure payment page</p>
 
-                {/* Amount card */}
                 <div style={{ backgroundImage:'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.04))', border:'1px solid rgba(99,102,241,0.15)', borderRadius:16, padding:18, marginBottom:18 }}>
                   <p style={{ fontSize:10, fontWeight:700, letterSpacing:'1.5px', color:'#6366f1', marginBottom:6 }}>{bookingTypeLabel.toUpperCase()}</p>
                   <p style={{ fontSize:12, color:'#94a3b8', marginBottom:14 }}>
@@ -592,7 +610,6 @@ function NewBookingContent() {
                   </div>
                 </div>
 
-                {/* Security badge */}
                 <div style={{ display:'flex', alignItems:'center', gap:12, padding:14, background:'#f8fafc', borderRadius:12, marginBottom:18 }}>
                   <span style={{ fontSize:24 }}>🔒</span>
                   <div>
@@ -600,14 +617,6 @@ function NewBookingContent() {
                     <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Cards · Net Banking · UPI · Wallets</p>
                   </div>
                 </div>
-
-                {/* Dev warning */}
-                {process.env.NEXT_PUBLIC_APP_URL?.includes('localhost') && (
-                  <div style={{ background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:12, padding:'10px 14px', marginBottom:16 }}>
-                    <p style={{ fontSize:12, fontWeight:600, color:'#92400e', margin:'0 0 3px' }}>⚠ Development Mode</p>
-                    <p style={{ fontSize:11, color:'#b45309', margin:0 }}>1Pay callback cannot reach localhost. Use ngrok for testing.</p>
-                  </div>
-                )}
 
                 <div style={{ display:'flex', gap:10 }}>
                   <PBtn variant="secondary" onClick={() => setStep(3)} disabled={loading} sx={{ flex:1 }}>← Back</PBtn>
