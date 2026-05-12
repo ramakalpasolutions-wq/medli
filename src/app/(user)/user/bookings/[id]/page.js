@@ -268,6 +268,13 @@ const { data: doctor } = useSWR(
 const { data: lab } = useSWR(
   booking?.labId ? `/api/labs/${booking.labId}` : null, fetcher
 )
+// After: const { data: lab } = useSWR(...)
+const { data: testsData } = useSWR(
+  booking?.testIds?.length > 0
+    ? `/api/tests?ids=${booking.testIds.join(',')}`
+    : null,
+  fetcher
+)
 
 // ✅ Hospital: use booking.hospitalId first, fallback to doctor's hospital
 const hospitalId = booking?.hospitalId || doctor?.hospitalId || null
@@ -531,23 +538,36 @@ sub2={Array.isArray(doctor.qualification)
           {/* ── Lab Details ── */}
           {lab && (
             <Card>
-              <SectionTitle icon="🧪" title="Lab Details" />
-              <EntityBlock
-                icon="🔬"
-                name={lab.name}
-                sub1={lab.type}
-                sub2={[lab.address, lab.city].filter(Boolean).join(', ')}
+             <EntityBlock
+  icon="🔬"
+  name={lab.name}
+  sub1={lab.type}
+  sub2={(() => {
+    const a = lab.address
+    if (!a) return lab.city || null
+    if (typeof a === 'string') return [a, lab.city].filter(Boolean).join(', ')
+    return [a.street || a.line1 || a.area, a.city || lab.city, a.state, a.pincode]
+      .filter(Boolean).join(', ')
+  })()}
                 sub3={lab.phone ? `📞 ${lab.phone}` : null}
                 tag={lab.accreditation || null}
               />
-              {booking.testIds?.length > 0 && (
-                <div style={{ marginTop:12, padding:'10px 12px', background:'#f8fafc', borderRadius:12 }}>
-                  <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 6px' }}>Tests Booked</p>
-                  <p style={{ fontSize:13, fontWeight:500, color:'#334155', margin:0 }}>
-                    {booking.testIds.join(', ')}
-                  </p>
-                </div>
-              )}
+             {booking.testIds?.length > 0 && (
+  <div style={{ marginTop:12, padding:'10px 12px', background:'#f8fafc', borderRadius:12 }}>
+    <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 6px' }}>Tests Booked</p>
+    {testsData?.length > 0
+      ? testsData.map((t) => (
+          <div key={t._id} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', borderBottom:'1px solid #f1f5f9' }}>
+            <span style={{ fontSize:13, color:'#334155' }}>{t.name}</span>
+            {t.price && <span style={{ fontSize:12, color:'#64748b' }}>₹{t.price}</span>}
+          </div>
+        ))
+      : <p style={{ fontSize:13, fontWeight:500, color:'#334155', margin:0 }}>
+          {booking.testIds.length} test{booking.testIds.length > 1 ? 's' : ''} booked
+        </p>
+    }
+  </div>
+)}
               {booking.collectionType && (
                 <div style={{ marginTop:8, padding:'10px 12px', background:'#f0fdf4', borderRadius:12 }}>
                   <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 2px' }}>Collection Type</p>
