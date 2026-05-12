@@ -10,18 +10,18 @@ export default function LeafletMap({
   zoom        = 13,
   accentColor = '#1286f5',
 }) {
-  const mapRef     = useRef(null)
-  const mapInst    = useRef(null)
-  const markerRefs = useRef([])
-  const userMarker = useRef(null)
-  const mountedRef = useRef(true)
+  const mapRef         = useRef(null)
+  const mapInst        = useRef(null)
+  const markerRefs     = useRef([])
+  const userMarker     = useRef(null)
+  const mountedRef     = useRef(true)
+  const initializedRef = useRef(false)
 
   const [userLocation, setUserLocation] = useState(null)
   const [locLoading,   setLocLoading]   = useState(false)
   const [locError,     setLocError]     = useState(null)
   const [distances,    setDistances]    = useState({})
 
-  // ── Haversine ─────────────────────────────────────────────────────────────
   const calcDistance = useCallback((lat1, lng1, lat2, lng2) => {
     const R    = 6371
     const dLat = ((lat2 - lat1) * Math.PI) / 180
@@ -37,7 +37,6 @@ export default function LeafletMap({
   const formatDist = (km) =>
     km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
 
-  // ── User location ─────────────────────────────────────────────────────────
   const fetchUserLocation = useCallback(() => {
     if (!navigator.geolocation) { setLocError('Geolocation not supported'); return }
     setLocLoading(true)
@@ -67,7 +66,6 @@ export default function LeafletMap({
     )
   }, [markers, calcDistance, zoom])
 
-  // ── Recalc distances ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!userLocation) return
     const dist = {}
@@ -78,7 +76,6 @@ export default function LeafletMap({
     setDistances(dist)
   }, [markers, userLocation, calcDistance])
 
-  // ── Main map effect ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current || markers.length === 0) return
 
@@ -95,9 +92,9 @@ export default function LeafletMap({
           shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
         })
 
-        // ── Init map only once ──────────────────────────────────────────────
-        if (!mapInst.current) {
-            if (mapRef.current._leaflet_id) return   // ← ADD THIS LINE
+        // ✅ Guard map creation only — not marker drawing
+        if (!initializedRef.current) {
+          initializedRef.current = true
 
           const center = [markers[0].lat, markers[0].lng]
           mapInst.current = L.map(mapRef.current, {
@@ -126,7 +123,7 @@ export default function LeafletMap({
           if (mountedRef.current) mapInst.current?.invalidateSize()
         }, 100)
 
-        // ── User dot ────────────────────────────────────────────────────────
+        // ── User dot ──────────────────────────────────────────────────────
         if (userLocation) {
           try { userMarker.current?.remove() } catch (_) {}
 
@@ -160,11 +157,11 @@ export default function LeafletMap({
             )
         }
 
-        // ── Clear old markers ───────────────────────────────────────────────
+        // ── Clear old markers ─────────────────────────────────────────────
         markerRefs.current.forEach((m) => { try { m.remove() } catch (_) {} })
         markerRefs.current = []
 
-        // ── Plot markers ────────────────────────────────────────────────────
+        // ── Plot markers ──────────────────────────────────────────────────
         markers.forEach((item) => {
           if (!item.lat || !item.lng) return
 
@@ -245,7 +242,7 @@ export default function LeafletMap({
           markerRefs.current.push(marker)
         })
 
-        // ── Fit bounds only if nothing selected ─────────────────────────────
+        // ── Fit bounds only if nothing selected ───────────────────────────
         if (markers.length > 1 && !selected) {
           const valid = markers.filter((m) => m.lat && m.lng)
           if (valid.length > 1) {
@@ -262,29 +259,27 @@ export default function LeafletMap({
   }, [markers, selected, onSelect, zoom, userLocation, distances, accentColor])
 
   // ── Mount / unmount lifecycle ─────────────────────────────────────────────
-useEffect(() => {
-  mountedRef.current = true
-  return () => {
-    mountedRef.current = false
-    markerRefs.current.forEach((m) => { try { m.remove() } catch (_) {} })
-    markerRefs.current = []
-    try { userMarker.current?.remove() } catch (_) {}
-    userMarker.current = null
-    if (mapInst.current) {
-      try {
-        mapInst.current.off()
-        mapInst.current.remove()
-      } catch (_) {}
-      mapInst.current = null
-    }
-    // ✅ Manually clear the leaflet_id stamp from the DOM node
-    if (mapRef.current) {
-      delete mapRef.current._leaflet_id   // ← ADD THIS LINE
-    }
-  }
-}, [])
+  useEffect(() => {
+    mountedRef.current     = true
+    initializedRef.current = false   // ✅ reset on every fresh mount
 
-  // ── Empty state ───────────────────────────────────────────────────────────
+    return () => {
+      mountedRef.current = false
+      markerRefs.current.forEach((m) => { try { m.remove() } catch (_) {} })
+      markerRefs.current = []
+      try { userMarker.current?.remove() } catch (_) {}
+      userMarker.current = null
+      if (mapInst.current) {
+        try {
+          mapInst.current.off()
+          mapInst.current.remove()  // ✅ Leaflet clears _leaflet_id itself
+        } catch (_) {}
+        mapInst.current = null
+      }
+      initializedRef.current = false  // ✅ so next mount re-inits cleanly
+    }
+  }, [])
+
   if (markers.length === 0) {
     return (
       <div
@@ -329,14 +324,12 @@ useEffect(() => {
 
       <div style={{ position: 'relative', height, width: '100%' }}>
 
-        {/* Map container */}
         <div
           ref={mapRef}
           style={{ height: '100%', width: '100%' }}
           className="rounded-2xl overflow-hidden"
         />
 
-        {/* Locate FAB */}
         <button
           onClick={fetchUserLocation}
           disabled={locLoading}
@@ -359,7 +352,6 @@ useEffect(() => {
           }
         </button>
 
-        {/* Error tooltip */}
         {locError && (
           <div style={{
             position:   'absolute', top: 58, right: 12, zIndex: 1000,
@@ -374,7 +366,6 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Distance legend */}
         {userLocation && Object.keys(distances).length > 0 && (
           <div style={{
             position:       'absolute', bottom: 52, left: 12, zIndex: 1000,
