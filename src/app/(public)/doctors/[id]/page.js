@@ -8,7 +8,7 @@ import Footer from '@/components/public/Footer'
 import EmptyState from '@/components/ui/EmptyState'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 
-const fetcher = (url) => fetch(url).then((r) => r.json()).then((j) => j.data)
+const fetcher = (url) => fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
 
 function generateDates(count = 14) {
   return Array.from({ length: count }, (_, i) => {
@@ -82,33 +82,90 @@ function DateBtn({ date, active, onClick }) {
   )
 }
 
-function SlotBtn({ slot, selected, onClick }) {
+// ✅ isOwner: true = show countdown, false = show "Occupied" text only
+function SlotBtn({ slot, selected, onClick, onExpired, isOwner = false }) {
   const [h, setH] = useState(false)
-  const booked = slot.isBooked
+  const [timeLeft, setTimeLeft] = useState(null)
 
+  useEffect(() => {
+    // ✅ Only the booking owner gets the live countdown
+    if (!isOwner || slot.slotStatus !== 'occupied' || !slot.expiresAt) return
+    const calc = () => {
+      const secs = Math.max(0, Math.floor((new Date(slot.expiresAt) - new Date()) / 1000))
+      setTimeLeft(secs)
+      if (secs === 0) onExpired?.()
+    }
+    calc()
+    const id = setInterval(calc, 1000)
+    return () => clearInterval(id)
+  }, [isOwner, slot.slotStatus, slot.expiresAt])
+
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+  // ── BOOKED (confirmed) ──
+  if (slot.slotStatus === 'booked') {
+    return (
+      <div style={{
+        padding:'8px 4px',borderRadius:10,
+        fontSize:11,fontWeight:500,textAlign:'center',
+        border:'1.5px solid #f1f5f9',
+        background:'#f8fafc',color:'#cbd5e1',
+        cursor:'not-allowed',textDecoration:'line-through',
+        minHeight:36,display:'flex',alignItems:'center',justifyContent:'center',
+      }}>
+        {slot.startTime}
+      </div>
+    )
+  }
+
+  // ── OCCUPIED (pending_payment) ──
+  if (slot.slotStatus === 'occupied') {
+    return (
+      <div style={{
+        padding:'6px 4px',borderRadius:10,
+        fontSize:11,fontWeight:500,textAlign:'center',
+        border:'1.5px solid #fde68a',
+        background:'#fffbeb',color:'#92400e',
+        cursor:'not-allowed',minHeight:36,
+        display:'flex',flexDirection:'column',
+        alignItems:'center',justifyContent:'center',gap:2,
+      }}>
+        <span style={{ fontWeight:600 }}>{slot.startTime}</span>
+        {isOwner ? (
+          // ✅ Booking owner sees live countdown
+          <>
+            {timeLeft !== null && timeLeft > 0 && (
+              <span style={{ fontSize:9,color:'#b45309' }}>⏳ {fmt(timeLeft)}</span>
+            )}
+            {timeLeft === 0 && (
+              <span style={{ fontSize:9,color:'#10b981',fontWeight:600 }}>✓ Free</span>
+            )}
+          </>
+        ) : (
+          // ✅ Everyone else just sees "Occupied"
+          <span style={{ fontSize:9,color:'#b45309' }}>Occupied</span>
+        )}
+      </div>
+    )
+  }
+
+  // ── AVAILABLE ──
   return (
     <button
-      disabled={booked}
-      onClick={() => !booked && onClick(slot.startTime)}
-      onMouseEnter={() => !booked && setH(true)}
+      onClick={() => onClick(slot.startTime)}
+      onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
         padding:'8px 4px',borderRadius:10,
         fontSize:11,fontWeight:500,textAlign:'center',
-        border:`1.5px solid ${
-          booked ? '#f1f5f9'
-          : selected ? '#6366f1'
-          : h ? '#c4b5fd'
-          : '#e2e8f0'
-        }`,
-        background: booked ? '#f8fafc'
-          : selected ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+        border:`1.5px solid ${selected?'#6366f1':h?'#c4b5fd':'#e2e8f0'}`,
+        background: selected
+          ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
           : h ? 'rgba(99,102,241,0.06)' : '#fff',
-        color: booked ? '#cbd5e1' : selected ? '#fff' : '#334155',
-        cursor: booked ? 'not-allowed' : 'pointer',
-        transition:'all .15s ease',
+        color: selected?'#fff':'#334155',
+        cursor:'pointer',transition:'all .15s ease',
         minHeight:36,
-        boxShadow: selected ? '0 2px 8px rgba(99,102,241,0.35)' : 'none',
+        boxShadow: selected?'0 2px 8px rgba(99,102,241,0.35)':'none',
       }}
     >
       {slot.startTime}
@@ -169,15 +226,17 @@ function StickyBookBar({ slot, date, consultType, fee, onBook }) {
 export default function DoctorPage({ params }) {
   const { id } = use(params)
   const router = useRouter()
-  const [consultType,   setConsultType]   = useState('offline')
-  const [selectedDate,  setSelectedDate]  = useState(new Date().toISOString().split('T')[0])
-  const [selectedSlot,  setSelectedSlot]  = useState(null)
+  const [consultType,  setConsultType]  = useState('offline')
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedSlot, setSelectedSlot] = useState(null)
   const dates = generateDates()
 
   const { data: doctor } = useSWR(`/api/doctors/${id}`, fetcher)
-  const { data: slotsData, isLoading: slotsLoading } = useSWR(
+
+  const { data: slotsData, isLoading: slotsLoading, mutate: mutateSlots } = useSWR(
     selectedDate ? `/api/doctors/${id}/slots?date=${selectedDate}` : null,
-    fetcher
+    fetcher,
+    { refreshInterval: 60_000 }
   )
 
   const fee = consultType === 'online'
@@ -328,7 +387,9 @@ export default function DoctorPage({ params }) {
                             key={slot.startTime}
                             slot={slot}
                             selected={selectedSlot === slot.startTime}
-                            onClick={(t) => setSelectedSlot(selectedSlot===t ? null : t)}
+                            onClick={(t) => setSelectedSlot(selectedSlot === t ? null : t)}
+                            onExpired={() => mutateSlots()}
+                            isOwner={slot.isOwner}  // ✅ from API
                           />
                         ))}
                       </div>
@@ -340,7 +401,6 @@ export default function DoctorPage({ params }) {
           </div>
         </div>
 
-        {/* Sticky booking bar */}
         <StickyBookBar
           slot={selectedSlot}
           date={selectedDate}

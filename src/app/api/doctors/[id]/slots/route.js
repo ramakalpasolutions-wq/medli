@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { cache } from '@/lib/cache'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import { verifyAuth } from '@/lib/middleware/auth.middleware'
 
 export function OPTIONS() {
   return handleOptions()
@@ -16,11 +17,25 @@ export async function GET(request, { params }) {
       return errorResponse('date query param required (YYYY-MM-DD)', 'VALIDATION_ERROR', 400)
     }
 
-    // Check cache
+    // ✅ Get logged-in user ID to mark isOwner on occupied slots
+ // Try to get userId from auth token — null if guest/not logged in
+let currentUserId = null
+    try {
+       new Promise((resolve) => {
+        verifyAuth(request, async (req, user) => {
+        currentUserId = user?.userId || null
+        resolve()
+         }).catch(resolve)
+    })
+} catch (_) {}  
+
+    const isToday = dateStr === new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
     const cacheKey = `slots:${id}:${dateStr}`
-    const cached = await cache.get(cacheKey)
-    if (cached) {
-      return successResponse(cached, 'From cache')
+
+    // ✅ Never cache when user is logged in — isOwner must be fresh per user
+    if (!isToday && !currentUserId) {
+      const cached = await cache.get(cacheKey)
+      if (cached) return successResponse(cached, 'From cache')
     }
 
     const doctor = await prisma.doctor.findUnique({ where: { id } })
@@ -29,7 +44,7 @@ export async function GET(request, { params }) {
     }
 
     const targetDate = new Date(dateStr + 'T00:00:00.000Z')
-    const dayOfWeek = targetDate.getDay() // 0=Sun
+    const dayOfWeek  = targetDate.getDay()
 
     // Check exceptions
     const hasException = (doctor.exceptions || []).find((ex) => {
@@ -44,17 +59,12 @@ export async function GET(request, { params }) {
         exception: true,
         reason: hasException.reason || 'Doctor unavailable',
         hourBlocks: [],
-        summary: {
-          totalSlots: 0,
-          bookedSlots: 0,
-          availableSlots: 0,
-        },
+        summary: { totalSlots: 0, bookedSlots: 0, availableSlots: 0 },
       }
       await cache.set(cacheKey, result, 30)
       return successResponse(result)
     }
 
-    // Find availability for this day
     const dayAvailability = (doctor.availability || []).filter(
       (a) => a.dayOfWeek === dayOfWeek
     )
@@ -76,82 +86,108 @@ export async function GET(request, { params }) {
     for (const avail of dayAvailability) {
       const slotDuration = avail.slotDuration || 10
       const [startH, startM] = avail.startTime.split(':').map(Number)
-      const [endH, endM] = avail.endTime.split(':').map(Number)
+      const [endH, endM]     = avail.endTime.split(':').map(Number)
       const startMinutes = startH * 60 + startM
-      const endMinutes = endH * 60 + endM
+      const endMinutes   = endH * 60 + endM
 
       for (let m = startMinutes; m + slotDuration <= endMinutes; m += slotDuration) {
-        const slotStartH = Math.floor(m / 60)
-        const slotStartM = m % 60
-        const slotEndM = m + slotDuration
-        const slotEndH = Math.floor(slotEndM / 60)
-        const slotEndMin = slotEndM % 60
+        const slotStartH   = Math.floor(m / 60)
+        const slotStartM   = m % 60
+        const slotEndM     = m + slotDuration
+        const slotEndH     = Math.floor(slotEndM / 60)
+        const slotEndMin   = slotEndM % 60
 
         const startTime = `${String(slotStartH).padStart(2, '0')}:${String(slotStartM).padStart(2, '0')}`
-        const endTime = `${String(slotEndH).padStart(2, '0')}:${String(slotEndMin).padStart(2, '0')}`
+        const endTime   = `${String(slotEndH).padStart(2, '0')}:${String(slotEndMin).padStart(2, '0')}`
 
         allSlots.push({
           startTime,
           endTime,
-          hour: slotStartH,
-          isBooked: false,
+          hour:       slotStartH,
+          slotStatus: 'available',
+          expiresAt:  null,
+          isOwner:    false,
         })
       }
     }
 
-    // Query booked slots
+    // Query bookings
     const dayStart = new Date(dateStr + 'T00:00:00.000+05:30')
-    const dayEnd = new Date(dateStr + 'T23:59:59.999+05:30')
+    const dayEnd   = new Date(dateStr + 'T23:59:59.999+05:30')
 
     const bookedBookings = await prisma.booking.findMany({
       where: {
-        doctorId: id,
+        doctorId:  id,
         startTime: { gte: dayStart },
-        endTime: { lte: dayEnd },
-        status: { in: ['confirmed', 'pending_payment'] },
+        endTime:   { lte: dayEnd },
+        status:    { in: ['confirmed', 'pending_payment'] },
       },
-      select: { startTime: true, endTime: true },
+      select: { startTime: true, endTime: true, status: true, createdAt: true, userId: true },
     })
 
-    // Mark booked slots
-    const bookedTimes = bookedBookings.map((b) => {
-      const st = new Date(b.startTime)
-      return `${String(st.getHours()).padStart(2, '0')}:${String(st.getMinutes()).padStart(2, '0')}`
-    })
+    // ✅ 15-minute expiry threshold
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000)
 
+    // Build lookup: "HH:MM" → { slotStatus, expiresAt, userId }
+    const bookedMap = {}
+    for (const b of bookedBookings) {
+      const st  = new Date(b.startTime)
+      const key = `${String(st.getHours()).padStart(2, '0')}:${String(st.getMinutes()).padStart(2, '0')}`
+
+      // Expired pending_payment → treat as available
+      if (b.status === 'pending_payment' && new Date(b.createdAt) < fifteenMinsAgo) {
+        continue
+      }
+
+      bookedMap[key] = {
+        slotStatus: b.status === 'pending_payment' ? 'occupied' : 'booked',
+        expiresAt:  b.status === 'pending_payment'
+          ? new Date(new Date(b.createdAt).getTime() + 15 * 60 * 1000).toISOString()
+          : null,
+        userId: b.userId,  // ✅ who made this booking
+      }
+    }
+
+    // Enrich slots
     allSlots.forEach((slot) => {
-      if (bookedTimes.includes(slot.startTime)) {
-        slot.isBooked = true
+      const match = bookedMap[slot.startTime]
+      if (match) {
+        slot.slotStatus = match.slotStatus
+        slot.expiresAt  = match.expiresAt
+        // ✅ isOwner: true only if logged-in user made this booking
+        slot.isOwner    = !!(currentUserId && match.userId === currentUserId)
       }
     })
 
-    // Group into hour blocks (6 slots per block)
+    // Group into hour blocks
     const hourMap = {}
     allSlots.forEach((slot) => {
       if (!hourMap[slot.hour]) {
         hourMap[slot.hour] = {
-          hour: slot.hour,
-          hourLabel: `${String(slot.hour).padStart(2, '0')}:00`,
-          slots: [],
-          totalSlots: 0,
-          bookedSlots: 0,
-          availableSlots: 0,
+          hour:              slot.hour,
+          hourLabel:         `${String(slot.hour).padStart(2, '0')}:00`,
+          slots:             [],
+          totalSlots:        0,
+          bookedSlots:       0,
+          availableSlots:    0,
           availabilityLabel: '',
           availabilityColor: '',
         }
       }
       hourMap[slot.hour].slots.push({
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        isBooked: slot.isBooked,
+        startTime:  slot.startTime,
+        endTime:    slot.endTime,
+        slotStatus: slot.slotStatus,
+        expiresAt:  slot.expiresAt,
+        isOwner:    slot.isOwner,  // ✅ passed to frontend
       })
     })
 
     const hourBlocks = Object.values(hourMap)
       .sort((a, b) => a.hour - b.hour)
       .map((block) => {
-        block.totalSlots = block.slots.length
-        block.bookedSlots = block.slots.filter((s) => s.isBooked).length
+        block.totalSlots     = block.slots.length
+        block.bookedSlots    = block.slots.filter((s) => s.slotStatus !== 'available').length
         block.availableSlots = block.totalSlots - block.bookedSlots
 
         if (block.availableSlots >= 4) {
@@ -172,19 +208,15 @@ export async function GET(request, { params }) {
       })
 
     const summary = {
-      totalSlots: allSlots.length,
-      bookedSlots: allSlots.filter((s) => s.isBooked).length,
-      availableSlots: allSlots.filter((s) => !s.isBooked).length,
+      totalSlots:     allSlots.length,
+      bookedSlots:    allSlots.filter((s) => s.slotStatus !== 'available').length,
+      availableSlots: allSlots.filter((s) => s.slotStatus === 'available').length,
     }
 
-    const result = {
-      doctorId: id,
-      date: dateStr,
-      hourBlocks,
-      summary,
-    }
+    const result = { doctorId: id, date: dateStr, hourBlocks, summary }
 
-    await cache.set(cacheKey, result, 30)
+    // ✅ Only cache for guest users on future dates
+    if (!isToday) await cache.set(cacheKey, result, 30)
 
     return successResponse(result)
   } catch (err) {

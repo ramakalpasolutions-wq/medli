@@ -76,11 +76,50 @@ export default function LeafletMap({
     setDistances(dist)
   }, [markers, userLocation, calcDistance])
 
+  // ── Mount / unmount lifecycle ─────────────────────────────────────────────
   useEffect(() => {
+    mountedRef.current     = true
+    initializedRef.current = false
+
+    return () => {
+      mountedRef.current = false
+      markerRefs.current.forEach((m) => { try { m.remove() } catch (_) {} })
+      markerRefs.current = []
+      try { userMarker.current?.remove() } catch (_) {}
+      userMarker.current = null
+      if (mapInst.current) {
+        try {
+          mapInst.current.off()
+          mapInst.current.remove()
+        } catch (_) {}
+        mapInst.current = null
+      }
+      initializedRef.current = false
+    }
+  }, [])
+
+  // ── Main map effect ───────────────────────────────────────────────────────
+  useEffect(() => {
+    // ✅ FIX 1: Guard — don't run if div not in DOM yet or already has _leaflet_id
     if (!mapRef.current || markers.length === 0) return
+
+    // ✅ FIX 2: If the div already has a leaflet instance attached but
+    //    mapInst.current is null (happens after HMR), clear the div first
+    if (!mapInst.current && mapRef.current._leaflet_id) {
+      try {
+        // Remove leaflet's internal reference so it can re-init cleanly
+        delete mapRef.current._leaflet_id
+      } catch (_) {}
+      initializedRef.current = false
+    }
 
     import('leaflet').then((Lmod) => {
       if (!mountedRef.current || !mapRef.current) return
+
+      // ✅ FIX 3: Double-check _leaflet_id hasn't been set by a concurrent call
+      if (initializedRef.current && !mapInst.current) {
+        initializedRef.current = false
+      }
 
       try {
         const L = Lmod.default || Lmod
@@ -92,7 +131,6 @@ export default function LeafletMap({
           shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
         })
 
-        // ✅ Guard map creation only — not marker drawing
         if (!initializedRef.current) {
           initializedRef.current = true
 
@@ -258,28 +296,6 @@ export default function LeafletMap({
     })
   }, [markers, selected, onSelect, zoom, userLocation, distances, accentColor])
 
-  // ── Mount / unmount lifecycle ─────────────────────────────────────────────
-  useEffect(() => {
-    mountedRef.current     = true
-    initializedRef.current = false   // ✅ reset on every fresh mount
-
-    return () => {
-      mountedRef.current = false
-      markerRefs.current.forEach((m) => { try { m.remove() } catch (_) {} })
-      markerRefs.current = []
-      try { userMarker.current?.remove() } catch (_) {}
-      userMarker.current = null
-      if (mapInst.current) {
-        try {
-          mapInst.current.off()
-          mapInst.current.remove()  // ✅ Leaflet clears _leaflet_id itself
-        } catch (_) {}
-        mapInst.current = null
-      }
-      initializedRef.current = false  // ✅ so next mount re-inits cleanly
-    }
-  }, [])
-
   if (markers.length === 0) {
     return (
       <div
@@ -324,7 +340,10 @@ export default function LeafletMap({
 
       <div style={{ position: 'relative', height, width: '100%' }}>
 
+        {/* ✅ FIX 4: key forces React to remount a FRESH div on marker changes,
+            preventing Leaflet from reading _leaflet_pos on a stale node */}
         <div
+          key="leaflet-map-container"
           ref={mapRef}
           style={{ height: '100%', width: '100%' }}
           className="rounded-2xl overflow-hidden"
