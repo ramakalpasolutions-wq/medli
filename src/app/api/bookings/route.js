@@ -20,6 +20,7 @@ export async function GET(request) {
     try {
       const { searchParams } = new URL(request.url)
       const status     = searchParams.get('status')     || ''
+      const filter = searchParams.get('filter') || ''
       const type       = searchParams.get('type')       || ''
       const hospitalId = searchParams.get('hospitalId') || ''
       const labId      = searchParams.get('labId')      || ''
@@ -58,7 +59,15 @@ export async function GET(request) {
       }
       // super_admin and regional_manager see all
 
-      if (status)     where.status     = status
+      if (status) {
+  where.status = status
+} else if (filter === 'upcoming') {
+  where.status = { in: ['confirmed', 'pending_payment', 'created'] }
+} else if (filter === 'completed') {
+  where.status = 'completed'
+} else if (filter === 'cancelled') {
+  where.status = { in: ['cancelled', 'refunded', 'no_show'] }
+}
       if (type)       where.type       = type
       if (hospitalId) where.hospitalId = hospitalId
       if (labId)      where.labId      = labId

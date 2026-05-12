@@ -90,10 +90,9 @@ export async function createOrder({ bookingId, userId }) {
 const payload = buildOnePayPayload({
   txnId,
 
-  // IMPORTANT:
-  // UAT account supports only slab amounts
-  // Use 1.00 for testing
-  amount: '1.00',
+  // CHANGE TO when going live with production 1Pay credentials:
+amount: booking.totalAmount.toFixed(2),
+
 
   custMobile:
     user.phone || '9999999999',

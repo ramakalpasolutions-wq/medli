@@ -12,8 +12,8 @@ export async function GET(request, { params }) {
     const booking = await prisma.booking.findUnique({ where: { id } })
     if (!booking) return errorResponse('Booking not found', 'NOT_FOUND', 404)
 
-    // Access check
-    if (user.role === 'user' && booking.userId !== user.id)
+    // ✅ FIX: use user.userId (not user.id) — matches verifyAuth return shape
+    if (user.role === 'user' && booking.userId !== user.userId)
       return errorResponse('Access denied', 'FORBIDDEN', 403)
 
     return successResponse(booking)

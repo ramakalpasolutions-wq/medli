@@ -190,7 +190,13 @@ export default function BookingsPage() {
   const router  = useRouter()
   const mounted = useMounted()
 
-  const { data, isLoading } = useSWR(`/api/bookings?filter=${tab}&limit=20`, fetcher)
+ // ✅ CORRECT — map tab name to actual status values the API understands
+const STATUS_MAP = {
+  upcoming:  'confirmed,pending_payment,created',
+  completed: 'completed',
+  cancelled: 'cancelled,refunded',
+}
+const { data, isLoading } = useSWR(`/api/bookings?filter=${tab}&limit=20&userId=me`, fetcher)
   const bookings = data?.bookings || []
 
   const EMPTY = {
