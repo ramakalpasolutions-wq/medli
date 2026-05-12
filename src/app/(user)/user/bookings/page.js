@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/public/Navbar'
@@ -33,6 +33,11 @@ const TABS = [
   { key: 'completed', label: 'Completed', icon: '✅' },
   { key: 'cancelled', label: 'Cancelled', icon: '❌' },
 ]
+
+// Statuses that count as "active/upcoming"
+const UPCOMING_STATUSES  = new Set(['confirmed', 'pending_payment', 'created'])
+const COMPLETED_STATUSES = new Set(['completed'])
+const CANCELLED_STATUSES = new Set(['cancelled', 'refunded'])
 
 function typeIcon(type) {
   if (type === 'lab')    return '🧪'
@@ -70,6 +75,7 @@ function BookingCardSkeleton() {
 
 function BookingCard({ booking, onClick, mounted }) {
   const [h, setH] = useState(false)
+
   const isAvailable = mounted
     && booking.type === 'online'
     && booking.status === 'confirmed'
@@ -77,6 +83,29 @@ function BookingCard({ booking, onClick, mounted }) {
       const diff = (new Date(booking.startTime) - new Date()) / 60000
       return diff <= 15 && diff >= -30
     })()
+
+  // ✅ Show countdown timer for pending bookings
+  const isPendingExpiring = mounted && booking.status === 'pending_payment'
+  const [timeLeft, setTimeLeft] = useState(null)
+
+  useEffect(() => {
+    if (!isPendingExpiring) return
+    const calc = () => {
+      const created   = new Date(booking.createdAt)
+      const expiresAt = new Date(created.getTime() + 15 * 60 * 1000)
+      const secs      = Math.max(0, Math.floor((expiresAt - new Date()) / 1000))
+      setTimeLeft(secs)
+    }
+    calc()
+    const id = setInterval(calc, 1000)
+    return () => clearInterval(id)
+  }, [isPendingExpiring, booking.createdAt])
+
+  const fmtCountdown = (s) => {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${m}:${String(sec).padStart(2, '0')}`
+  }
 
   return (
     <div
@@ -130,6 +159,35 @@ function BookingCard({ booking, onClick, mounted }) {
         </div>
       </div>
 
+      {/* ✅ Pending expiry countdown */}
+      {isPendingExpiring && timeLeft !== null && timeLeft > 0 && (
+        <div style={{
+          marginTop: 12, paddingTop: 12,
+          borderTop: '1px solid #fef3c7',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 14 }}>⏳</span>
+          <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
+            Slot reserved · expires in {fmtCountdown(timeLeft)}
+          </span>
+        </div>
+      )}
+
+      {/* ✅ Expired pending — slot released */}
+      {isPendingExpiring && timeLeft === 0 && (
+        <div style={{
+          marginTop: 12, paddingTop: 12,
+          borderTop: '1px solid #fee2e2',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
+            Payment time expired · slot released
+          </span>
+        </div>
+      )}
+
+      {/* Online consult available */}
       {isAvailable && (
         <div style={{
           marginTop: 12, paddingTop: 12,
@@ -190,14 +248,53 @@ export default function BookingsPage() {
   const router  = useRouter()
   const mounted = useMounted()
 
- // ✅ CORRECT — map tab name to actual status values the API understands
-const STATUS_MAP = {
-  upcoming:  'confirmed,pending_payment,created',
-  completed: 'completed',
-  cancelled: 'cancelled,refunded',
-}
-const { data, isLoading } = useSWR(`/api/bookings?filter=${tab}&limit=20&userId=me`, fetcher)
-  const bookings = data?.bookings || []
+  // ✅ Poll every 30s so expired pending bookings auto-disappear
+  const { data, isLoading, mutate } = useSWR(
+    `/api/bookings?filter=${tab}&limit=50&userId=me`,
+    fetcher,
+    { refreshInterval: 30_000 }
+  )
+
+  const allBookings = data?.bookings || []
+  const now = mounted ? new Date() : null
+
+  // ✅ Client-side split: past confirmed/upcoming confirmed, move to correct tab
+  const bookings = (() => {
+    if (!mounted) return allBookings
+    if (tab === 'upcoming') {
+      return allBookings
+        .filter((b) => {
+          if (!UPCOMING_STATUSES.has(b.status)) return false
+          // If startTime is in the past AND status is confirmed → show in completed
+          if (b.status === 'confirmed' && new Date(b.startTime) < now) return false
+          return true
+        })
+        // ✅ Sort nearest date first
+        .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+    }
+    if (tab === 'completed') {
+      return allBookings
+        .filter((b) => {
+          if (COMPLETED_STATUSES.has(b.status)) return true
+          // ✅ Past confirmed bookings also show here
+          if (b.status === 'confirmed' && new Date(b.startTime) < now) return true
+          return false
+        })
+        .sort((a, b) => new Date(b.startTime) - new Date(a.startTime))
+    }
+    if (tab === 'cancelled') {
+      return allBookings
+        .filter((b) => CANCELLED_STATUSES.has(b.status))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    }
+    return allBookings
+  })()
+
+  // ✅ Auto-revalidate when a pending booking expires (every 60s)
+  useEffect(() => {
+    const id = setInterval(() => mutate(), 60_000)
+    return () => clearInterval(id)
+  }, [mutate])
 
   const EMPTY = {
     upcoming:  { title: 'No upcoming bookings',  message: 'Book a hospital, lab, or doctor consultation' },

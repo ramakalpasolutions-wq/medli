@@ -20,7 +20,7 @@ export async function GET(request) {
     try {
       const { searchParams } = new URL(request.url)
       const status     = searchParams.get('status')     || ''
-      const filter = searchParams.get('filter') || ''
+      const filter     = searchParams.get('filter')     || ''
       const type       = searchParams.get('type')       || ''
       const hospitalId = searchParams.get('hospitalId') || ''
       const labId      = searchParams.get('labId')      || ''
@@ -57,17 +57,17 @@ export async function GET(request) {
         })
         if (lab) where.labId = lab.id
       }
-      // super_admin and regional_manager see all
 
       if (status) {
-  where.status = status
-} else if (filter === 'upcoming') {
-  where.status = { in: ['confirmed', 'pending_payment', 'created'] }
-} else if (filter === 'completed') {
-  where.status = 'completed'
-} else if (filter === 'cancelled') {
-  where.status = { in: ['cancelled', 'refunded', 'no_show'] }
-}
+        where.status = status
+      } else if (filter === 'upcoming') {
+        where.status = { in: ['confirmed', 'pending_payment', 'created'] }
+      } else if (filter === 'completed') {
+        where.status = 'completed'
+      } else if (filter === 'cancelled') {
+        where.status = { in: ['cancelled', 'refunded', 'no_show'] }
+      }
+
       if (type)       where.type       = type
       if (hospitalId) where.hospitalId = hospitalId
       if (labId)      where.labId      = labId
@@ -83,12 +83,25 @@ export async function GET(request) {
         }
       }
 
+      // ✅ Auto-release pending_payment bookings older than 15 minutes
+      const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000)
+      await prisma.booking.updateMany({
+        where: {
+          status:    'pending_payment',
+          createdAt: { lt: fifteenMinsAgo },
+        },
+        data: { status: 'cancelled' },
+      })
+
       const [bookings, total] = await Promise.all([
         prisma.booking.findMany({
           where,
           skip,
           take,
-          orderBy: { startTime: 'desc' },
+          // ✅ Upcoming sorted nearest first, rest by newest created
+          orderBy: filter === 'upcoming'
+            ? { startTime: 'asc' }
+            : { createdAt: 'desc' },
         }),
         prisma.booking.count({ where }),
       ])
@@ -117,8 +130,8 @@ export async function GET(request) {
 
       const enriched = bookings.map((b) => ({
         ...b,
-        userName:   userMap[b.userId]?.name   || null,
-        userPhone:  userMap[b.userId]?.phone  || null,
+        userName:   userMap[b.userId]?.name    || null,
+        userPhone:  userMap[b.userId]?.phone   || null,
         doctorName: doctorMap[b.doctorId]?.name || null,
       }))
 
