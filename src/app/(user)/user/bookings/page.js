@@ -14,8 +14,11 @@ function useMounted() {
   return m
 }
 
+// FIX: fetcher reads j.data.bookings correctly
 const fetcher = (url) =>
-  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
+  fetch(url, { credentials: 'include' })
+    .then((r) => r.json())
+    .then((j) => j.data || {})
 
 const KF = `
   @keyframes bk-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
@@ -84,11 +87,9 @@ function BookingCard({ booking, onClick, mounted }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        background: '#fff',
-        borderRadius: 20,
+        background: '#fff', borderRadius: 20,
         border: `1.5px solid ${h ? '#c7d2fe' : '#f1f5f9'}`,
-        padding: 20,
-        cursor: 'pointer',
+        padding: 20, cursor: 'pointer',
         boxShadow: h ? '0 12px 32px rgba(0,0,0,0.1)' : '0 2px 6px rgba(0,0,0,0.04)',
         transform: h ? 'translateY(-2px)' : 'translateY(0)',
         transition: 'all .2s ease',
@@ -190,19 +191,21 @@ export default function BookingsPage() {
   const router  = useRouter()
   const mounted = useMounted()
 
- // ✅ CORRECT — map tab name to actual status values the API understands
-const STATUS_MAP = {
-  upcoming:  'confirmed,pending_payment,created',
-  completed: 'completed',
-  cancelled: 'cancelled,refunded',
-}
-const { data, isLoading } = useSWR(`/api/bookings?filter=${tab}&limit=20&userId=me`, fetcher)
+  // FIX: use filter param — API handles upcoming/completed/cancelled correctly
+  const { data, isLoading } = useSWR(
+    `/api/bookings?filter=${tab}&limit=20`,
+    fetcher,
+    { revalidateOnFocus: true }
+  )
+
+  // FIX: read bookings from j.data.bookings (paginatedResponse shape)
   const bookings = data?.bookings || []
+  const total    = data?.pagination?.total || 0
 
   const EMPTY = {
     upcoming:  { title: 'No upcoming bookings',  message: 'Book a hospital, lab, or doctor consultation' },
-    completed: { title: 'No completed bookings',  message: 'Your completed appointments will appear here' },
-    cancelled: { title: 'No cancelled bookings',  message: "You haven't cancelled any bookings" },
+    completed: { title: 'No completed bookings', message: 'Your completed appointments will appear here' },
+    cancelled: { title: 'No cancelled bookings', message: "You haven't cancelled any bookings" },
   }
 
   return (
@@ -212,8 +215,7 @@ const { data, isLoading } = useSWR(`/api/bookings?filter=${tab}&limit=20&userId=
         <Navbar />
 
         <div style={{
-          maxWidth: 720,
-          margin: '0 auto',
+          maxWidth: 720, margin: '0 auto',
           padding: 'clamp(88px,12vw,104px) clamp(16px,3vw,32px) 64px',
         }}>
           {/* Header */}
