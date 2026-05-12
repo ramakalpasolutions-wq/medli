@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 
 const fetcher = (url) =>
-  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
+  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data?.booking ?? j.data ?? null)
 
 function useMounted() {
   const [m, setM] = useState(false)
@@ -61,7 +61,7 @@ export default function BookingSuccessPage({ params }) {
   const [visible, setVisible] = useState(false)
   const [iconAnim, setIconAnim] = useState(false)
 
-  const { data: booking } = useSWR(`/api/bookings/${id}`, fetcher, { refreshInterval: 0 })
+  const { data: booking } = useSWR(`/api/bookings/${id}`, fetcher, { refreshInterval: (data) => (data?.paymentStatus === 'paid' ? 0 : 2000) })
 
   useEffect(() => {
     const t1 = setTimeout(() => setVisible(true), 50)
