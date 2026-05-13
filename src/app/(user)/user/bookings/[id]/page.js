@@ -29,6 +29,20 @@ const SHIMMER = {
   animation: 'bd-shimmer 1.5s linear infinite',
 }
 
+/* ─── helpers ───────────────────────────────────────────────────────── */
+function resolveAddress(a, city) {
+  if (!a) return city || null
+  if (typeof a === 'string') return [a, city].filter(Boolean).join(', ')
+  return [a.street || a.line1 || a.area, a.city || city, a.state, a.pincode]
+    .filter(Boolean).join(', ')
+}
+
+function resolveStringOrArray(val, separator = ' · ') {
+  if (!val) return null
+  if (Array.isArray(val)) return val.join(separator)
+  return val.toString().replace(/([a-z])([A-Z])/g, '$1 $2')
+}
+
 /* ─── Lab Tracker ────────────────────────────────────────────────────── */
 const LAB_STEPS = [
   { key: 'sample_collected', label: 'Sample Collected', icon: '🧪' },
@@ -142,7 +156,7 @@ function Card({ children, style = {} }) {
   )
 }
 
-/* ─── Entity Detail Block (Hospital / Doctor / Lab) ─────────────────── */
+/* ─── Entity Detail Block ────────────────────────────────────────────── */
 function EntityBlock({ icon, name, sub1, sub2, sub3, tag }) {
   return (
     <div style={{ display:'flex', alignItems:'flex-start', gap:14 }}>
@@ -260,29 +274,25 @@ export default function BookingDetailPage({ params }) {
 
   const { data: booking, isLoading, mutate } = useSWR(`/api/bookings/${id}`, fetcher)
 
-  // ─── Fetch related entities ───────────────────────────────────────────
-  // ─── Fetch related entities ───────────────────────────────────────────
-const { data: doctor } = useSWR(
-  booking?.doctorId ? `/api/doctors/${booking.doctorId}` : null, fetcher
-)
-const { data: lab } = useSWR(
-  booking?.labId ? `/api/labs/${booking.labId}` : null, fetcher
-)
-// After: const { data: lab } = useSWR(...)
-const { data: testsData } = useSWR(
-  booking?.testIds?.length > 0
-    ? `/api/tests?ids=${booking.testIds.join(',')}`
-    : null,
-  fetcher
-)
+  /* ── Related entity fetches ── */
+  const { data: doctor } = useSWR(
+    booking?.doctorId ? `/api/doctors/${booking.doctorId}` : null, fetcher
+  )
+  const { data: lab } = useSWR(
+    booking?.labId ? `/api/labs/${booking.labId}` : null, fetcher
+  )
+  const { data: testsData } = useSWR(
+    booking?.testIds?.length > 0
+      ? `/api/tests?ids=${booking.testIds.join(',')}`
+      : null,
+    fetcher
+  )
+  const hospitalId = booking?.hospitalId || doctor?.hospitalId || null
+  const { data: hospital } = useSWR(
+    hospitalId ? `/api/hospitals/${hospitalId}` : null, fetcher
+  )
 
-// ✅ Hospital: use booking.hospitalId first, fallback to doctor's hospital
-const hospitalId = booking?.hospitalId || doctor?.hospitalId || null
-const { data: hospital } = useSWR(
-  hospitalId ? `/api/hospitals/${hospitalId}` : null, fetcher
-)
-
-  // Verify payment if pending
+  /* ── Verify pending payment ── */
   useEffect(() => {
     if (!booking?.onePayTxnId || booking.paymentStatus === 'paid') return
     let cancelled = false
@@ -308,7 +318,7 @@ const { data: hospital } = useSWR(
 
   const isFinished = ['completed','cancelled','refunded','no_show'].includes(booking?.status)
 
-  // ─── Handlers ────────────────────────────────────────────────────────
+  /* ── Handlers ── */
   const handleInvoiceDownload = async () => {
     setDlInvoice(true)
     try {
@@ -375,7 +385,7 @@ const { data: hospital } = useSWR(
     finally { setPaying(false) }
   }
 
-  // ─── Loading skeleton ─────────────────────────────────────────────────
+  /* ── Loading skeleton ── */
   if (isLoading) {
     return (
       <>
@@ -395,7 +405,7 @@ const { data: hospital } = useSWR(
 
   if (!booking) return null
 
-  // ─── Derived display values ───────────────────────────────────────────
+  /* ── Derived display values ── */
   const bookingDate = mounted && booking.startTime
     ? new Date(booking.startTime).toLocaleDateString('en-IN', { dateStyle: 'full' }) : '—'
   const bookingTime = mounted && booking.startTime
@@ -405,6 +415,24 @@ const { data: hospital } = useSWR(
 
   const typeMap = { hospital: '🏥 Hospital Visit', online: '🎥 Online Consultation', lab: '🧪 Lab Test' }
   const typeLabel = typeMap[booking.type] || booking.type
+
+  /* ── Consultation fee display ── */
+  const renderConsultationFee = () => {
+    const fee = doctor?.consultationFee
+    if (!fee) return null
+    if (typeof fee !== 'object') return <InfoRow label="Consultation Fee" value={`₹${fee}`} />
+    if (booking.type === 'hospital' && fee.inPerson != null)
+      return <InfoRow label="In-Person Fee" value={`₹${fee.inPerson}`} />
+    if (booking.type === 'online' && fee.online != null)
+      return <InfoRow label="Online Fee" value={`₹${fee.online}`} />
+    return (
+      <>
+        {fee.inPerson != null && <InfoRow label="In-Person Fee" value={`₹${fee.inPerson}`} />}
+        {fee.online   != null && <InfoRow label="Online Fee"    value={`₹${fee.online}`}   />}
+        {fee.hospital != null && <InfoRow label="Hospital Fee"  value={`₹${fee.hospital}`} />}
+      </>
+    )
+  }
 
   return (
     <>
@@ -428,8 +456,6 @@ const { data: hospital } = useSWR(
                 {booking.status?.replace(/_/g,' ')}
               </Badge>
             </div>
-
-            {/* Quick info grid */}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[
                 ['📋 Type',    typeLabel],
@@ -446,128 +472,131 @@ const { data: hospital } = useSWR(
           </Card>
 
           {/* ── Hospital Details ── */}
-         {/* ── Hospital Details ── */}
-{hospital && (
-  <Card>
-    <SectionTitle icon="🏥" title="Hospital Details" />
-    <EntityBlock
-      icon="🏥"
-      name={hospital.name}
-      sub1={Array.isArray(hospital.specializations)
-        ? hospital.specializations.join(' · ')
-        : hospital.specialization || hospital.type || null}
-      sub2={(() => {
-        // ✅ Handle address as object OR string
-        const a = hospital.address
-        if (!a) return null
-        if (typeof a === 'string') return a
-        return [a.street || a.line1, a.city || a.area, a.state, a.pincode]
-          .filter(Boolean).join(', ')
-      })()}
-      sub3={hospital.phone ? `📞 ${hospital.phone}` : null}
-      tag={hospital.accreditation || hospital.registrationNumber || null}
-    />
-    {/* Extra details row */}
-    <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
-      {hospital.email   && <InfoRow label="Email"   value={hospital.email} />}
-      {hospital.website && <InfoRow label="Website" value={hospital.website} />}
-      {hospital.phone   && <InfoRow label="Phone"   value={hospital.phone} />}
-      {(hospital.address?.city || hospital.city) &&
-        <InfoRow label="City" value={hospital.address?.city || hospital.city} />}
-      {(hospital.address?.state || hospital.state) &&
-        <InfoRow label="State" value={hospital.address?.state || hospital.state} />}
-      {(hospital.address?.pincode || hospital.pincode) &&
-        <InfoRow label="Pincode" value={hospital.address?.pincode || hospital.pincode} />}
-      {hospital.bedCount && <InfoRow label="Beds" value={hospital.bedCount} />}
-      {hospital.emergencyContact && <InfoRow label="Emergency" value={hospital.emergencyContact} />}
-    </div>
-  </Card>
-)}
+          {hospital && (
+            <Card>
+              <SectionTitle icon="🏥" title="Hospital Details" />
+              <EntityBlock
+                icon="🏥"
+                name={hospital.name}
+                sub1={resolveStringOrArray(hospital.specializations || hospital.specialization) || hospital.type || null}
+                sub2={resolveAddress(hospital.address, hospital.city)}
+                sub3={hospital.phone ? `📞 ${hospital.phone}` : null}
+                tag={hospital.accreditation || hospital.registrationNumber || null}
+              />
+              <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
+                {hospital.email            && <InfoRow label="Email"     value={hospital.email} />}
+                {hospital.website          && <InfoRow label="Website"   value={hospital.website} />}
+                {hospital.phone            && <InfoRow label="Phone"     value={hospital.phone} />}
+                {(hospital.address?.city   || hospital.city)    && <InfoRow label="City"     value={hospital.address?.city    || hospital.city} />}
+                {(hospital.address?.state  || hospital.state)   && <InfoRow label="State"    value={hospital.address?.state   || hospital.state} />}
+                {(hospital.address?.pincode|| hospital.pincode) && <InfoRow label="Pincode"  value={hospital.address?.pincode || hospital.pincode} />}
+                {hospital.bedCount         && <InfoRow label="Beds"      value={hospital.bedCount} />}
+                {hospital.emergencyContact && <InfoRow label="Emergency" value={hospital.emergencyContact} />}
+              </div>
+            </Card>
+          )}
 
           {/* ── Doctor Details ── */}
-        {/* ── Doctor Details ── */}
-{doctor && (
-  <Card>
-    <SectionTitle icon="👨‍⚕️" title="Doctor Details" />
-    <EntityBlock
-  icon="👨‍⚕️"
-  name={doctor.name}
-  sub1={Array.isArray(doctor.specialization)
-  ? doctor.specialization.join(' · ')
-  : doctor.specialization?.toString().replace(/([a-z])([A-Z])/g, '$1 $2')}
-sub2={Array.isArray(doctor.qualification)
-  ? doctor.qualification.join(', ')
-  : doctor.qualification?.toString().replace(/([a-z])([A-Z])/g, '$1 $2')}
-      sub3={doctor.experience ? `${doctor.experience} years experience` : null}
-      tag={doctor.registrationNumber ? `Reg: ${doctor.registrationNumber}` : null}
-    />
-    <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
-      {doctor.phone     && <InfoRow label="Phone"       value={doctor.phone} />}
-      {doctor.email     && <InfoRow label="Email"       value={doctor.email} />}
-      {doctor.gender    && <InfoRow label="Gender"      value={doctor.gender} />}
-      {doctor.languages && <InfoRow label="Languages"
-        value={Array.isArray(doctor.languages) ? doctor.languages.join(', ') : doctor.languages} />}
-      {doctor.consultationFee && typeof doctor.consultationFee === 'object' ? (
-  <>
-    {booking.type === 'hospital' && doctor.consultationFee.inPerson != null && (
-      <InfoRow label="In-Person Fee" value={`₹${doctor.consultationFee.inPerson}`} />
-    )}
-    {booking.type === 'online' && doctor.consultationFee.online != null && (
-      <InfoRow label="Online Fee" value={`₹${doctor.consultationFee.online}`} />
-    )}
-    {!['hospital', 'online'].includes(booking.type) && (
-      <>
-        {doctor.consultationFee.inPerson != null && <InfoRow label="In-Person Fee" value={`₹${doctor.consultationFee.inPerson}`} />}
-        {doctor.consultationFee.online   != null && <InfoRow label="Online Fee"    value={`₹${doctor.consultationFee.online}`}   />}
-      </>
-    )}
-  </>
-) : doctor.consultationFee ? (
-  <InfoRow label="Consultation Fee" value={`₹${doctor.consultationFee}`} />
-) : null}
-      {doctor.about     && (
-        <div style={{ paddingTop:8 }}>
-          <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 4px' }}>About</p>
-          <p style={{ fontSize:12, color:'#334155', margin:0, lineHeight:1.6 }}>{doctor.about}</p>
-        </div>
-      )}
-    </div>
-  </Card>
-)}
+          {doctor && (
+            <Card>
+              <SectionTitle icon="👨‍⚕️" title="Doctor Details" />
+              <EntityBlock
+                icon="👨‍⚕️"
+                name={doctor.name}
+                sub1={resolveStringOrArray(doctor.specialization)}
+                sub2={resolveStringOrArray(doctor.qualification, ', ')}
+                sub3={doctor.experience ? `${doctor.experience} years experience` : null}
+                tag={doctor.registrationNumber ? `Reg: ${doctor.registrationNumber}` : null}
+              />
+              <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
+                {doctor.phone     && <InfoRow label="Phone"     value={doctor.phone} />}
+                {doctor.email     && <InfoRow label="Email"     value={doctor.email} />}
+                {doctor.gender    && <InfoRow label="Gender"    value={doctor.gender} />}
+                {doctor.languages && <InfoRow label="Languages" value={Array.isArray(doctor.languages) ? doctor.languages.join(', ') : doctor.languages} />}
+                {renderConsultationFee()}
+                {doctor.about && (
+                  <div style={{ paddingTop:8 }}>
+                    <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 4px' }}>About</p>
+                    <p style={{ fontSize:12, color:'#334155', margin:0, lineHeight:1.6 }}>{doctor.about}</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* ── Lab Details ── */}
           {lab && (
             <Card>
-             <EntityBlock
-  icon="🔬"
-  name={lab.name}
-  sub1={lab.type}
-  sub2={(() => {
-    const a = lab.address
-    if (!a) return lab.city || null
-    if (typeof a === 'string') return [a, lab.city].filter(Boolean).join(', ')
-    return [a.street || a.line1 || a.area, a.city || lab.city, a.state, a.pincode]
-      .filter(Boolean).join(', ')
-  })()}
+              <SectionTitle icon="🧪" title="Lab Details" />
+              <EntityBlock
+                icon="🔬"
+                name={lab.name}
+                sub1={lab.type || null}
+                sub2={resolveAddress(lab.address, lab.city)}
                 sub3={lab.phone ? `📞 ${lab.phone}` : null}
                 tag={lab.accreditation || null}
               />
-             {booking.testIds?.length > 0 && (
-  <div style={{ marginTop:12, padding:'10px 12px', background:'#f8fafc', borderRadius:12 }}>
-    <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 6px' }}>Tests Booked</p>
-    {testsData?.length > 0
-      ? testsData.map((t) => (
-          <div key={t._id} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', borderBottom:'1px solid #f1f5f9' }}>
-            <span style={{ fontSize:13, color:'#334155' }}>{t.name}</span>
-            {t.price && <span style={{ fontSize:12, color:'#64748b' }}>₹{t.price}</span>}
-          </div>
-        ))
-      : <p style={{ fontSize:13, fontWeight:500, color:'#334155', margin:0 }}>
-          {booking.testIds.length} test{booking.testIds.length > 1 ? 's' : ''} booked
-        </p>
-    }
-  </div>
-)}
+
+              {/* Lab extra info */}
+              <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
+                {lab.email        && <InfoRow label="Email"           value={lab.email} />}
+                {lab.website      && <InfoRow label="Website"         value={lab.website} />}
+                {lab.openingHours && <InfoRow label="Timing"          value={lab.openingHours} />}
+                {lab.nabl         && <InfoRow label="NABL Accredited" value="✓ Yes" color="#10b981" />}
+                {lab.homeCollection != null && (
+                  <InfoRow
+                    label="Home Collection"
+                    value={lab.homeCollection ? '✓ Available' : 'Not Available'}
+                    color={lab.homeCollection ? '#10b981' : '#ef4444'}
+                  />
+                )}
+                {(lab.address?.city   || lab.city)    && <InfoRow label="City"    value={lab.address?.city    || lab.city} />}
+                {(lab.address?.state  || lab.state)   && <InfoRow label="State"   value={lab.address?.state   || lab.state} />}
+                {(lab.address?.pincode|| lab.pincode) && <InfoRow label="Pincode" value={lab.address?.pincode || lab.pincode} />}
+              </div>
+
+              {/* Tests Booked */}
+              {booking.testIds?.length > 0 && (
+                <div style={{ marginTop:12, padding:'12px', background:'#f8fafc', borderRadius:12 }}>
+                  <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 10px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>
+                    Tests Booked ({booking.testIds.length})
+                  </p>
+                  {testsData?.length > 0 ? (
+                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                      {testsData.map((t, i) => (
+                        <div key={t._id || t.id || i} style={{
+                          display:'flex', justifyContent:'space-between', alignItems:'flex-start',
+                          padding:'8px 10px', background:'#fff', borderRadius:10,
+                          border:'1px solid #f1f5f9',
+                        }}>
+                          <div style={{ flex:1 }}>
+                            <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{t.name}</p>
+                            {t.reportTime && (
+                              <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 0' }}>⏱ Report in {t.reportTime}</p>
+                            )}
+                            {t.normalRange && (
+                              <p style={{ fontSize:11, color:'#64748b', margin:'2px 0 0' }}>
+                                Normal: {t.normalRange}{t.unit ? ` ${t.unit}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          {t.price != null && (
+                            <span style={{ fontSize:13, fontWeight:700, color:'#6366f1', marginLeft:12, flexShrink:0 }}>
+                              ₹{t.price}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize:13, fontWeight:500, color:'#334155', margin:0 }}>
+                      {booking.testIds.length} test{booking.testIds.length > 1 ? 's' : ''} booked
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Collection Type */}
               {booking.collectionType && (
                 <div style={{ marginTop:8, padding:'10px 12px', background:'#f0fdf4', borderRadius:12 }}>
                   <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 2px' }}>Collection Type</p>
@@ -576,6 +605,14 @@ sub2={Array.isArray(doctor.qualification)
                   </p>
                   {booking.collectionAddress && (
                     <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>{booking.collectionAddress}</p>
+                  )}
+                  {booking.collectionDate && (
+                    <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>
+                      📅 {new Date(booking.collectionDate).toLocaleDateString('en-IN', { dateStyle:'medium' })}
+                    </p>
+                  )}
+                  {booking.collectionTime && (
+                    <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>🕐 {booking.collectionTime}</p>
                   )}
                 </div>
               )}
@@ -690,11 +727,11 @@ sub2={Array.isArray(doctor.qualification)
           <Card>
             <SectionTitle icon="💰" title="Payment Summary" />
             {[
-              { label:'Base Fee',                                       value:booking.baseFee,             show:true },
-              { label:`Coupon (${booking.couponCode||''})`,            value:-booking.couponDiscount,      show:booking.couponDiscount>0 },
-              { label:`Platform Fee (${booking.platformFeePercent}%)`, value:booking.platformFee,         show:true },
-              { label:`GST (${booking.gstPercent}%)`,                  value:booking.gst,                 show:true },
-              { label:'Platform Coupon',                               value:-booking.adminCouponDiscount, show:booking.adminCouponDiscount>0 },
+              { label:'Base Fee',                                       value:booking.baseFee,              show:true },
+              { label:`Coupon (${booking.couponCode||''})`,            value:-booking.couponDiscount,       show:booking.couponDiscount>0 },
+              { label:`Platform Fee (${booking.platformFeePercent}%)`, value:booking.platformFee,          show:true },
+              { label:`GST (${booking.gstPercent}%)`,                  value:booking.gst,                  show:true },
+              { label:'Platform Coupon',                               value:-booking.adminCouponDiscount,  show:booking.adminCouponDiscount>0 },
             ].filter((r) => r.show).map(({ label, value }) => (
               <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #f8fafc' }}>
                 <span style={{ fontSize:13, color:'#64748b' }}>{label}</span>
