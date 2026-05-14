@@ -1,42 +1,10 @@
-import { prisma }        from '@/lib/prisma'
-import { verifyAuth }    from '@/lib/middleware/auth.middleware'
+import { prisma } from '@/lib/prisma'
+import { verifyAuth } from '@/lib/middleware/auth.middleware'
+import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
 import { sanitizeInput } from '@/lib/utils/validators'
-import {
-  successResponse,
-  errorResponse,
-  handleOptions,
-} from '@/lib/utils/apiResponse'
 
-export function OPTIONS() { return handleOptions() }
-
-export async function GET(request, { params }) {
-  return verifyAuth(request, async (req, user) => {
-    try {
-      const { id } = await params
-
-      // ✅ user.userId (not user.id)
-      if (user.userId !== id && user.role !== 'super_admin') {
-        return errorResponse('Access denied', 403)
-      }
-
-      const targetUser = await prisma.user.findUnique({
-        where:  { id },
-        select: {
-          id: true, name: true, email: true, phone: true, role: true,
-          avatar: true, isVerified: true, isBlocked: true,
-          bankAccount: true, wallet: true, familyMembers: true,
-          createdAt: true, updatedAt: true,
-        },
-      })
-
-      if (!targetUser) return errorResponse('User not found', 404)
-
-      return successResponse(targetUser)
-    } catch (error) {
-      console.error('[GET /api/users/[id]]', error)
-      return errorResponse('Internal server error', 500)
-    }
-  })
+export function OPTIONS() {
+  return handleOptions()
 }
 
 export async function PUT(request, { params }) {
@@ -44,36 +12,75 @@ export async function PUT(request, { params }) {
     try {
       const { id } = await params
 
-      // ✅ user.userId
-      if (user.userId !== id && user.role !== 'super_admin') {
+      if (
+        user.id !== id &&
+        user.role !== 'super_admin' &&
+        user.role !== 'regional_manager'
+      ) {
         return errorResponse('Access denied', 403)
       }
 
-      const body       = await request.json()
+      const body = await request.json()
       const updateData = {}
 
-      if (body.name   !== undefined) updateData.name   = sanitizeInput(body.name)
-      if (body.avatar !== undefined) updateData.avatar = body.avatar
-      if (body.email  !== undefined) updateData.email  = body.email?.toLowerCase().trim() || null
+      if (body.name !== undefined) {
+        const name = sanitizeInput(body.name || '').trim()
+        if (!name) {
+          return errorResponse('Name is required', 400)
+        }
+        updateData.name = name
+      }
 
-      if (body.role !== undefined && user.role === 'super_admin') {
-        updateData.role = body.role
+      if (body.email !== undefined) {
+        const email = sanitizeInput(body.email || '').trim().toLowerCase()
+
+        if (email) {
+          const existingUser = await prisma.user.findFirst({
+            where: {
+              email,
+              NOT: { id },
+            },
+            select: { id: true },
+          })
+
+          if (existingUser) {
+            return errorResponse('Email already exists', 'EMAIL_ALREADY_EXISTS', 409)
+          }
+
+          updateData.email = email
+        } else {
+          updateData.email = null
+        }
       }
 
       const updated = await prisma.user.update({
-        where:  { id },
-        data:   updateData,
+        where: { id },
+        data: updateData,
         select: {
-          id: true, name: true, email: true, phone: true, role: true,
-          avatar: true, isVerified: true, isBlocked: true,
-          createdAt: true, updatedAt: true,
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          role: true,
+          isVerified: true,
+          isBlocked: true,
+          avatar: true,
+          wallet: true,
+          familyMembers: true,
+          createdAt: true,
+          updatedAt: true,
         },
       })
 
-      return successResponse(updated, 'User updated')
+      return successResponse(updated, 'User updated successfully')
     } catch (error) {
       console.error('[PUT /api/users/[id]]', error)
-      return errorResponse('Internal server error', 500)
+
+      if (error.code === 'P2002') {
+        return errorResponse('Email already exists', 'EMAIL_ALREADY_EXISTS', 409)
+      }
+
+      return errorResponse(error.message || 'Internal server error', 'SERVER_ERROR', 500)
     }
   })
 }

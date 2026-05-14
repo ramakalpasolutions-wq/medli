@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
-import Navbar from '@/components/public/Navbar'
-import { useToast } from '@/context/ToastContext'
-import { useAuth } from '@/hooks/useAuth'
-import useSWR from 'swr'
+import { useSearchParams, useRouter }    from 'next/navigation'
+import Navbar                            from '@/components/public/Navbar'
+import { useToast }                      from '@/context/ToastContext'
+import { useAuth }                       from '@/hooks/useAuth'
+import useSWR                            from 'swr'
 
 function useMounted() {
   const [m, setM] = useState(false)
@@ -19,19 +19,18 @@ const fetcher = (url) =>
 const fmtRs = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
 
 const KF = `
-  @keyframes nb-spin { to{transform:rotate(360deg)} }
-  @keyframes nb-in   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes nb-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-  @keyframes nb-slide-in  { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
-  @keyframes nb-coupon-ok { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes nb-spin     { to{transform:rotate(360deg)} }
+  @keyframes nb-in       { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes nb-shimmer  { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  @keyframes nb-slide-in { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes nb-coupon-ok{ from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
 `
 const SHIMMER = {
   backgroundImage: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
-  backgroundSize: '200% 100%',
-  animation: 'nb-shimmer 1.5s linear infinite',
+  backgroundSize:  '200% 100%',
+  animation:       'nb-shimmer 1.5s linear infinite',
 }
 
-/* ─── Step indicator ─────────────────────────────────────────────────── */
 function StepBar({ step }) {
   const steps = ['Details', 'Patient', 'Pricing', 'Payment']
   return (
@@ -42,16 +41,16 @@ function StepBar({ step }) {
         const active = idx === step
         const isLast = i === steps.length - 1
         return (
-          <div key={label} style={{ display:'flex', alignItems:'center', flex: isLast?0:1 }}>
+          <div key={label} style={{ display:'flex', alignItems:'center', flex: isLast ? 0 : 1 }}>
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
               <div style={{
                 width:32, height:32, borderRadius:'50%',
                 background: done ? '#10b981' : active ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#f1f5f9',
                 display:'flex', alignItems:'center', justifyContent:'center',
                 fontSize:14, fontWeight:700,
-                color: done||active ? '#fff' : '#94a3b8',
+                color: done || active ? '#fff' : '#94a3b8',
                 boxShadow: active ? '0 3px 10px rgba(99,102,241,0.35)' : 'none',
-                transition:'all .2s ease',
+                transition: 'all .2s ease',
               }}>
                 {done ? '✓' : idx}
               </div>
@@ -69,7 +68,6 @@ function StepBar({ step }) {
   )
 }
 
-/* ─── Card wrapper ───────────────────────────────────────────────────── */
 function BookCard({ children, style: sx }) {
   return (
     <div style={{
@@ -85,7 +83,6 @@ function BookCard({ children, style: sx }) {
   )
 }
 
-/* ─── Primary button ─────────────────────────────────────────────────── */
 function PBtn({ children, loading: isLoading, disabled, onClick, variant='primary', type='button', style: sx }) {
   const [h, setH] = useState(false)
   const isDisabled = disabled || isLoading
@@ -95,11 +92,9 @@ function PBtn({ children, loading: isLoading, disabled, onClick, variant='primar
     outline:   { base:'transparent', hov:'rgba(99,102,241,0.06)', color:'#6366f1', border:'1.5px solid rgba(99,102,241,0.3)', shadow:'none', shadowHov:'none' },
   }
   const s = V[variant] || V.primary
-  return (                  
+  return (
     <button
-      type={type}
-      onClick={onClick}
-      disabled={isDisabled}
+      type={type} onClick={onClick} disabled={isDisabled}
       onMouseEnter={() => !isDisabled && setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
@@ -124,7 +119,6 @@ function PBtn({ children, loading: isLoading, disabled, onClick, variant='primar
   )
 }
 
-/* ─── Text input ─────────────────────────────────────────────────────── */
 function NInput({ label, icon, ...props }) {
   const [focused, setFocused] = useState(false)
   return (
@@ -150,19 +144,14 @@ function NInput({ label, icon, ...props }) {
   )
 }
 
-/* ─── Date/time input ────────────────────────────────────────────────── */
 function DateTimeInput({ label, type, min, value, onChange }) {
   const [focused, setFocused] = useState(false)
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
       {label && <label style={{ fontSize:12, fontWeight:600, color:'#475569' }}>{label}</label>}
       <input
-        type={type}
-        min={min}
-        value={value}
-        onChange={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        type={type} min={min} value={value} onChange={onChange}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         style={{
           width:'100%', padding:'11px 14px',
           fontSize:13, fontFamily:'inherit', borderRadius:12,
@@ -176,7 +165,6 @@ function DateTimeInput({ label, type, min, value, onChange }) {
   )
 }
 
-/* ─── Price row ──────────────────────────────────────────────────────── */
 function PriceRow({ label, value, green, bold }) {
   return (
     <div style={{
@@ -191,7 +179,6 @@ function PriceRow({ label, value, green, bold }) {
   )
 }
 
-/* ─── Toggle group ───────────────────────────────────────────────────── */
 function Toggle2({ options, value, onChange }) {
   return (
     <div style={{ display:'flex', gap:3, background:'#f1f5f9', borderRadius:14, padding:3 }}>
@@ -221,7 +208,6 @@ function ToggleBtn({ opt, active, onClick }) {
   )
 }
 
-/* ─── Row item ───────────────────────────────────────────────────────── */
 function InfoRow({ label, value }) {
   return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
@@ -231,7 +217,44 @@ function InfoRow({ label, value }) {
   )
 }
 
-/* ─── Main booking content ───────────────────────────────────────────── */
+function PayButton({ totalAmount, loading, onPay }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onPay} disabled={loading}
+      onMouseEnter={() => !loading && setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        flex:2, padding:'13px', borderRadius:12, border:'none',
+        background: loading?'#e2e8f0':h?'linear-gradient(135deg,#7c3aed,#6d28d9)':'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        color: loading?'#94a3b8':'#fff',
+        fontSize:14, fontWeight:700, cursor:loading?'not-allowed':'pointer',
+        boxShadow: loading?'none':h?'0 8px 24px rgba(99,102,241,0.5)':'0 4px 14px rgba(99,102,241,0.35)',
+        transition:'all .18s ease',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+      }}
+    >
+      {loading ? (
+        <>
+          <span style={{ width:16, height:16, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', animation:'nb-spin .7s linear infinite', display:'inline-block' }} />
+          Opening Checkout...
+        </>
+      ) : `PAY ${fmtRs(totalAmount)}`}
+    </button>
+  )
+}
+
+function loadRazorpayScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) { resolve(); return }
+    const s    = document.createElement('script')
+    s.src      = 'https://checkout.razorpay.com/v1/checkout.js'
+    s.onload   = resolve
+    s.onerror  = reject
+    document.body.appendChild(s)
+  })
+}
+
 function NewBookingContent() {
   const searchParams = useSearchParams()
   const router       = useRouter()
@@ -251,7 +274,6 @@ function NewBookingContent() {
   const [collectionAddr, setCollectionAddr] = useState({ line1:'', city:'', pinCode:'' })
   const [collectionDate, setCollectionDate] = useState('')
   const [collectionTime, setCollectionTime] = useState('')
-  const [couponInput,    setCouponInput]    = useState(false)
 
   const doctorId = searchParams.get('doctorId')
   const labId    = searchParams.get('labId')
@@ -287,49 +309,31 @@ function NewBookingContent() {
   const totalAmount        = subtotal + gst
 
   const bookingTypeLabel = isLab ? 'Lab Test' : isOnline ? 'Online Consultation' : 'Hospital Visit'
-
-  const step1Valid = isLab
+  const step1Valid       = isLab
     ? (testIds.length > 0 && collectionDate && collectionTime && (collectionType!=='home'||(collectionAddr.line1&&collectionAddr.city)))
     : !!doctorStartTime
-
   const todayStr = mounted ? new Date().toISOString().split('T')[0] : ''
 
-  // ─────────────────────────────────────────────────────────────────────
-  // CREATE BOOKING
-  // IMPORTANT: all pricing fields MUST be sent so DB stores the real
-  // totalAmount. Without these, totalAmount saves as 0 and 1Pay
-  // receives 0.00 causing error BL0002.
-  // ─────────────────────────────────────────────────────────────────────
   const createBooking = async () => {
     if (!step1Valid) { toast.error(isLab ? 'Select date, time and address' : 'No slot selected'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({
-          // ── Booking details ──────────────────────────────────────────
-          type:              isLab ? 'lab' : isOnline ? 'online' : 'hospital',
-          doctorId:          doctorId          || undefined,
-          labId:             labId             || undefined,
+          type:               isLab ? 'lab' : isOnline ? 'online' : 'hospital',
+          doctorId:           doctorId           || undefined,
+          labId:              labId              || undefined,
           testIds,
-          startTime:         isLab ? labStartTime  : doctorStartTime,
-          endTime:           isLab ? null           : doctorEndTime,
-          collectionType:    isLab ? collectionType : undefined,
-          collectionAddress: isLab && collectionType === 'home' ? collectionAddr : undefined,
-          couponCode:        couponCode         || undefined,
-
-          // ── Pricing fields — ALL required so totalAmount is correct ──
-          baseFee,
-          platformFeePercent,
-          platformFee,
-          gstPercent:    18,
-          gst,
-          subtotal,
+          startTime:          isLab ? labStartTime  : doctorStartTime,
+          endTime:            isLab ? null           : doctorEndTime,
+          collectionType:     isLab ? collectionType : undefined,
+          collectionAddress:  isLab && collectionType === 'home' ? collectionAddr : undefined,
+          couponCode:         couponCode          || undefined,
+          baseFee, platformFeePercent, platformFee,
+          gstPercent: 18, gst, subtotal,
           couponDiscount: couponDiscount || 0,
-          discountedFee,
-          totalAmount,       // ← THIS is what 1Pay receives — must not be 0
+          discountedFee, totalAmount,
         }),
       })
       const json = await res.json()
@@ -354,27 +358,83 @@ function NewBookingContent() {
   }
 
   const initiatePayment = async () => {
-    if (!bookingId) { toast.error('No booking found. Please start over.'); return }
+    if (!bookingId) { toast.error('No booking found. Please go back and try again.'); return }
     setLoading(true)
     try {
-      const res  = await fetch('/api/payments/create-order', {
-        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+      // Step 1: create Razorpay order
+      const orderRes  = await fetch('/api/payments/create-order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ bookingId }),
       })
-      const json = await res.json()
-      if (!json.success) { toast.error(json.error||'Payment initiation failed'); setLoading(false); return }
-      const { merchantId, reqData, paymentUrl } = json.data
-      if (!merchantId||!reqData||!paymentUrl) { toast.error('Invalid payment data'); setLoading(false); return }
-      const form = document.createElement('form')
-      form.method = 'POST'
-      form.action = paymentUrl
-      form.style.display = 'none'
-      const addField = (n,v) => { const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=String(v); form.appendChild(i) }
-      addField('merchantId', merchantId)
-      addField('reqData', reqData)
-      document.body.appendChild(form)
-      form.submit()
-    } catch { toast.error('Payment initiation failed'); setLoading(false) }
+      const orderJson = await orderRes.json()
+      if (!orderJson.success) { toast.error(orderJson.error || 'Could not create payment order'); setLoading(false); return }
+
+      const { razorpayOrderId, amount, currency, keyId } = orderJson.data
+
+      // Step 2: load Razorpay SDK
+      await loadRazorpayScript()
+
+      // Step 3: open Razorpay Checkout
+      const rzp = new window.Razorpay({
+        key:         keyId,
+        order_id:    razorpayOrderId,
+        amount,
+        currency:    currency || 'INR',
+        name:        'MEDLI',
+        description: bookingTypeLabel,
+        prefill: {
+          name:    user?.name  || '',
+          email:   user?.email || '',
+          contact: user?.phone || '',
+        },
+        notes:  { bookingId },
+        theme:  { color: '#6366f1' },
+
+        handler: async (response) => {
+          // Step 4: verify signature on backend → confirm booking
+          try {
+            const verifyRes  = await fetch('/api/payments/verify', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+              body: JSON.stringify({
+                razorpay_order_id:   response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature:  response.razorpay_signature,
+                bookingId,
+              }),
+            })
+            const verifyJson = await verifyRes.json()
+            if (verifyJson.success) {
+  setLoading(false)
+  router.replace(`/user/bookings/${bookingId}/success`)
+} else {
+  setLoading(false)
+  toast.error('Payment verification failed. Contact support.')
+  router.replace(`/user/bookings/${bookingId}/failed`)
+}
+          } catch {
+            toast.error('Verification error. Contact support.')
+            router.replace(`/user/bookings/${bookingId}/failed`)
+          }
+        },
+
+        modal: {
+          ondismiss: () => { toast.error('Payment cancelled'); setLoading(false) },
+        },
+      })
+
+      rzp.on('payment.failed', (response) => {
+  setLoading(false)
+  toast.error(response.error?.description || 'Payment failed. Please retry.')
+  router.replace(`/user/bookings/${bookingId}/failed`)
+})
+
+      rzp.open()
+
+    } catch (err) {
+      console.error('[initiatePayment]', err)
+      toast.error('Could not open payment. Please try again.')
+      setLoading(false)
+    }
   }
 
   if (!mounted) {
@@ -408,15 +468,13 @@ function NewBookingContent() {
                   {isLab ? 'Choose how and when to collect your sample' : 'Confirm your appointment details'}
                 </p>
               </div>
-
               <div style={{ padding:20 }}>
-                {/* Doctor booking */}
                 {!isLab && (
                   <div>
                     {doctor ? (
                       <>
                         <InfoRow label="Doctor" value={`Dr. ${doctor.name}`} />
-                        {doctor.specialization?.length>0 && <InfoRow label="Specialization" value={doctor.specialization.slice(0,2).join(', ')} />}
+                        {doctor.specialization?.length > 0 && <InfoRow label="Specialization" value={doctor.specialization.slice(0,2).join(', ')} />}
                       </>
                     ) : (
                       <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'10px 0' }}>
@@ -424,14 +482,12 @@ function NewBookingContent() {
                         <div style={{ width:128, height:12, borderRadius:6, ...SHIMMER }} />
                       </div>
                     )}
-                    <InfoRow label="Type" value={`${isOnline?'🎥':'🏥'} ${bookingTypeLabel}`} />
+                    <InfoRow label="Type"     value={`${isOnline?'🎥':'🏥'} ${bookingTypeLabel}`} />
                     {date && <InfoRow label="📅 Date" value={new Date(`${date}T00:00:00`).toLocaleDateString('en-IN',{dateStyle:'long'})} />}
                     {slot && <InfoRow label="⏰ Time" value={slot} />}
-                    {baseFee>0 && <InfoRow label="Consultation Fee" value={fmtRs(baseFee)} />}
+                    {baseFee > 0 && <InfoRow label="Consultation Fee" value={fmtRs(baseFee)} />}
                   </div>
                 )}
-
-                {/* Lab booking */}
                 {isLab && (
                   <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
                     {lab && (
@@ -443,8 +499,7 @@ function NewBookingContent() {
                         </div>
                       </div>
                     )}
-
-                    {selectedTests.length>0 && (
+                    {selectedTests.length > 0 && (
                       <div style={{ background:'#f8fafc', borderRadius:12, padding:12 }}>
                         {selectedTests.map((t) => (
                           <div key={t.id} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', fontSize:12 }}>
@@ -458,34 +513,29 @@ function NewBookingContent() {
                         </div>
                       </div>
                     )}
-
                     <Toggle2
-                      value={collectionType}
-                      onChange={setCollectionType}
+                      value={collectionType} onChange={setCollectionType}
                       options={[
                         { key:'walk_in', icon:'📍', label:'Walk-in' },
                         { key:'home',    icon:'🏠', label:'Home Collection' },
                       ]}
                     />
-
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                       <DateTimeInput label={collectionType==='home'?'Pickup Date':'Visit Date'} type="date" min={todayStr} value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
                       <DateTimeInput label={collectionType==='home'?'Pickup Time':'Visit Time'} type="time" value={collectionTime} onChange={(e) => setCollectionTime(e.target.value)} />
                     </div>
-
                     {collectionType === 'home' && (
                       <div style={{ display:'flex', flexDirection:'column', gap:10, animation:'nb-slide-in .2s ease' }}>
                         <p style={{ fontSize:13, fontWeight:600, color:'#475569', margin:0 }}>Pickup Address</p>
                         <NInput icon="📍" placeholder="Street address / flat no." value={collectionAddr.line1} onChange={(e) => setCollectionAddr((a) => ({...a, line1:e.target.value}))} />
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                          <NInput placeholder="City" value={collectionAddr.city} onChange={(e) => setCollectionAddr((a) => ({...a, city:e.target.value}))} />
+                          <NInput placeholder="City"     value={collectionAddr.city}    onChange={(e) => setCollectionAddr((a) => ({...a, city:e.target.value}))} />
                           <NInput placeholder="PIN Code" value={collectionAddr.pinCode} maxLength={6} onChange={(e) => setCollectionAddr((a) => ({...a, pinCode:e.target.value}))} />
                         </div>
                       </div>
                     )}
                   </div>
                 )}
-
                 <div style={{ marginTop:20 }}>
                   <PBtn onClick={createBooking} loading={loading} disabled={loading||!step1Valid} sx={{ width:'100%' }}>
                     {isLab ? 'Confirm Collection Details' : 'Continue to Patient Details'} →
@@ -506,16 +556,13 @@ function NewBookingContent() {
               <div style={{ padding:24 }}>
                 <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Patient Details</h2>
                 <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>Who is this appointment for?</p>
-
                 <Toggle2
-                  value={patientType}
-                  onChange={setPatientType}
+                  value={patientType} onChange={setPatientType}
                   options={[
                     { key:'myself', icon:'👤', label:'For Myself' },
                     { key:'family', icon:'👥', label:'For Family' },
                   ]}
                 />
-
                 <div style={{ marginTop:16 }}>
                   {patientType === 'myself' ? (
                     <div style={{ display:'flex', alignItems:'center', gap:12, padding:14, background:'rgba(99,102,241,0.06)', borderRadius:14, border:'1px solid rgba(99,102,241,0.12)' }}>
@@ -531,7 +578,6 @@ function NewBookingContent() {
                     <NInput label="Patient Name" icon="👤" value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="Enter family member's full name" />
                   )}
                 </div>
-
                 <div style={{ display:'flex', gap:10, marginTop:20 }}>
                   <PBtn variant="secondary" onClick={() => setStep(1)} sx={{ flex:1 }}>← Back</PBtn>
                   <PBtn onClick={() => setStep(3)} disabled={patientType==='family'&&!patientName.trim()} sx={{ flex:1 }}>Continue →</PBtn>
@@ -546,32 +592,28 @@ function NewBookingContent() {
               <div style={{ padding:24 }}>
                 <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Coupon & Pricing</h2>
                 <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>Apply a coupon to save on your booking</p>
-
                 <div style={{ display:'flex', gap:8, marginBottom:12 }}>
                   <NInput icon="🏷️" placeholder="Enter coupon code" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} />
                   <PBtn variant="outline" onClick={applyCoupon} loading={applyingCoupon} disabled={!couponCode.trim()||applyingCoupon} sx={{ flexShrink:0, padding:'11px 16px' }}>Apply</PBtn>
                 </div>
-
                 {couponResult?.valid && (
                   <div style={{ display:'flex', alignItems:'center', gap:8, background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.2)', borderRadius:12, padding:'10px 14px', marginBottom:12, animation:'nb-coupon-ok .2s ease', fontSize:13, color:'#059669', fontWeight:500 }}>
                     ✓ Coupon applied! Saved {fmtRs(couponResult.discountAmount)}
                   </div>
                 )}
-                {couponResult&&!couponResult.valid && (
+                {couponResult && !couponResult.valid && (
                   <div style={{ background:'rgba(239,68,68,0.07)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:12, padding:'10px 14px', marginBottom:12, fontSize:13, color:'#ef4444' }}>
                     Invalid or expired coupon
                   </div>
                 )}
-
                 <div style={{ background:'#f8fafc', borderRadius:14, padding:16, marginBottom:20 }}>
-                  <PriceRow label="Base Fee"                                      value={fmtRs(baseFee)} />
-                  {couponDiscount>0 && <PriceRow label={`Coupon (${couponCode})`} value={`- ${fmtRs(couponDiscount)}`} green />}
-                  {couponDiscount>0 && <PriceRow label="Discounted Fee"           value={fmtRs(discountedFee)} />}
-                  <PriceRow label={`Platform Fee (${platformFeePercent}%)`}        value={fmtRs(platformFee)} />
-                  <PriceRow label="GST (18%)"                                      value={fmtRs(gst)} />
-                  <PriceRow label="Total Amount"                                   value={fmtRs(totalAmount)} bold />
+                  <PriceRow label="Base Fee"                                       value={fmtRs(baseFee)} />
+                  {couponDiscount > 0 && <PriceRow label={`Coupon (${couponCode})`} value={`- ${fmtRs(couponDiscount)}`} green />}
+                  {couponDiscount > 0 && <PriceRow label="Discounted Fee"           value={fmtRs(discountedFee)} />}
+                  <PriceRow label={`Platform Fee (${platformFeePercent}%)`}          value={fmtRs(platformFee)} />
+                  <PriceRow label="GST (18%)"                                        value={fmtRs(gst)} />
+                  <PriceRow label="Total Amount"                                     value={fmtRs(totalAmount)} bold />
                 </div>
-
                 <div style={{ display:'flex', gap:10 }}>
                   <PBtn variant="secondary" onClick={() => setStep(2)} sx={{ flex:1 }}>← Back</PBtn>
                   <PBtn onClick={() => setStep(4)} sx={{ flex:1 }}>Continue to Payment →</PBtn>
@@ -585,88 +627,58 @@ function NewBookingContent() {
             <BookCard>
               <div style={{ padding:24 }}>
                 <h2 style={{ fontSize:18, fontWeight:800, color:'#0f172a', margin:'0 0 4px' }}>Pay Securely</h2>
-                <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>You will be redirected to 1Pay secure payment page</p>
-
+                <p style={{ fontSize:13, color:'#94a3b8', margin:'0 0 20px' }}>
+                  Razorpay secure checkout will open in a popup
+                </p>
                 <div style={{ backgroundImage:'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.04))', border:'1px solid rgba(99,102,241,0.15)', borderRadius:16, padding:18, marginBottom:18 }}>
-                  <p style={{ fontSize:10, fontWeight:700, letterSpacing:'1.5px', color:'#6366f1', marginBottom:6 }}>{bookingTypeLabel.toUpperCase()}</p>
+                  <p style={{ fontSize:10, fontWeight:700, letterSpacing:'1.5px', color:'#6366f1', marginBottom:6 }}>
+                    {bookingTypeLabel.toUpperCase()}
+                  </p>
                   <p style={{ fontSize:12, color:'#94a3b8', marginBottom:14 }}>
                     {isLab ? `${collectionType==='home'?'Home Collection':'Walk-in'} · ${collectionDate} ${collectionTime}` : `${date} · ${slot}`}
                   </p>
-
                   {[
-                    { l:'Base Fee', v:fmtRs(baseFee), green:false },
+                    { l:'Base Fee',                               v:fmtRs(baseFee),              green:false },
                     ...(couponDiscount>0 ? [{ l:`Coupon (${couponCode})`, v:`- ${fmtRs(couponDiscount)}`, green:true }] : []),
-                    { l:`Platform Fee (${platformFeePercent}%)`, v:fmtRs(platformFee), green:false },
-                    { l:'GST (18%)', v:fmtRs(gst), green:false },
+                    { l:`Platform Fee (${platformFeePercent}%)`,  v:fmtRs(platformFee),           green:false },
+                    { l:'GST (18%)',                              v:fmtRs(gst),                   green:false },
                   ].map(({ l, v, green }) => (
-                    <div key={l} style={{ display:'flex', justifyContent:'space-between', fontSize:12, color: green?'#10b981':'#6366f1', marginBottom:4 }}>
+                    <div key={l} style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:green?'#10b981':'#6366f1', marginBottom:4 }}>
                       <span>{l}</span><span>{v}</span>
                     </div>
                   ))}
-
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:12, marginTop:8, borderTop:'1px solid rgba(99,102,241,0.2)' }}>
                     <span style={{ fontSize:14, fontWeight:600, color:'#4f46e5' }}>Total Amount</span>
                     <span style={{ fontSize:26, fontWeight:900, color:'#4f46e5' }}>{fmtRs(totalAmount)}</span>
                   </div>
                 </div>
-
                 <div style={{ display:'flex', alignItems:'center', gap:12, padding:14, background:'#f8fafc', borderRadius:12, marginBottom:18 }}>
                   <span style={{ fontSize:24 }}>🔒</span>
                   <div>
-                    <p style={{ fontSize:13, fontWeight:600, color:'#334155', margin:0 }}>Secured by 1Pay Payment Gateway</p>
-                    <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Cards · Net Banking · UPI · Wallets</p>
+                    <p style={{ fontSize:13, fontWeight:600, color:'#334155', margin:0 }}>Secured by Razorpay</p>
+                    <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Cards · Net Banking · UPI · Wallets · EMI</p>
                   </div>
                 </div>
-
                 <div style={{ display:'flex', gap:10 }}>
                   <PBtn variant="secondary" onClick={() => setStep(3)} disabled={loading} sx={{ flex:1 }}>← Back</PBtn>
                   <PayButton totalAmount={totalAmount} loading={loading} onPay={initiatePayment} />
                 </div>
-
                 <p style={{ textAlign:'center', fontSize:11, color:'#94a3b8', marginTop:12 }}>
                   By proceeding you agree to our{' '}
-                  <a href="/terms" style={{ color:'#6366f1', textDecoration:'none' }}>Terms</a>
+                  <a href="/terms"   style={{ color:'#6366f1', textDecoration:'none' }}>Terms</a>
                   {' '}and{' '}
                   <a href="/privacy" style={{ color:'#6366f1', textDecoration:'none' }}>Privacy Policy</a>
                 </p>
               </div>
             </BookCard>
           )}
+
         </div>
       </div>
     </>
   )
 }
 
-function PayButton({ totalAmount, loading, onPay }) {
-  const [h, setH] = useState(false)
-  return (
-    <button
-      onClick={onPay}
-      disabled={loading}
-      onMouseEnter={() => !loading && setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        flex:2, padding:'13px', borderRadius:12, border:'none',
-        background: loading?'#e2e8f0':h?'linear-gradient(135deg,#7c3aed,#6d28d9)':'linear-gradient(135deg,#6366f1,#8b5cf6)',
-        color: loading?'#94a3b8':'#fff',
-        fontSize:14, fontWeight:700, cursor:loading?'not-allowed':'pointer',
-        boxShadow: loading?'none':h?'0 8px 24px rgba(99,102,241,0.5)':'0 4px 14px rgba(99,102,241,0.35)',
-        transition:'all .18s ease',
-        display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-      }}
-    >
-      {loading ? (
-        <>
-          <span style={{ width:16, height:16, borderRadius:'50%', border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', animation:'nb-spin .7s linear infinite', display:'inline-block' }} />
-          Redirecting to 1Pay...
-        </>
-      ) : `PAY ${fmtRs(totalAmount)}`}
-    </button>
-  )
-}
-
-/* ─── Page export ────────────────────────────────────────────────────── */
 export default function NewBookingPage() {
   return (
     <Suspense fallback={

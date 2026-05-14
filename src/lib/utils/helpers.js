@@ -1,5 +1,3 @@
-// ─── ID / Number Generators ───────────────────────────────────────────────────
-
 function randomSuffix(digits = 6) {
   return Math.floor(Math.random() * Math.pow(10, digits))
     .toString()
@@ -30,16 +28,11 @@ export function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-/**
- * Alias used by some routes
- */
 export const generateId = generateOTP
-
-// ─── Formatting ───────────────────────────────────────────────────────────────
 
 export function formatCurrency(amount, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', {
-    style:                 'currency',
+    style: 'currency',
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -81,9 +74,9 @@ export function truncate(text, maxLength = 50) {
 
 export function isEmpty(value) {
   if (value === null || value === undefined) return true
-  if (typeof value === 'string')  return value.trim() === ''
-  if (Array.isArray(value))       return value.length === 0
-  if (typeof value === 'object')  return Object.keys(value).length === 0
+  if (typeof value === 'string') return value.trim() === ''
+  if (Array.isArray(value)) return value.length === 0
+  if (typeof value === 'object') return Object.keys(value).length === 0
   return false
 }
 
@@ -108,11 +101,9 @@ export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// ─── Pagination ───────────────────────────────────────────────────────────────
-
 export function getPaginationParams(page = 1, limit = 20) {
-  const p    = Math.max(1, parseInt(page,  10) || 1)
-  const l    = Math.min(100, Math.max(1, parseInt(limit, 10) || 20))
+  const p = Math.max(1, parseInt(page, 10) || 1)
+  const l = Math.min(100, Math.max(1, parseInt(limit, 10) || 20))
   const skip = (p - 1) * l
   return { skip, take: l, page: p, limit: l }
 }
@@ -129,28 +120,18 @@ export function buildPaginationMeta(total, page, limit) {
   }
 }
 
-// ─── Date Range ───────────────────────────────────────────────────────────────
-
-/**
- * Returns { from: Date, to: Date } for a given preset or custom range.
- *
- * Presets: today | yesterday | last7 | last14 | last30 |
- *          thisMonth | lastMonth | last3Months | last6Months |
- *          thisYear | custom
- */
 export function getDateRange(preset, dateFrom, dateTo) {
-  const now   = new Date()
+  const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
   const startOf = (d) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,  0,  0,  0)
-  const endOf   = (d) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
+  const endOf = (d) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
 
   switch (preset) {
-    case 'today': {
+    case 'today':
       return { from: startOf(today), to: endOf(today) }
-    }
     case 'yesterday': {
       const y = new Date(today)
       y.setDate(y.getDate() - 1)
@@ -177,7 +158,7 @@ export function getDateRange(preset, dateFrom, dateTo) {
     }
     case 'lastMonth': {
       const from = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-      const to   = new Date(today.getFullYear(), today.getMonth(), 0)
+      const to = new Date(today.getFullYear(), today.getMonth(), 0)
       return { from: startOf(from), to: endOf(to) }
     }
     case 'last3Months': {
@@ -194,11 +175,10 @@ export function getDateRange(preset, dateFrom, dateTo) {
     }
     case 'custom': {
       const from = dateFrom ? new Date(dateFrom) : startOf(today)
-      const to   = dateTo   ? new Date(dateTo)   : endOf(today)
+      const to = dateTo ? new Date(dateTo) : endOf(today)
       return { from, to }
     }
     default: {
-      // Default to last 30 days
       const from = new Date(today)
       from.setDate(from.getDate() - 29)
       return { from: startOf(from), to: endOf(today) }
@@ -206,40 +186,43 @@ export function getDateRange(preset, dateFrom, dateTo) {
   }
 }
 
-/**
- * Group an array of bookings by date for chart data.
- * Each item needs a `createdAt` or `startTime` field.
- */
+function formatLocalDateKey(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
 export function groupByDate(items, dateField = 'createdAt') {
   const map = {}
   for (const item of items) {
-    const d   = new Date(item[dateField])
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const d = new Date(item[dateField])
+    const key = formatLocalDateKey(d)
     if (!map[key]) map[key] = []
     map[key].push(item)
   }
   return map
 }
 
-/**
- * Build chart-ready data from grouped bookings.
- * Returns array sorted by date ascending.
- */
 export function buildChartData(bookings, from, to) {
   const grouped = groupByDate(bookings, 'createdAt')
-  const result  = []
+  const result = []
 
   const cursor = new Date(from)
   cursor.setHours(0, 0, 0, 0)
 
-  while (cursor <= to) {
-    const key  = cursor.toISOString().slice(0, 10)
-    const day  = grouped[key] || []
+  const end = new Date(to)
+  end.setHours(0, 0, 0, 0)
+
+  while (cursor <= end) {
+    const key = formatLocalDateKey(cursor)
+    const day = grouped[key] || []
 
     result.push({
-      date:     key,
+      date: key,
       bookings: day.length,
-      revenue:  day.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0),
+      revenue: day.reduce((s, b) => s + (Number(b.totalAmount) || 0), 0),
     })
 
     cursor.setDate(cursor.getDate() + 1)
@@ -248,13 +231,8 @@ export function buildChartData(bookings, from, to) {
   return result
 }
 
-// ─── Geo ──────────────────────────────────────────────────────────────────────
-
-/**
- * Calculate distance between two lat/lng points in kilometres.
- */
 export function haversineDistance(lat1, lng1, lat2, lng2) {
-  const R    = 6371
+  const R = 6371
   const dLat = ((lat2 - lat1) * Math.PI) / 180
   const dLng = ((lng2 - lng1) * Math.PI) / 180
   const a =
@@ -266,11 +244,6 @@ export function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// ─── Misc ─────────────────────────────────────────────────────────────────────
-
-/**
- * Safe JSON parse — returns fallback on error.
- */
 export function safeJson(str, fallback = null) {
   try {
     return JSON.parse(str)
@@ -279,15 +252,10 @@ export function safeJson(str, fallback = null) {
   }
 }
 
-/**
- * Convert MongoDB ObjectId string to a display-friendly short ID.
- */
 export function shortId(id) {
   if (!id) return '—'
   return String(id).slice(-6).toUpperCase()
 }
-
-// ─── Default export (for routes that use default import) ─────────────────────
 
 export default {
   generateBookingId,

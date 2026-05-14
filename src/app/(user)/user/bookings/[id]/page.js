@@ -25,15 +25,14 @@ const KF = `
 `
 const SHIMMER = {
   backgroundImage: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
-  backgroundSize: '200% 100%',
-  animation: 'bd-shimmer 1.5s linear infinite',
+  backgroundSize:  '200% 100%',
+  animation:       'bd-shimmer 1.5s linear infinite',
 }
 
-/* ─── helpers ───────────────────────────────────────────────────────── */
 function resolveAddress(a, city) {
   if (!a) return city || null
   if (typeof a === 'string') return [a, city].filter(Boolean).join(', ')
-  return [a.street || a.line1 || a.area, a.city || city, a.state, a.pincode]
+  return [a.street || a.line1 || a.area, a.city || city, a.state, a.pinCode || a.pincode]
     .filter(Boolean).join(', ')
 }
 
@@ -43,7 +42,7 @@ function resolveStringOrArray(val, separator = ' · ') {
   return val.toString().replace(/([a-z])([A-Z])/g, '$1 $2')
 }
 
-/* ─── Lab Tracker ────────────────────────────────────────────────────── */
+/* ─── Lab Tracker ─────────────────────────────────────────────────── */
 const LAB_STEPS = [
   { key: 'sample_collected', label: 'Sample Collected', icon: '🧪' },
   { key: 'processing',       label: 'Processing',       icon: '⚗️' },
@@ -90,7 +89,7 @@ function LabTracker({ status }) {
   )
 }
 
-/* ─── Action Button ──────────────────────────────────────────────────── */
+/* ─── Action Button ───────────────────────────────────────────────── */
 function ActionBtn({ children, loading: isLoading, disabled, onClick, variant = 'primary' }) {
   const [h, setH] = useState(false)
   const isDisabled = disabled || isLoading
@@ -123,7 +122,7 @@ function ActionBtn({ children, loading: isLoading, disabled, onClick, variant = 
   )
 }
 
-/* ─── Info row ───────────────────────────────────────────────────────── */
+/* ─── Info row ────────────────────────────────────────────────────── */
 function InfoRow({ label, value, mono, color }) {
   if (!value && value !== 0) return null
   return (
@@ -134,7 +133,6 @@ function InfoRow({ label, value, mono, color }) {
   )
 }
 
-/* ─── Section Header ─────────────────────────────────────────────────── */
 function SectionTitle({ icon, title }) {
   return (
     <p style={{ fontSize:14, fontWeight:700, color:'#1e293b', marginBottom:12, display:'flex', alignItems:'center', gap:6 }}>
@@ -143,7 +141,6 @@ function SectionTitle({ icon, title }) {
   )
 }
 
-/* ─── Detail Card wrapper ────────────────────────────────────────────── */
 function Card({ children, style = {} }) {
   return (
     <div style={{
@@ -156,7 +153,6 @@ function Card({ children, style = {} }) {
   )
 }
 
-/* ─── Entity Detail Block ────────────────────────────────────────────── */
 function EntityBlock({ icon, name, sub1, sub2, sub3, tag }) {
   return (
     <div style={{ display:'flex', alignItems:'flex-start', gap:14 }}>
@@ -186,7 +182,7 @@ function EntityBlock({ icon, name, sub1, sub2, sub3, tag }) {
   )
 }
 
-/* ─── Cancel Modal ───────────────────────────────────────────────────── */
+/* ─── Cancel Modal ────────────────────────────────────────────────── */
 function CancelModal({ open, onClose, onConfirm, loading, booking }) {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden'
@@ -209,8 +205,7 @@ function CancelModal({ open, onClose, onConfirm, loading, booking }) {
             <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
             <h3 style={{ fontSize:17, fontWeight:700, color:'#0f172a', marginBottom:8 }}>Cancel Booking?</h3>
             <p style={{ fontSize:13, color:'#64748b', lineHeight:1.6 }}>
-              Refund based on cancellation policy:<br/>
-              &gt;24h = 100% · 12-24h = 50% · 4-12h = 25% · &lt;4h = 0%
+              Are you sure you want to cancel this booking?
             </p>
           </div>
           {booking && (
@@ -259,7 +254,102 @@ function ModalBtn({ label, onClick, disabled, loading: isLoading, variant = 'sec
   )
 }
 
-/* ─── Main Page ──────────────────────────────────────────────────────── */
+/* ─── Tests Booked Section ────────────────────────────────────────── */
+function TestsBooked({ booking, testsData, testsLoading }) {
+  if (!booking?.testIds?.length) return null
+
+  const tests = Array.isArray(testsData) ? testsData : (testsData?.tests || [])
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
+      <p style={{
+        fontSize: 11, fontWeight: 700, color: '#94a3b8',
+        textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 10px',
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        🧫 Tests Booked
+        <span style={{
+          background: 'rgba(99,102,241,0.1)', color: '#6366f1',
+          borderRadius: 100, padding: '1px 8px', fontSize: 10, fontWeight: 700,
+        }}>
+          {booking.testIds.length}
+        </span>
+      </p>
+
+      {testsLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {booking.testIds.map((_, i) => (
+            <div key={i} style={{ height: 52, borderRadius: 10, ...SHIMMER }} />
+          ))}
+        </div>
+      ) : tests.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {tests.map((t, i) => (
+            <div key={t.id || t._id || i} style={{
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+              padding: '10px 12px', background: '#f8fafc', borderRadius: 12,
+              border: '1px solid #f1f5f9',
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>{t.name}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                  {t.category && (
+                    <span style={{ fontSize: 10, color: '#6366f1', background: 'rgba(99,102,241,0.08)', borderRadius: 6, padding: '1px 6px', fontWeight: 600 }}>
+                      {t.category}
+                    </span>
+                  )}
+                  {t.sampleType && (
+                    <span style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', borderRadius: 6, padding: '1px 6px' }}>
+                      🧬 {t.sampleType}
+                    </span>
+                  )}
+                  {t.turnaroundTime && (
+                    <span style={{ fontSize: 10, color: '#64748b', background: '#f1f5f9', borderRadius: 6, padding: '1px 6px' }}>
+                      ⏱ {t.turnaroundTime?.value} {t.turnaroundTime?.unit || 'hrs'}
+                    </span>
+                  )}
+                </div>
+                {t.preparationInstructions && (
+                  <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0', fontStyle: 'italic' }}>
+                    📋 {t.preparationInstructions}
+                  </p>
+                )}
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+                {t.discountedPrice != null && t.discountedPrice < t.price ? (
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#6366f1', margin: 0 }}>₹{t.discountedPrice}</p>
+                    <p style={{ fontSize: 10, color: '#94a3b8', textDecoration: 'line-through', margin: 0 }}>₹{t.price}</p>
+                  </>
+                ) : t.price != null ? (
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#6366f1', margin: 0 }}>₹{t.price}</p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          {/* Tests total */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(99,102,241,0.06)', borderRadius: 10, marginTop: 2 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Tests Total</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#6366f1' }}>
+              ₹{tests.reduce((s, t) => s + (t.discountedPrice ?? t.price ?? 0), 0).toLocaleString('en-IN')}
+            </span>
+          </div>
+        </div>
+      ) : (
+        // Fallback: no test details but IDs exist
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {booking.testIds.map((id, i) => (
+            <div key={id} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #f1f5f9' }}>
+              <p style={{ fontSize: 12, color: '#64748b', margin: 0, fontFamily: 'monospace' }}>Test {i + 1}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── Main Page ───────────────────────────────────────────────────── */
 export default function BookingDetailPage({ params }) {
   const { id }  = use(params)
   const router  = useRouter()
@@ -274,37 +364,26 @@ export default function BookingDetailPage({ params }) {
 
   const { data: booking, isLoading, mutate } = useSWR(`/api/bookings/${id}`, fetcher)
 
-  /* ── Related entity fetches ── */
+  // ── Related entity fetches ──
   const { data: doctor } = useSWR(
     booking?.doctorId ? `/api/doctors/${booking.doctorId}` : null, fetcher
   )
   const { data: lab } = useSWR(
     booking?.labId ? `/api/labs/${booking.labId}` : null, fetcher
   )
-  const { data: testsData } = useSWR(
-    booking?.testIds?.length > 0
-      ? `/api/tests?ids=${booking.testIds.join(',')}`
+
+  // ── ✅ Fixed: fetch tests from lab's tests API filtered by IDs ──
+  const { data: testsData, isLoading: testsLoading } = useSWR(
+    booking?.testIds?.length > 0 && booking?.labId
+      ? `/api/labs/${booking.labId}/tests?ids=${booking.testIds.join(',')}`
       : null,
     fetcher
   )
+
   const hospitalId = booking?.hospitalId || doctor?.hospitalId || null
   const { data: hospital } = useSWR(
     hospitalId ? `/api/hospitals/${hospitalId}` : null, fetcher
   )
-
-  /* ── Verify pending payment ── */
-  useEffect(() => {
-    if (!booking?.onePayTxnId || booking.paymentStatus === 'paid') return
-    let cancelled = false
-    const verify = async () => {
-      try {
-        await fetch(`/api/payments/verify/${booking.onePayTxnId}`, { credentials:'include' })
-        if (!cancelled) mutate()
-      } catch {}
-    }
-    verify()
-    return () => { cancelled = true }
-  }, [booking?.onePayTxnId, booking?.paymentStatus, mutate])
 
   const now      = mounted ? new Date() : null
   const diffMins = mounted && booking?.startTime && now
@@ -318,7 +397,7 @@ export default function BookingDetailPage({ params }) {
 
   const isFinished = ['completed','cancelled','refunded','no_show'].includes(booking?.status)
 
-  /* ── Handlers ── */
+  // ── Handlers ──
   const handleInvoiceDownload = async () => {
     setDlInvoice(true)
     try {
@@ -350,42 +429,115 @@ export default function BookingDetailPage({ params }) {
   }
 
   const handleCancel = async () => {
-    setCancelling(true)
-    try {
-      const res  = await fetch(`/api/bookings/${id}/cancel`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-        body: JSON.stringify({ reason:'Cancelled by patient' }),
-      })
-      const json = await res.json()
-      if (json.success) {
-        const refund = json.data?.refundAmount || 0
-        toast.success(refund>0 ? `Cancelled. Refund ₹${refund} will be processed.` : 'Booking cancelled.')
-        mutate(); setCancelOpen(false); router.push('/user/bookings')
-      } else toast.error(json.error||'Cancel failed')
-    } catch { toast.error('Cancel failed. Please try again.') }
-    finally { setCancelling(false) }
-  }
+  setCancelling(true)
+  try {
+    const res = await fetch(`/api/bookings/${id}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ reason: 'Cancelled by patient' }),
+    })
 
-  const handlePayNow = async () => {
-    setPaying(true)
-    try {
-      const res  = await fetch('/api/payments/create-order', {
-        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
-        body: JSON.stringify({ bookingId:id }),
-      })
-      const json = await res.json()
-      if (!json.success) { toast.error(json.error||'Failed to create payment order'); return }
-      const { merchantId, reqData, paymentUrl } = json.data
-      if (!merchantId||!reqData||!paymentUrl) { toast.error('Invalid payment response'); return }
-      const form = document.createElement('form'); form.method='POST'; form.action=paymentUrl; form.style.display='none'
-      const addField = (n,v) => { const i=document.createElement('input'); i.type='hidden'; i.name=n; i.value=String(v); form.appendChild(i) }
-      addField('merchantId', merchantId); addField('reqData', reqData)
-      document.body.appendChild(form); form.submit()
-    } catch { toast.error('Could not start payment. Please try again.') }
-    finally { setPaying(false) }
-  }
+    const json = await res.json()
 
-  /* ── Loading skeleton ── */
+    if (json.success) {
+      toast.success('Booking cancelled.')
+      mutate()
+      setCancelOpen(false)
+      router.push('/user/bookings?refresh=1')
+    } else {
+      toast.error(json.error || 'Cancel failed')
+    }
+  } catch {
+    toast.error('Cancel failed. Please try again.')
+  } finally {
+    setCancelling(false)
+  }
+}
+
+ const handlePayNow = async () => {
+  setPaying(true)
+
+  try {
+    const res = await fetch('/api/payments/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ bookingId: id }),
+    })
+
+    const json = await res.json()
+
+    if (!json.success) {
+      toast.error(json.error || 'Failed to create payment order')
+      setPaying(false)
+      return
+    }
+
+    const { razorpayOrderId, amount, currency, keyId } = json.data
+
+    await new Promise((resolve, reject) => {
+      if (window.Razorpay) {
+        resolve()
+        return
+      }
+      const s = document.createElement('script')
+      s.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      s.onload = resolve
+      s.onerror = reject
+      document.body.appendChild(s)
+    })
+
+    const rzp = new window.Razorpay({
+      key: keyId,
+      order_id: razorpayOrderId,
+      amount,
+      currency: currency || 'INR',
+      name: 'MEDLI',
+      description: 'Lab Test Booking',
+      theme: { color: '#6366f1' },
+      handler: async (response) => {
+        try {
+          const verifyRes = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              bookingId: id,
+            }),
+          })
+
+          const verifyJson = await verifyRes.json()
+
+          if (verifyJson.success) {
+            toast.success('Payment successful!')
+            mutate()
+            router.push('/user/bookings?refresh=1')
+          } else {
+            toast.error('Payment verification failed')
+          }
+        } catch {
+          toast.error('Verification error')
+        } finally {
+          setPaying(false)
+        }
+      },
+      modal: {
+        ondismiss: () => setPaying(false),
+      },
+    })
+
+    rzp.open()
+  } catch {
+    toast.error('Could not start payment.')
+    setPaying(false)
+  }
+}
+
+  // ── Loading skeleton ──
   if (isLoading) {
     return (
       <>
@@ -405,7 +557,6 @@ export default function BookingDetailPage({ params }) {
 
   if (!booking) return null
 
-  /* ── Derived display values ── */
   const bookingDate = mounted && booking.startTime
     ? new Date(booking.startTime).toLocaleDateString('en-IN', { dateStyle: 'full' }) : '—'
   const bookingTime = mounted && booking.startTime
@@ -413,25 +564,15 @@ export default function BookingDetailPage({ params }) {
   const bookingEndTime = mounted && booking.endTime
     ? new Date(booking.endTime).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }) : null
 
-  const typeMap = { hospital: '🏥 Hospital Visit', online: '🎥 Online Consultation', lab: '🧪 Lab Test' }
+  const typeMap   = { hospital: '🏥 Hospital Visit', online: '🎥 Online Consultation', lab: '🧪 Lab Test' }
   const typeLabel = typeMap[booking.type] || booking.type
 
-  /* ── Consultation fee display ── */
   const renderConsultationFee = () => {
     const fee = doctor?.consultationFee
     if (!fee) return null
-    if (typeof fee !== 'object') return <InfoRow label="Consultation Fee" value={`₹${fee}`} />
-    if (booking.type === 'hospital' && fee.inPerson != null)
-      return <InfoRow label="In-Person Fee" value={`₹${fee.inPerson}`} />
-    if (booking.type === 'online' && fee.online != null)
-      return <InfoRow label="Online Fee" value={`₹${fee.online}`} />
-    return (
-      <>
-        {fee.inPerson != null && <InfoRow label="In-Person Fee" value={`₹${fee.inPerson}`} />}
-        {fee.online   != null && <InfoRow label="Online Fee"    value={`₹${fee.online}`}   />}
-        {fee.hospital != null && <InfoRow label="Hospital Fee"  value={`₹${fee.hospital}`} />}
-      </>
-    )
+    if (booking.type === 'online'   && fee.online   != null) return <InfoRow label="Online Fee"    value={`₹${fee.online}`}   />
+    if (booking.type === 'hospital' && fee.offline  != null) return <InfoRow label="In-Person Fee" value={`₹${fee.offline}`}  />
+    return null
   }
 
   return (
@@ -478,20 +619,16 @@ export default function BookingDetailPage({ params }) {
               <EntityBlock
                 icon="🏥"
                 name={hospital.name}
-                sub1={resolveStringOrArray(hospital.specializations || hospital.specialization) || hospital.type || null}
+                sub1={resolveStringOrArray(hospital.departments)}
                 sub2={resolveAddress(hospital.address, hospital.city)}
-                sub3={hospital.phone ? `📞 ${hospital.phone}` : null}
-                tag={hospital.accreditation || hospital.registrationNumber || null}
+                sub3={hospital.contactPhone ? `📞 ${hospital.contactPhone}` : null}
               />
               <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
-                {hospital.email            && <InfoRow label="Email"     value={hospital.email} />}
-                {hospital.website          && <InfoRow label="Website"   value={hospital.website} />}
-                {hospital.phone            && <InfoRow label="Phone"     value={hospital.phone} />}
-                {(hospital.address?.city   || hospital.city)    && <InfoRow label="City"     value={hospital.address?.city    || hospital.city} />}
-                {(hospital.address?.state  || hospital.state)   && <InfoRow label="State"    value={hospital.address?.state   || hospital.state} />}
-                {(hospital.address?.pincode|| hospital.pincode) && <InfoRow label="Pincode"  value={hospital.address?.pincode || hospital.pincode} />}
-                {hospital.bedCount         && <InfoRow label="Beds"      value={hospital.bedCount} />}
-                {hospital.emergencyContact && <InfoRow label="Emergency" value={hospital.emergencyContact} />}
+                {hospital.contactEmail && <InfoRow label="Email"   value={hospital.contactEmail} />}
+                {hospital.contactPhone && <InfoRow label="Phone"   value={hospital.contactPhone} />}
+                {hospital.address?.city    && <InfoRow label="City"    value={hospital.address.city} />}
+                {hospital.address?.state   && <InfoRow label="State"   value={hospital.address.state} />}
+                {hospital.address?.pinCode && <InfoRow label="Pincode" value={hospital.address.pinCode} />}
               </div>
             </Card>
           )}
@@ -504,21 +641,13 @@ export default function BookingDetailPage({ params }) {
                 icon="👨‍⚕️"
                 name={doctor.name}
                 sub1={resolveStringOrArray(doctor.specialization)}
-                sub2={resolveStringOrArray(doctor.qualification, ', ')}
+                sub2={resolveStringOrArray(doctor.qualifications, ', ')}
                 sub3={doctor.experience ? `${doctor.experience} years experience` : null}
-                tag={doctor.registrationNumber ? `Reg: ${doctor.registrationNumber}` : null}
               />
               <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
-                {doctor.phone     && <InfoRow label="Phone"     value={doctor.phone} />}
-                {doctor.email     && <InfoRow label="Email"     value={doctor.email} />}
-                {doctor.gender    && <InfoRow label="Gender"    value={doctor.gender} />}
-                {doctor.languages && <InfoRow label="Languages" value={Array.isArray(doctor.languages) ? doctor.languages.join(', ') : doctor.languages} />}
                 {renderConsultationFee()}
-                {doctor.about && (
-                  <div style={{ paddingTop:8 }}>
-                    <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 4px' }}>About</p>
-                    <p style={{ fontSize:12, color:'#334155', margin:0, lineHeight:1.6 }}>{doctor.about}</p>
-                  </div>
+                {doctor.rating?.average > 0 && (
+                  <InfoRow label="Rating" value={`⭐ ${doctor.rating.average} (${doctor.rating.count} reviews)`} />
                 )}
               </div>
             </Card>
@@ -531,89 +660,58 @@ export default function BookingDetailPage({ params }) {
               <EntityBlock
                 icon="🔬"
                 name={lab.name}
-                sub1={lab.type || null}
-                sub2={resolveAddress(lab.address, lab.city)}
-                sub3={lab.phone ? `📞 ${lab.phone}` : null}
-                tag={lab.accreditation || null}
+                sub1={lab.certifications?.length ? `Certifications: ${lab.certifications.join(', ')}` : null}
+                sub2={resolveAddress(lab.address, lab.address?.city)}
+                sub3={lab.contactPhone ? `📞 ${lab.contactPhone}` : null}
               />
 
-              {/* Lab extra info */}
+              {/* ✅ Rich lab info */}
               <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9', display:'flex', flexDirection:'column', gap:2 }}>
-                {lab.email        && <InfoRow label="Email"           value={lab.email} />}
-                {lab.website      && <InfoRow label="Website"         value={lab.website} />}
-                {lab.openingHours && <InfoRow label="Timing"          value={lab.openingHours} />}
-                {lab.nabl         && <InfoRow label="NABL Accredited" value="✓ Yes" color="#10b981" />}
-                {lab.homeCollection != null && (
-                  <InfoRow
-                    label="Home Collection"
-                    value={lab.homeCollection ? '✓ Available' : 'Not Available'}
-                    color={lab.homeCollection ? '#10b981' : '#ef4444'}
-                  />
+                {lab.contactEmail && <InfoRow label="Email"   value={lab.contactEmail} />}
+                {lab.contactPhone && <InfoRow label="Phone"   value={lab.contactPhone} />}
+                {lab.address?.city    && <InfoRow label="City"    value={lab.address.city} />}
+                {lab.address?.state   && <InfoRow label="State"   value={lab.address.state} />}
+                {lab.address?.pinCode && <InfoRow label="Pincode" value={lab.address.pinCode} />}
+                {lab.rating?.average > 0 && (
+                  <InfoRow label="Rating" value={`⭐ ${lab.rating.average} (${lab.rating.count} reviews)`} />
                 )}
-                {(lab.address?.city   || lab.city)    && <InfoRow label="City"    value={lab.address?.city    || lab.city} />}
-                {(lab.address?.state  || lab.state)   && <InfoRow label="State"   value={lab.address?.state   || lab.state} />}
-                {(lab.address?.pincode|| lab.pincode) && <InfoRow label="Pincode" value={lab.address?.pincode || lab.pincode} />}
+                <InfoRow
+                  label="Home Collection"
+                  value={lab.homeCollection?.enabled ? '✓ Available' : 'Not Available'}
+                  color={lab.homeCollection?.enabled ? '#10b981' : '#ef4444'}
+                />
+                {lab.certifications?.length > 0 && (
+                  <InfoRow label="Certifications" value={lab.certifications.join(', ')} color="#6366f1" />
+                )}
               </div>
 
-              {/* Tests Booked */}
-              {booking.testIds?.length > 0 && (
-                <div style={{ marginTop:12, padding:'12px', background:'#f8fafc', borderRadius:12 }}>
-                  <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 10px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>
-                    Tests Booked ({booking.testIds.length})
-                  </p>
-                  {testsData?.length > 0 ? (
-                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                      {testsData.map((t, i) => (
-                        <div key={t._id || t.id || i} style={{
-                          display:'flex', justifyContent:'space-between', alignItems:'flex-start',
-                          padding:'8px 10px', background:'#fff', borderRadius:10,
-                          border:'1px solid #f1f5f9',
-                        }}>
-                          <div style={{ flex:1 }}>
-                            <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{t.name}</p>
-                            {t.reportTime && (
-                              <p style={{ fontSize:11, color:'#94a3b8', margin:'2px 0 0' }}>⏱ Report in {t.reportTime}</p>
-                            )}
-                            {t.normalRange && (
-                              <p style={{ fontSize:11, color:'#64748b', margin:'2px 0 0' }}>
-                                Normal: {t.normalRange}{t.unit ? ` ${t.unit}` : ''}
-                              </p>
-                            )}
-                          </div>
-                          {t.price != null && (
-                            <span style={{ fontSize:13, fontWeight:700, color:'#6366f1', marginLeft:12, flexShrink:0 }}>
-                              ₹{t.price}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p style={{ fontSize:13, fontWeight:500, color:'#334155', margin:0 }}>
-                      {booking.testIds.length} test{booking.testIds.length > 1 ? 's' : ''} booked
-                    </p>
-                  )}
-                </div>
-              )}
+              {/* ✅ Tests Booked */}
+              <TestsBooked
+                booking={booking}
+                testsData={testsData}
+                testsLoading={testsLoading}
+              />
 
-              {/* Collection Type */}
+              {/* ✅ Collection Type */}
               {booking.collectionType && (
-                <div style={{ marginTop:8, padding:'10px 12px', background:'#f0fdf4', borderRadius:12 }}>
-                  <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 2px' }}>Collection Type</p>
-                  <p style={{ fontSize:13, fontWeight:600, color:'#065f46', margin:0, textTransform:'capitalize' }}>
-                    {booking.collectionType === 'home' ? '🏠 Home Collection' : '🏥 Lab Visit'}
+                <div style={{ marginTop:12, padding:'12px 14px', background:'#f0fdf4', borderRadius:12, border:'1px solid rgba(16,185,129,0.15)' }}>
+                  <p style={{ fontSize:11, color:'#94a3b8', margin:'0 0 4px', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.5px' }}>Collection</p>
+                  <p style={{ fontSize:13, fontWeight:700, color:'#065f46', margin:0 }}>
+                    {booking.collectionType === 'home' ? '🏠 Home Collection' : '📍 Lab Visit (Walk-in)'}
                   </p>
-                  {booking.collectionAddress && (
-                    <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>{booking.collectionAddress}</p>
-                  )}
-                  {booking.collectionDate && (
-                    <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>
-                      📅 {new Date(booking.collectionDate).toLocaleDateString('en-IN', { dateStyle:'medium' })}
+                  {booking.collectionType === 'home' && booking.collectionAddress && (
+                    <p style={{ fontSize:12, color:'#64748b', margin:'6px 0 0' }}>
+                      📍 {[
+                        booking.collectionAddress.line1,
+                        booking.collectionAddress.city,
+                        booking.collectionAddress.state,
+                        booking.collectionAddress.pinCode,
+                      ].filter(Boolean).join(', ')}
                     </p>
                   )}
-                  {booking.collectionTime && (
-                    <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>🕐 {booking.collectionTime}</p>
-                  )}
+                  <p style={{ fontSize:12, color:'#64748b', margin:'4px 0 0' }}>
+                    📅 {bookingDate} &nbsp; 🕐 {bookingTime}
+                  </p>
                 </div>
               )}
             </Card>
@@ -628,7 +726,6 @@ export default function BookingDetailPage({ params }) {
               <InfoRow label="Time"           value={bookingEndTime ? `${bookingTime} – ${bookingEndTime}` : bookingTime} />
               <InfoRow label="Status"         value={booking.status?.replace(/_/g,' ')} />
               <InfoRow label="Payment Status" value={booking.paymentStatus?.replace(/_/g,' ')} />
-              {booking.notes && <InfoRow label="Notes" value={booking.notes} />}
             </div>
           </Card>
 
@@ -667,18 +764,12 @@ export default function BookingDetailPage({ params }) {
                   )}
                 </div>
               </div>
-              {booking.refundAmount > 0 && (
-                <div style={{ marginTop:12, padding:'10px 14px', background:'rgba(255,255,255,0.6)', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <span style={{ fontSize:12, color:'#64748b' }}>Refund Amount</span>
-                  <span style={{ fontSize:13, fontWeight:700, color:'#10b981' }}>₹{booking.refundAmount?.toFixed(2)}</span>
-                </div>
-              )}
             </div>
           )}
 
           {/* ── Online meet ── */}
           {booking.type === 'online' && !isFinished && (
-            <div style={{ background:'linear-gradient(135deg,rgba(16,185,129,0.06),rgba(5,150,105,0.04))', border:'1px solid rgba(16,185,129,0.2)', borderRadius:20, padding:20, animation:'bd-in .3s ease' }}>
+            <div style={{ background:'linear-gradient(135deg,rgba(16,185,129,0.06),rgba(5,150,105,0.04))', border:'1px solid rgba(16,185,129,0.2)', borderRadius:20, padding:20 }}>
               <p style={{ fontSize:14, fontWeight:700, color:'#065f46', marginBottom:10 }}>Video Consultation</p>
               {!mounted ? (
                 <div style={{ height:14, width:192, borderRadius:6, ...SHIMMER }} />
@@ -727,11 +818,11 @@ export default function BookingDetailPage({ params }) {
           <Card>
             <SectionTitle icon="💰" title="Payment Summary" />
             {[
-              { label:'Base Fee',                                       value:booking.baseFee,              show:true },
-              { label:`Coupon (${booking.couponCode||''})`,            value:-booking.couponDiscount,       show:booking.couponDiscount>0 },
-              { label:`Platform Fee (${booking.platformFeePercent}%)`, value:booking.platformFee,          show:true },
-              { label:`GST (${booking.gstPercent}%)`,                  value:booking.gst,                  show:true },
-              { label:'Platform Coupon',                               value:-booking.adminCouponDiscount,  show:booking.adminCouponDiscount>0 },
+              { label:'Base Fee',                                       value:booking.baseFee,             show:true },
+              { label:`Coupon (${booking.couponCode||''})`,            value:-booking.couponDiscount,      show:booking.couponDiscount>0 },
+              { label:`Platform Fee (${booking.platformFeePercent}%)`, value:booking.platformFee,         show:true },
+              { label:`GST (${booking.gstPercent}%)`,                  value:booking.gst,                 show:true },
+              { label:'Platform Coupon',                               value:-booking.adminCouponDiscount, show:booking.adminCouponDiscount>0 },
             ].filter((r) => r.show).map(({ label, value }) => (
               <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #f8fafc' }}>
                 <span style={{ fontSize:13, color:'#64748b' }}>{label}</span>
@@ -748,18 +839,13 @@ export default function BookingDetailPage({ params }) {
                 ₹{booking.totalAmount?.toFixed(2)}
               </span>
             </div>
-            {booking.refundAmount > 0 && (
-              <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0' }}>
-                <span style={{ fontSize:13, color:'#64748b' }}>Refund Processed</span>
-                <span style={{ fontSize:13, fontWeight:600, color:'#10b981' }}>₹{booking.refundAmount?.toFixed(2)}</span>
-              </div>
-            )}
-            {(booking.onePayTxnId || booking.onePayPgRefId) && (
+
+            {/* ✅ Razorpay payment reference */}
+            {(booking.razorpayOrderId || booking.razorpayPaymentId) && (
               <div style={{ marginTop:14, paddingTop:14, borderTop:'1px solid #f1f5f9' }}>
-                <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', letterSpacing:'1px', textTransform:'uppercase', marginBottom:8 }}>Payment Details</p>
-                <InfoRow label="Gateway" value="1Pay Payment Gateway" />
-                {booking.onePayTxnId   && <InfoRow label="Transaction ID" value={booking.onePayTxnId}   mono />}
-                {booking.onePayPgRefId && <InfoRow label="PG Reference"   value={booking.onePayPgRefId} mono />}
+                <p style={{ fontSize:10, fontWeight:700, color:'#94a3b8', letterSpacing:'1px', textTransform:'uppercase', marginBottom:8 }}>Payment Reference</p>
+                {booking.razorpayOrderId   && <InfoRow label="Order ID"   value={booking.razorpayOrderId}   mono />}
+                {booking.razorpayPaymentId && <InfoRow label="Payment ID" value={booking.razorpayPaymentId} mono />}
               </div>
             )}
           </Card>
@@ -768,7 +854,7 @@ export default function BookingDetailPage({ params }) {
           <div style={{ display:'flex', flexWrap:'wrap', gap:10, animation:'bd-in .3s ease' }}>
             {booking.paymentStatus !== 'paid' && !isFinished && (
               <ActionBtn onClick={handlePayNow} loading={paying} variant="primary">
-                {paying ? 'Redirecting…' : '💳 Pay Now'}
+                {paying ? 'Opening Checkout…' : '💳 Pay Now'}
               </ActionBtn>
             )}
             <ActionBtn onClick={handleInvoiceDownload} loading={dlInvoice} variant="secondary">

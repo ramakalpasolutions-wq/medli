@@ -1,45 +1,41 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
-} from 'recharts'
 import AdminHeader from '@/components/admin/AdminHeader'
 import StatsCard from '@/components/ui/StatsCard'
 import DateRangePicker from '@/components/ui/DateRangePicker'
+import RevenueChart from '@/components/admin/RevenueChart'
 
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
-
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: 12, padding: '10px 14px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', fontSize: 12 }}>
-      <p style={{ fontWeight: 600, color: '#334155', marginBottom: 4 }}>{label}</p>
-      {payload.map((e) => (
-        <p key={e.name} style={{ color: e.color, margin: '2px 0' }}>
-          {e.name}: {e.name.includes('₹') || e.name.toLowerCase().includes('revenue') ? `₹${Number(e.value).toLocaleString('en-IN')}` : e.value}
-        </p>
-      ))}
-    </div>
-  )
+const fetcher = async (url) => {
+  const res = await fetch(url, { credentials: 'include' })
+  const json = await res.json()
+  if (!res.ok) throw new Error(json?.message || 'Failed to fetch')
+  return json?.data ?? json
 }
 
 function ExportBtn({ href }) {
   const [h, setH] = useState(false)
   return (
-    <a href={href} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+    <a
+      href={href}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '8px 14px', borderRadius: 10,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '8px 14px',
+        borderRadius: 10,
         border: `1.5px solid ${h ? '#6366f1' : '#e2e8f0'}`,
         background: h ? 'rgba(99,102,241,0.06)' : '#fff',
         color: h ? '#6366f1' : '#475569',
-        fontSize: 12, fontWeight: 600, textDecoration: 'none',
+        fontSize: 12,
+        fontWeight: 600,
+        textDecoration: 'none',
         transition: 'all .15s ease',
-      }}>
+      }}
+    >
       ⬇ Export CSV
     </a>
   )
@@ -62,14 +58,15 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState({ preset: 'last30', dateFrom: '', dateTo: '' })
   const qs = new URLSearchParams({ preset: dateRange.preset })
   if (dateRange.dateFrom) qs.set('dateFrom', dateRange.dateFrom)
-  if (dateRange.dateTo)   qs.set('dateTo',   dateRange.dateTo)
+  if (dateRange.dateTo) qs.set('dateTo', dateRange.dateTo)
 
   const { data } = useSWR(`/api/analytics/revenue?${qs}`, fetcher)
   const s = data?.summary || {}
 
-  const chartData = (data?.chartData || []).map((d) => ({
-    date: d.date, 'Revenue (₹)': Math.round(d.revenue || 0), Bookings: d.bookings || 0,
-  }))
+  const chartData = useMemo(
+    () => (data?.chartData || []).map((d) => ({ date: d.date, revenue: Number(d.revenue || 0), bookings: Number(d.bookings || 0) })),
+    [data]
+  )
 
   return (
     <>
@@ -85,31 +82,22 @@ export default function AnalyticsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14, marginBottom: 24 }}>
-        <StatsCard title="Total Revenue"  value={`₹${Number(s.totalRevenue    || 0).toLocaleString('en-IN')}`} icon="💰" color="green"  />
-        <StatsCard title="Platform Fee"   value={`₹${Number(s.totalPlatformFee|| 0).toLocaleString('en-IN')}`} icon="📊" color="blue"   />
-        <StatsCard title="GST Collected"  value={`₹${Number(s.totalGst        || 0).toLocaleString('en-IN')}`} icon="🧾" color="purple" />
+        <StatsCard title="Total Revenue" value={`₹${Number(s.totalRevenue || 0).toLocaleString('en-IN')}`} icon="💰" color="green" />
+        <StatsCard title="Platform Fee" value={`₹${Number(s.totalPlatformFee || 0).toLocaleString('en-IN')}`} icon="📊" color="blue" />
+        <StatsCard title="GST Collected" value={`₹${Number(s.totalGst || 0).toLocaleString('en-IN')}`} icon="🧾" color="purple" />
       </div>
 
-      {chartData.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <SCard title="Revenue Over Time">
-            <div style={{ height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend />
-                  <Line type="monotone" dataKey="Revenue (₹)" stroke="#6366f1" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </SCard>
-        </div>
-      )}
+      <div style={{ marginBottom: 20 }}>
+        <RevenueChart
+          data={chartData}
+          title="Revenue Over Time"
+          mode="line"
+          xAxisKey="date"
+          dataKeys={[{ key: 'revenue', color: '#6366f1', name: 'Revenue' }]}
+          height={260}
+        />
+      </div>
 
-      {/* Breakdown by type */}
       <SCard title="Breakdown by Type">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 12 }}>
           {Object.entries(data?.breakdown || {}).map(([type, amount]) => (

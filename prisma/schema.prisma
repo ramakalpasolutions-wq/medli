@@ -7,8 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Enums ────────────────────────────────────────────────────────────────────
-
 enum Role {
   user
   doctor
@@ -111,12 +109,13 @@ enum NotificationStatus {
   failed
 }
 
-enum Payment1PayStatus {
+// Replaces Payment1PayStatus
+enum PaymentRazorpayStatus {
   created
-  success
-  failure
-  timeout
-  pending
+  authorized
+  captured
+  refunded
+  failed
 }
 
 enum AccountType {
@@ -157,8 +156,6 @@ enum VerificationMethod {
   penny_drop
   manual
 }
-
-// ─── Composite Types ──────────────────────────────────────────────────────────
 
 type Address {
   line1   String?
@@ -290,21 +287,18 @@ type TAT {
   unit  TAT_Unit @default(hours)
 }
 
-// ── NEW: Family member composite type ─────────────────────────────────────────
 type FamilyMember {
-  id          String
-  name        String
-  relation    String
-  age         Int?
-  gender      String?
-  bloodGroup  String?
-  phone       String?
-  notes       String?
-  createdAt   String?
-  updatedAt   String?
+  id         String
+  name       String
+  relation   String
+  age        Int?
+  gender     String?
+  bloodGroup String?
+  phone      String?
+  notes      String?
+  createdAt  String?
+  updatedAt  String?
 }
-
-// ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
   id            String           @id @default(auto()) @map("_id") @db.ObjectId
@@ -319,7 +313,6 @@ model User {
   bankAccount   BankAccountUser?
   devices       UserDevice[]
   wallet        UserWallet?
-  // ── NEW: family members stored inside user document ──────────────────────
   familyMembers FamilyMember[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -449,9 +442,9 @@ model Booking {
   adminCouponDiscount Float              @default(0)
   totalAmount         Float              @default(0)
 
-  // ── 1Pay fields ────────────────────────────────────────────────────────────
-  onePayTxnId         String?            // Our txnId sent to 1Pay gateway
-  onePayPgRefId       String?            // 1Pay's payment reference ID (pgRefId)
+  // ── Razorpay fields (replaces onePayTxnId / onePayPgRefId) ────────────
+  razorpayOrderId     String?            // order_XXXXXX from Razorpay
+  razorpayPaymentId   String?            // pay_XXXXXX after capture
 
   labStatus           LabStatus?
   reportR2Key         String?
@@ -469,31 +462,33 @@ model Booking {
   @@index([doctorId, startTime])
   @@index([hospitalId, status])
   @@index([labId, status])
-  @@index([onePayTxnId])           // ← Add this index for fast callback lookup
+  @@index([razorpayOrderId])
   @@map("bookings")
 }
 
 model Payment {
-  id                   String            @id @default(auto()) @map("_id") @db.ObjectId
-  bookingId            String            @db.ObjectId
-  userId               String            @db.ObjectId
+  id                     String                @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId              String                @db.ObjectId
+  userId                 String                @db.ObjectId
 
-  // ── 1Pay fields ────────────────────────────────────────────────────────────
-  onePayTxnId          String?           // Matches txnId we send to gateway
-  onePayPgRefId        String?           // Gateway payment reference
-  onePayInstrumentType String?           // UPI / CARD / NB / WALLET
-  onePayBankRefId      String?           // Bank reference number
-  onePayFailureMsg     String?           // Failure reason from gateway
+  // ── Razorpay fields (replaces all onePay* fields) ──────────────────────
+  razorpayOrderId        String?               // order_XXXXXX
+  razorpayPaymentId      String?               // pay_XXXXXX after capture
+  razorpaySignature      String?               // HMAC signature
+  razorpayInstrumentType String?               // card / upi / netbanking / wallet
+  razorpayBankRefId      String?               // bank UTR reference
+  razorpayFailureReason  String?               // failure description
 
-  amount               Float?
-  currency             String            @default("INR")
-  status               Payment1PayStatus @default(created)
-  refunds              RefundEntry[]
-  callbackData         Json?             // Full decrypted callback stored here
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  amount                 Float?
+  currency               String                @default("INR")
+  status                 PaymentRazorpayStatus @default(created)
+  refunds                RefundEntry[]
+  webhookPayload         Json?                 // full verified webhook body
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
 
-  @@index([onePayTxnId])           // ← Fast lookup by txnId in callback
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
   @@index([bookingId])
   @@map("payments")
 }
@@ -520,10 +515,10 @@ model Invoice {
   totalAmount         Float?
   gstDetails          GSTDetails?
 
-  // ── Payment info on invoice ────────────────────────────────────────────────
-  paymentMethod       String?       // UPI / CARD / NB
+  // ── Razorpay payment info on invoice (replaces onePayPgRefId) ──────────
+  paymentMethod       String?       // card / upi / netbanking / wallet
   paymentMode         String?       // Online
-  onePayPgRefId       String?       // Gateway reference for invoice
+  razorpayPaymentId   String?       // pay_XXXXXX for invoice reference
 
   type                InvoiceType   @default(invoice)
   createdAt           DateTime      @default(now())
@@ -638,30 +633,30 @@ model Settlement {
 }
 
 model Refund {
-  id                    String        @id @default(auto()) @map("_id") @db.ObjectId
-  refundNumber          String        @unique
-  bookingId             String        @db.ObjectId
-  userId                String        @db.ObjectId
-  bookingAmount         Float?
-  refundPercent         Float?
-  refundAmount          Float?
-  reason                String?
-  cancelledBy           String?
-  refundMethod          RefundMethod?
-  beneficiaryName       String?
-  beneficiaryAccount    String?
-  beneficiaryIFSC       String?
+  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  refundNumber         String        @unique
+  bookingId            String        @db.ObjectId
+  userId               String        @db.ObjectId
+  bookingAmount        Float?
+  refundPercent        Float?
+  refundAmount         Float?
+  reason               String?
+  cancelledBy          String?
+  refundMethod         RefundMethod?
+  beneficiaryName      String?
+  beneficiaryAccount   String?
+  beneficiaryIFSC      String?
 
-  // ── 1Pay refund tracking ───────────────────────────────────────────────────
-  onePayRefundRequestId String?       // 1Pay refund request ID
-  onePayRefundStatus    String?       // 1Pay refund status response
+  // ── Razorpay refund tracking (replaces onePayRefundRequestId) ──────────
+  razorpayRefundId     String?       // rfnd_XXXXXX from Razorpay
+  razorpayRefundStatus String?       // Razorpay refund status
 
-  status                RefundStatus  @default(pending)
-  failureReason         String?
-  processedAt           DateTime?
-  initiatedBy           String?       @db.ObjectId
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  status               RefundStatus  @default(pending)
+  failureReason        String?
+  processedAt          DateTime?
+  initiatedBy          String?       @db.ObjectId
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   @@index([bookingId])
   @@map("refunds")
