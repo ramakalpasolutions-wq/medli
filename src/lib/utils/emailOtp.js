@@ -1,7 +1,7 @@
 /**
- * Email OTP — uses cache for storage + nodemailer for delivery
+ * Email OTP — uses cache (Redis in prod, memory in dev)
  *
- * Dev bypass: set EMAIL_OTP_BYPASS=true → "123456" always works
+ * IMPORTANT: All cache calls now use `await` because cache is async
  */
 
 import cache         from '@/lib/cache'
@@ -10,25 +10,22 @@ import { sendEmail } from '@/lib/utils/nodemailer'
 const OTP_EXPIRY_SEC = 5 * 60       // 5 minutes
 const OTP_LENGTH     = 6
 const MAX_RETRIES    = 5
-const COOLDOWN_SEC   = 30            // seconds between sends
+const COOLDOWN_SEC   = 30           // seconds between sends
 
-const BYPASS_MODE = () =>
-  process.env.EMAIL_OTP_BYPASS === 'true'
+const BYPASS_MODE = () => process.env.EMAIL_OTP_BYPASS === 'true'
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
 }
 
-function otpKey(email)       { return `otp:email:${normalizeEmail(email)}` }
-function attemptKey(email)   { return `otp:email:attempts:${normalizeEmail(email)}` }
-function cooldownKey(email)  { return `otp:email:cooldown:${normalizeEmail(email)}` }
+function otpKey(email)      { return `otp:email:${normalizeEmail(email)}` }
+function attemptKey(email)  { return `otp:email:attempts:${normalizeEmail(email)}` }
+function cooldownKey(email) { return `otp:email:cooldown:${normalizeEmail(email)}` }
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-// ─── Email Template ─────────────────────────────────────────────────────────
 function buildOtpHtml(otp, email) {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background:#f8fafc;">
@@ -55,7 +52,6 @@ function buildOtpHtml(otp, email) {
   `
 }
 
-// ─── Send Email OTP ─────────────────────────────────────────────────────────
 export async function sendEmailOtp(email) {
   try {
     const normalized = normalizeEmail(email)
@@ -63,30 +59,22 @@ export async function sendEmailOtp(email) {
       return { success: false, error: 'Email is required' }
     }
 
-    // ── Cooldown check ──────────────────────────────────────────────
-    if (cache.get(cooldownKey(normalized))) {
-      return {
-        success: false,
-        error:   'Please wait before requesting another OTP',
-      }
+    if (await cache.get(cooldownKey(normalized))) {
+      return { success: false, error: 'Please wait before requesting another OTP' }
     }
 
-    // ── Rate limit ──────────────────────────────────────────────────
-    const attempts = Number(cache.get(attemptKey(normalized)) ?? 0)
+    const attempts = Number((await cache.get(attemptKey(normalized))) ?? 0)
     if (attempts >= MAX_RETRIES) {
-      return {
-        success: false,
-        error:   'Too many OTP requests. Try again in 5 minutes.',
-      }
+      return { success: false, error: 'Too many OTP requests. Try again in 5 minutes.' }
     }
 
-    // ── Generate OTP ────────────────────────────────────────────────
     const otp = generateOtp()
-    cache.set(otpKey(normalized),      otp,           OTP_EXPIRY_SEC)
-    cache.set(attemptKey(normalized),  attempts + 1,  OTP_EXPIRY_SEC)
-    cache.set(cooldownKey(normalized), '1',           COOLDOWN_SEC)
+    await cache.set(otpKey(normalized),      otp,                  OTP_EXPIRY_SEC)
+    await cache.set(attemptKey(normalized),  String(attempts + 1), OTP_EXPIRY_SEC)
+    await cache.set(cooldownKey(normalized), '1',                  COOLDOWN_SEC)
 
-    // ── Bypass mode ─────────────────────────────────────────────────
+    console.log(`[EMAIL OTP] stored for ${normalized} (TTL: ${OTP_EXPIRY_SEC}s)`)
+
     if (BYPASS_MODE()) {
       console.log(`[EMAIL OTP BYPASS] ${normalized} → ${otp}`)
       return {
@@ -96,7 +84,6 @@ export async function sendEmailOtp(email) {
       }
     }
 
-    // ── Send real email ─────────────────────────────────────────────
     try {
       await sendEmail({
         to:      normalized,
@@ -104,47 +91,56 @@ export async function sendEmailOtp(email) {
         html:    buildOtpHtml(otp, normalized),
         text:    `Your MEDLI verification code is ${otp}. It expires in 5 minutes.`,
       })
+      console.log(`[EMAIL OTP] sent to ${normalized}`)
       return { success: true }
     } catch (err) {
       console.error('[sendEmailOtp] SMTP error:', err?.message)
-      // Clean up — don't leave OTP if email failed
-      cache.del(otpKey(normalized))
-      cache.del(cooldownKey(normalized))
+      await cache.del(otpKey(normalized))
+      await cache.del(cooldownKey(normalized))
       return { success: false, error: 'Failed to send email. Please try again.' }
     }
-
   } catch (error) {
     console.error('[sendEmailOtp]', error)
     return { success: false, error: 'Internal error' }
   }
 }
 
-// ─── Verify Email OTP ───────────────────────────────────────────────────────
 export async function verifyEmailOtp(email, otp) {
   try {
     const normalized = normalizeEmail(email)
     const otpClean   = String(otp || '').replace(/\D/g, '').trim()
 
     if (!normalized || !otpClean || otpClean.length !== OTP_LENGTH) {
+      console.warn('[verifyEmailOtp] invalid input')
       return false
     }
 
-    // ── Bypass mode — always accept "123456" ────────────────────────
     if (BYPASS_MODE() && otpClean === '123456') {
-      cache.del(otpKey(normalized))
-      cache.del(attemptKey(normalized))
+      await cache.del(otpKey(normalized))
+      await cache.del(attemptKey(normalized))
+      await cache.del(cooldownKey(normalized))
+      console.log(`[EMAIL OTP BYPASS] ${normalized} verified with default OTP`)
       return true
     }
 
-    // ── Check stored OTP ────────────────────────────────────────────
-    const stored = cache.get(otpKey(normalized))
-    if (!stored) return false
-    if (stored !== otpClean) return false
+    const stored = await cache.get(otpKey(normalized))
+    console.log(`[EMAIL OTP] verify lookup for ${normalized}: stored=${stored ? 'YES' : 'NO'}, entered=${otpClean}`)
 
-    // ── Success — clean up ──────────────────────────────────────────
-    cache.del(otpKey(normalized))
-    cache.del(attemptKey(normalized))
-    cache.del(cooldownKey(normalized))
+    if (!stored) {
+      console.warn(`[EMAIL OTP] no stored OTP for ${normalized}`)
+      return false
+    }
+
+    const storedClean = String(stored).trim()
+    if (storedClean !== otpClean) {
+      console.warn(`[EMAIL OTP] mismatch for ${normalized}`)
+      return false
+    }
+
+    await cache.del(otpKey(normalized))
+    await cache.del(attemptKey(normalized))
+    await cache.del(cooldownKey(normalized))
+    console.log(`[EMAIL OTP] verified successfully for ${normalized}`)
     return true
 
   } catch (error) {
