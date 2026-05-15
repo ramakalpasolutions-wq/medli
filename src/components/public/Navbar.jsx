@@ -323,7 +323,7 @@ function Logo() {
         overflow:       'hidden',
       }}>
         <Image
-          src="/MEDLI - LOGO ICON.png"
+          src="/MEDLI-LOGOICON.png"
           alt="MEDLI Logo"
           width={44}
           height={44}
@@ -708,7 +708,7 @@ function DrawerHeader({ onClose }) {
           overflow: 'hidden',
         }}>
           <Image
-            src="/MEDLI - LOGO ICON.png"
+            src="/MEDLI-LOGOICON.png"
             alt="MEDLI Logo"
             width={28}
             height={28}
