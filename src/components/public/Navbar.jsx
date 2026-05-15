@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -300,27 +301,43 @@ function Logo() {
       style={{
         display:        'flex',
         alignItems:     'center',
-        gap:            9,
+        gap:            10,
         textDecoration: 'none',
         flexShrink:     0,
         transform:      h ? 'scale(1.04)' : 'scale(1)',
         transition:     'transform .2s ease',
       }}
     >
+      {/* ✅ PNG Logo with gradient backdrop */}
       <div style={{
-        width:          38,
-        height:         38,
-        borderRadius:   11,
-        background:     'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        width:          42,
+        height:         42,
+        borderRadius:   12,
         display:        'flex',
         alignItems:     'center',
         justifyContent: 'center',
-        fontSize:       20,
-        boxShadow:      '0 4px 14px rgba(99,102,241,.35)',
+        // boxShadow:      '0 4px 14px rgba(99,102,241,.35)',
         flexShrink:     0,
+        padding:        4,
+        position:       'relative',
+        overflow:       'hidden',
       }}>
-        🏥
+        <Image
+          src="/MEDLI - LOGO ICON.png"
+          alt="MEDLI Logo"
+          width={44}
+          height={44}
+          priority
+          style={{
+            objectFit:    'contain',
+            display:      'block',
+            // 💡 Uncomment next line if your logo is dark and you want it white:
+            // filter: 'brightness(0) invert(1)',
+          }}
+        />
       </div>
+
+      {/* Wordmark */}
       <div style={{ lineHeight: 1 }}>
         <div style={{
           fontWeight:           900,
@@ -682,11 +699,27 @@ function DrawerHeader({ onClose }) {
       flexShrink:     0,
     }}>
       <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+        {/* ✅ PNG Logo with gradient backdrop */}
         <div style={{
           width:34, height:34, borderRadius:9,
-          background:'linear-gradient(135deg,#6366f1,#8b5cf6)',
-          display:'flex', alignItems:'center', justifyContent:'center', fontSize:17,
-        }}>🏥</div>
+          display:'flex', alignItems:'center', justifyContent:'center',
+          padding: 3,
+          flexShrink: 0,
+          overflow: 'hidden',
+        }}>
+          <Image
+            src="/MEDLI - LOGO ICON.png"
+            alt="MEDLI Logo"
+            width={28}
+            height={28}
+            style={{
+              objectFit: 'contain',
+              display:   'block',
+              // 💡 Uncomment if your logo is dark and you want it white:
+              // filter: 'brightness(0) invert(1)',
+            }}
+          />
+        </div>
         <div>
           <div style={{
             fontWeight:900, fontSize:18,
