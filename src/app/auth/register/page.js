@@ -169,6 +169,103 @@ function AuthBtn({ children, loading: isLoading, disabled, onClick, type = 'butt
   )
 }
 
+/* ─── Terms Checkbox ─────────────────────────────────────────────────── */
+function TermsCheckbox({ checked, onChange }) {
+  const [hovered, setHovered] = useState(false)
+
+  return (
+    <label
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display:    'flex',
+        alignItems: 'flex-start',
+        gap:        10,
+        padding:    '12px 14px',
+        borderRadius: 12,
+        border: `1.5px solid ${
+          checked ? '#6366f1' : hovered ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)'
+        }`,
+        background: checked
+          ? 'rgba(99,102,241,0.08)'
+          : hovered ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+        cursor:     'pointer',
+        transition: 'all .15s ease',
+      }}
+    >
+      <div style={{ position: 'relative', flexShrink: 0, marginTop: 1 }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          style={{
+            position: 'absolute',
+            opacity: 0,
+            width:  18,
+            height: 18,
+            margin: 0,
+            cursor: 'pointer',
+          }}
+        />
+        <div style={{
+          width:  18,
+          height: 18,
+          borderRadius: 5,
+          border: `2px solid ${checked ? '#6366f1' : 'rgba(255,255,255,0.3)'}`,
+          background: checked
+            ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+            : 'transparent',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all .15s ease',
+          boxShadow: checked ? '0 2px 8px rgba(99,102,241,0.4)' : 'none',
+        }}>
+          {checked && (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M2 6L5 9L10 3"
+                stroke="#fff"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </div>
+      </div>
+
+      <span style={{
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: 'rgba(255,255,255,0.7)',
+        userSelect: 'none',
+      }}>
+        I agree to the{' '}
+        <a
+          href="/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ color: '#818cf8', fontWeight: 600, textDecoration: 'none' }}
+        >
+          Terms of Service
+        </a>
+        {' '}and{' '}
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ color: '#818cf8', fontWeight: 600, textDecoration: 'none' }}
+        >
+          Privacy Policy
+        </a>
+      </span>
+    </label>
+  )
+}
+
 /* ─── Ghost Button ───────────────────────────────────────────────────── */
 function GhostBtn({ children, onClick }) {
   const [h, setH] = useState(false)
@@ -253,11 +350,12 @@ function RegisterContent() {
   const router = useRouter()
   const { loginWithOtp } = useAuth()
 
-  const [name,     setName]     = useState('')
-  const [phone,    setPhone]    = useState('')
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
+  const [name,        setName]        = useState('')
+  const [phone,       setPhone]       = useState('')
+  const [email,       setEmail]       = useState('')
+  const [password,    setPassword]    = useState('')
+  const [showPass,    setShowPass]    = useState(false)
+  const [agreedTerms, setAgreedTerms] = useState(false)   // ✅ NEW
 
   const [step,          setStep]          = useState(1)
   const [phoneOtp,      setPhoneOtp]      = useState('')
@@ -281,9 +379,9 @@ function RegisterContent() {
     return () => clearTimeout(t)
   }, [countdown])
 
-  const hasPhone  = phone.length === 10
-  const hasEmail  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  const step1Valid = name.trim().length >= 2 && (hasPhone || hasEmail)
+  const hasPhone   = phone.length === 10
+  const hasEmail   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  const step1Valid = name.trim().length >= 2 && (hasPhone || hasEmail) && agreedTerms   // ✅ checkbox required
 
   const totalSteps = hasPhone && hasEmail ? 4 : 3
   const progress   = Math.round(((step - 1) / (totalSteps - 1)) * 100)
@@ -320,6 +418,7 @@ function RegisterContent() {
     setError('')
     if (!name.trim() || name.trim().length < 2) { setError('Full name must be at least 2 characters'); return }
     if (!hasPhone && !hasEmail) { setError('Enter a valid phone number or email address'); return }
+    if (!agreedTerms) { setError('You must agree to the Terms of Service and Privacy Policy'); return }   // ✅ NEW
     if (hasPhone) { await sendPhoneOtp(); setStep(2) }
     else { await sendEmailOtp(); setStep(3) }
   }
@@ -367,6 +466,7 @@ function RegisterContent() {
           phone:    hasPhone ? phone : undefined,
           email:    hasEmail ? email.trim().toLowerCase() : undefined,
           password: password || undefined,
+          agreedToTerms: true,   // ✅ Send to backend for audit
         }),
       })
       const json = await res.json()
@@ -394,7 +494,6 @@ function RegisterContent() {
         padding: 'clamp(16px,4vw,32px)',
         position: 'relative', overflow: 'hidden',
       }}>
-        {/* Orbs */}
         <div style={{ position:'absolute',top:'10%',left:'10%',width:350,height:350,borderRadius:'50%',background:'radial-gradient(circle,rgba(99,102,241,0.12),transparent 70%)',filter:'blur(60px)',pointerEvents:'none' }} />
         <div style={{ position:'absolute',bottom:'10%',right:'10%',width:280,height:280,borderRadius:'50%',background:'radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%)',filter:'blur(50px)',pointerEvents:'none' }} />
 
@@ -404,7 +503,6 @@ function RegisterContent() {
           transform: visible ? 'translateY(0)' : 'translateY(20px)',
           transition: 'opacity .4s ease, transform .4s ease',
         }}>
-          {/* Logo */}
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
               <div style={{ width:42,height:42,borderRadius:12,background:'linear-gradient(135deg,#6366f1,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,boxShadow:'0 6px 20px rgba(99,102,241,0.4)' }}>
@@ -417,7 +515,6 @@ function RegisterContent() {
             <p style={{ fontSize:13,color:'rgba(255,255,255,0.4)',margin:0 }}>Create your account</p>
           </div>
 
-          {/* Glass card */}
           <div style={{
             background: 'rgba(255,255,255,0.05)',
             border: '1px solid rgba(255,255,255,0.1)',
@@ -486,6 +583,12 @@ function RegisterContent() {
                     }
                   />
 
+                  {/* ✅ NEW: Terms checkbox */}
+                  <TermsCheckbox
+                    checked={agreedTerms}
+                    onChange={(v) => { setAgreedTerms(v); setError('') }}
+                  />
+
                   <AuthBtn onClick={handleStep1} loading={sending} disabled={!step1Valid || sending}>
                     Continue →
                   </AuthBtn>
@@ -512,7 +615,6 @@ function RegisterContent() {
                   OTP sent to <strong style={{ color:'rgba(255,255,255,0.7)' }}>+91 {phone}</strong>
                 </p>
 
-                {/* Step indicators */}
                 <StepIndicators step={2} hasPhone={hasPhone} hasEmail={hasEmail} phoneVerified={phoneVerified} />
 
                 <div style={{ display:'flex',flexDirection:'column',gap:16,marginTop:20 }}>
@@ -577,7 +679,6 @@ function RegisterContent() {
                   Review your details and create your account.
                 </p>
 
-                {/* Summary */}
                 <div style={{
                   background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',
                   borderRadius:16,padding:16,marginBottom:20,

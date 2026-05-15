@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 'use client'
 
 import {
@@ -13,10 +12,10 @@ import {
 const AuthContext = createContext(null)
 
 const SESSION_KEY = 'medli_user'
-const ACCESS_KEY  = 'accessToken'
-const REFRESH_KEY = 'refreshToken'
+const ACCESS_KEY  = 'medli_access'
+const REFRESH_KEY = 'medli_refresh'
 
-// ─── Role → dashboard mapping ─────────────────────────────────────────────────
+// ─── Role → dashboard mapping ──────────────────────────────────────────────
 export const ROLE_DASHBOARDS = {
   super_admin:      '/super-admin/dashboard',
   regional_manager: '/regional/dashboard',
@@ -30,10 +29,18 @@ export function getDashboardForRole(role) {
   return ROLE_DASHBOARDS[role] || '/user/dashboard'
 }
 
-// ─── Storage helpers (client-only, never called during SSR) ──────────────────
+// ─── Storage helpers ───────────────────────────────────────────────────────
+function safeStorage(type) {
+  try {
+    return type === 'session' ? sessionStorage : localStorage
+  } catch {
+    return null
+  }
+}
+
 function getCachedUser() {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY)
+    const raw = safeStorage('session')?.getItem(SESSION_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!parsed?.id || !parsed?.role) return null
@@ -43,44 +50,55 @@ function getCachedUser() {
 
 function setCachedUser(user) {
   try {
-    if (user && user.id && user.role) {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(user))
+    const s = safeStorage('session')
+    if (!s) return
+    if (user?.id && user?.role) {
+      s.setItem(SESSION_KEY, JSON.stringify(user))
     } else {
-      sessionStorage.removeItem(SESSION_KEY)
+      s.removeItem(SESSION_KEY)
     }
   } catch {}
 }
 
 function clearAllAuth() {
   try {
-    sessionStorage.removeItem(SESSION_KEY)
-    localStorage.removeItem(ACCESS_KEY)
-    localStorage.removeItem(REFRESH_KEY)
+    safeStorage('session')?.removeItem(SESSION_KEY)
+    safeStorage('local')?.removeItem(ACCESS_KEY)
+    safeStorage('local')?.removeItem(REFRESH_KEY)
   } catch {}
 }
 
 function getLS(key) {
-  try { return localStorage.getItem(key) }
+  try { return safeStorage('local')?.getItem(key) ?? null }
   catch { return null }
 }
 
 function setLS(key, val) {
   try {
-    if (val) localStorage.setItem(key, val)
-    else      localStorage.removeItem(key)
+    const s = safeStorage('local')
+    if (!s) return
+    if (val) s.setItem(key, val)
+    else     s.removeItem(key)
   } catch {}
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+function hasStoredTokens() {
+  return !!(getLS(ACCESS_KEY) || getLS(REFRESH_KEY))
+}
+
+// ─── Provider ──────────────────────────────────────────────────────────────
 export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null)
+  // ✅ Start as true only if we KNOW there are tokens
+  // This prevents the loading flash and redirect loop
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
 
-  const refreshingRef = useRef(false)
-  const initDoneRef   = useRef(false)
+  const refreshingRef  = useRef(false)
+  const initDoneRef    = useRef(false)
+  const fetchingRef    = useRef(false)   // ✅ prevent concurrent /me calls
 
-  // ── Silent token refresh ──────────────────────────────────────────────────
+  // ── Silent token refresh ─────────────────────────────────────────────────
   const silentRefresh = useCallback(async () => {
     if (refreshingRef.current) return null
     refreshingRef.current = true
@@ -94,9 +112,14 @@ export function AuthProvider({ children }) {
         credentials: 'include',
         body:        JSON.stringify({ refreshToken }),
       })
+      if (!res.ok) return null
+
       const json = await res.json()
       if (json.success && json.data?.accessToken) {
         setLS(ACCESS_KEY, json.data.accessToken)
+        if (json.data.refreshToken) {
+          setLS(REFRESH_KEY, json.data.refreshToken)
+        }
         return json.data.accessToken
       }
       return null
@@ -104,8 +127,12 @@ export function AuthProvider({ children }) {
     finally   { refreshingRef.current = false }
   }, [])
 
-  // ── Fetch & verify user from server ──────────────────────────────────────
+  // ── Fetch user from /api/auth/me ─────────────────────────────────────────
   const fetchUser = useCallback(async (retried = false) => {
+    // ✅ Prevent concurrent calls
+    if (fetchingRef.current) return null
+    fetchingRef.current = true
+
     try {
       const token   = getLS(ACCESS_KEY)
       const headers = { 'Content-Type': 'application/json' }
@@ -114,11 +141,17 @@ export function AuthProvider({ children }) {
       const res = await fetch('/api/auth/me', {
         credentials: 'include',
         headers,
+        // ✅ No-store prevents browser from caching auth responses
+        cache: 'no-store',
       })
 
+      // Token expired — try refresh once
       if (res.status === 401 && !retried) {
         const newToken = await silentRefresh()
-        if (newToken) return fetchUser(true)
+        if (newToken) {
+          fetchingRef.current = false
+          return fetchUser(true)
+        }
         clearAllAuth()
         setUser(null)
         setLoading(false)
@@ -144,41 +177,45 @@ export function AuthProvider({ children }) {
       setUser(null)
       setLoading(false)
       return null
+
     } catch {
-      // Network error — fall back to cache
+      // Network error — use cache
       const cached = getCachedUser()
-      if (cached) setUser(cached)
-      else        setUser(null)
+      setUser(cached || null)
       setLoading(false)
-      return null
+      return cached || null
+    } finally {
+      fetchingRef.current = false
     }
   }, [silentRefresh])
 
-  // ── Init on mount ─────────────────────────────────────────────────────────
+  // ── Init on mount — runs ONCE ────────────────────────────────────────────
   useEffect(() => {
+    // ✅ Strict mode runs effects twice in dev — guard against it
     if (initDoneRef.current) return
     initDoneRef.current = true
     setMounted(true)
 
-    const hasToken = !!getLS(ACCESS_KEY) || !!getLS(REFRESH_KEY)
-
-    if (hasToken) {
-      const cached = getCachedUser()
-      if (cached) {
-        // Show cached instantly, verify in background
-        setUser(cached)
-        fetchUser()
-      } else {
-        fetchUser()
-      }
-    } else {
-      clearAllAuth()
+    if (!hasStoredTokens()) {
+      // No tokens at all — not logged in, stop loading immediately
       setUser(null)
       setLoading(false)
+      return
     }
-  }, [fetchUser])
 
-  // ── Auto refresh every 12 min ─────────────────────────────────────────────
+    // Have tokens — check cache first for instant UI
+    const cached = getCachedUser()
+    if (cached) {
+      setUser(cached)
+      setLoading(false)       // ✅ Don't block UI — verify silently
+      fetchUser()             // background verify
+    } else {
+      fetchUser()             // must wait for server
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])  // ✅ Empty deps — runs once on mount only
+
+  // ── Auto refresh every 12 min ────────────────────────────────────────────
   useEffect(() => {
     if (!mounted) return
     const id = setInterval(() => {
@@ -191,13 +228,12 @@ export function AuthProvider({ children }) {
     return () => clearInterval(id)
   }, [mounted, silentRefresh, fetchUser])
 
-  // ── Internal helper: save auth data to state + storage ───────────────────
+  // ── Save auth data ────────────────────────────────────────────────────────
   const saveAuth = useCallback((u, accessToken, refreshToken) => {
-    setLS(ACCESS_KEY,  accessToken)
-    setLS(REFRESH_KEY, refreshToken)
-    setCachedUser(null)   // clear old session first
-    setUser(u)
+    setLS(ACCESS_KEY,  accessToken  || null)
+    setLS(REFRESH_KEY, refreshToken || null)
     setCachedUser(u)
+    setUser(u)
   }, [])
 
   // ── Login with email/password ─────────────────────────────────────────────
@@ -216,25 +252,23 @@ export function AuthProvider({ children }) {
         saveAuth(u, accessToken, refreshToken)
         return { success: true, user: u }
       }
-
       return { success: false, error: json.error || 'Login failed' }
     } catch {
       return { success: false, error: 'Network error. Please try again.' }
     }
   }, [saveAuth])
 
-  // ── OTP login (phone OTP via API) ─────────────────────────────────────────
-  // Also accepts preloadedData for email OTP verified externally
+  // ── OTP login ─────────────────────────────────────────────────────────────
   const loginWithOtp = useCallback(async (phone, otp, preloadedData = null) => {
     try {
-      // ── Path A: preloaded data (email OTP verified on login page directly) ──
+      // Path A — preloaded (email OTP verified externally)
       if (preloadedData) {
         const { user: u, accessToken, refreshToken } = preloadedData
         saveAuth(u, accessToken, refreshToken)
         return { success: true, user: u }
       }
 
-      // ── Path B: phone OTP verify via API ──────────────────────────────────
+      // Path B — phone OTP via API
       const res  = await fetch('/api/auth/otp/verify', {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
@@ -248,7 +282,6 @@ export function AuthProvider({ children }) {
         saveAuth(u, accessToken, refreshToken)
         return { success: true, user: u }
       }
-
       return { success: false, error: json.error || 'Invalid OTP' }
     } catch {
       return { success: false, error: 'Network error. Please try again.' }
@@ -269,10 +302,9 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // ── Refresh user from server ──────────────────────────────────────────────
+  // ── Refresh user ──────────────────────────────────────────────────────────
   const refreshUser = useCallback(() => fetchUser(), [fetchUser])
 
-  // ── Context value ─────────────────────────────────────────────────────────
   const value = {
     user,
     loading,

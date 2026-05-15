@@ -1,6 +1,7 @@
+// C:\Users\ASUS\medli2\src\app\(lab-admin)\lab-admin\reports\page.js
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import useSWR from 'swr'
 import AdminHeader from '@/components/admin/AdminHeader'
 import StatsCard from '@/components/ui/StatsCard'
@@ -16,28 +17,48 @@ const fetcher = async (url) => {
 }
 
 const PRESETS = [
-  { key: 'today', label: 'Today' },
-  { key: 'last7', label: 'Last 7 Days' },
-  { key: 'last30', label: 'Last 30 Days' },
-  { key: 'thisMonth', label: 'This Month' },
-  { key: 'last3Months', label: '3 Months' },
+  { key: 'today',      label: 'Today'       },
+  { key: 'last7',      label: 'Last 7 Days' },
+  { key: 'last30',     label: 'Last 30 Days'},
+  { key: 'thisMonth',  label: 'This Month'  },
+  { key: 'last3Months',label: '3 Months'    },
 ]
 
+/* ── useBreakpoint ───────────────────────────────────────────────── */
+function useBreakpoint() {
+  const [bp, setBp] = useState('desktop')
+  useEffect(() => {
+    const update = () => {
+      const w = window.innerWidth
+      setBp(w < 640 ? 'mobile' : w < 1024 ? 'tablet' : 'desktop')
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+  return bp
+}
+
+/* ── PresetPill ──────────────────────────────────────────────────── */
 function PresetPill({ label, active, onClick }) {
   return (
     <button
       onClick={onClick}
       style={{
-        padding: '10px 14px',
+        padding: '8px 12px',
         borderRadius: 999,
         border: active ? '1px solid #059669' : '1px solid #e2e8f0',
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 600,
         cursor: 'pointer',
         flexShrink: 0,
-        background: active ? 'linear-gradient(135deg,#10b981,#059669)' : '#fff',
+        whiteSpace: 'nowrap',
+        background: active
+          ? 'linear-gradient(135deg,#10b981,#059669)'
+          : '#fff',
         color: active ? '#fff' : '#475569',
         boxShadow: active ? '0 8px 20px rgba(16,185,129,0.18)' : 'none',
+        transition: 'all .15s ease',
       }}
     >
       {label}
@@ -45,26 +66,151 @@ function PresetPill({ label, active, onClick }) {
   )
 }
 
+/* ── SCard ───────────────────────────────────────────────────────── */
 function SCard({ title, action, children }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
+    <div style={{
+      background: '#fff',
+      borderRadius: 20,
+      border: '1px solid #e2e8f0',
+      boxShadow: '0 4px 20px rgba(15,23,42,0.04)',
+      overflow: 'hidden',
+    }}>
       {(title || action) && (
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          {title && <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>{title}</h3>}
+        <div style={{
+          padding: '14px 16px',
+          borderBottom: '1px solid #f1f5f9',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}>
+          {title && (
+            <h3 style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#0f172a',
+              margin: 0,
+            }}>
+              {title}
+            </h3>
+          )}
           {action}
         </div>
       )}
-      <div style={{ padding: 20 }}>{children}</div>
+      <div style={{ padding: 16 }}>{children}</div>
     </div>
   )
 }
 
+/* ── EmptyState ──────────────────────────────────────────────────── */
 function EmptyState({ text = 'No data available' }) {
-  return <div style={{ textAlign: 'center', padding: '32px 16px', color: '#94a3b8', fontSize: 14 }}>{text}</div>
+  return (
+    <div style={{
+      textAlign: 'center',
+      padding: '32px 16px',
+      color: '#94a3b8',
+      fontSize: 14,
+    }}>
+      {text}
+    </div>
+  )
 }
 
+/* ── Inline responsive styles ────────────────────────────────────── */
+const CSS = `
+  .rp-preset-bar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .rp-preset-bar::-webkit-scrollbar { display: none; }
+
+  .rp-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .rp-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .rp-main-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .rp-status-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .rp-test-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f8fafc;
+    flex-wrap: wrap;
+  }
+
+  .rp-test-price {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  @media (min-width: 640px) {
+    .rp-stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .rp-status-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .rp-test-row {
+      flex-wrap: nowrap;
+      align-items: center;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .rp-stats-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .rp-main-grid {
+      grid-template-columns: minmax(0,2fr) minmax(260px,1fr);
+    }
+    .rp-status-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+`
+
+/* ── Main Page ───────────────────────────────────────────────────── */
 export default function LabReportsPage() {
   const [preset, setPreset] = useState('last30')
+  const bp = useBreakpoint()
+  const isMobile = bp === 'mobile'
 
   const {
     data: revenueData,
@@ -80,35 +226,50 @@ export default function LabReportsPage() {
     mutate: mutateBookings,
   } = useSWR(`/api/analytics/bookings?preset=${preset}`, fetcher)
 
-  const { data: labData, error: labError } = useSWR('/api/labs?adminOnly=true', fetcher)
+  const { data: labData }  = useSWR('/api/labs?adminOnly=true', fetcher)
   const labId = labData?.labs?.[0]?.id || labData?.[0]?.id || null
-  const { data: testsData, error: testsError } = useSWR(labId ? `/api/labs/${labId}/tests` : null, fetcher)
+  const { data: testsData } = useSWR(
+    labId ? `/api/labs/${labId}/tests` : null,
+    fetcher
+  )
 
   const isLoading = rLoad || bLoad
-  const error = rError || bError || labError || testsError
+  const error     = rError || bError
 
   const revenueSummary = revenueData?.summary || {}
-  const bookingSummary = bookingData?.summary || {}
+  const bookingSummary = bookingData?.summary  || {}
 
-  const totalRevenue = Number(revenueSummary.totalRevenue || 0)
-  const totalBookings = Number(revenueSummary.totalBookings || bookingSummary.totalBookings || 0)
-  const avgOrderValue = totalBookings ? Math.round(totalRevenue / totalBookings) : 0
+  const totalRevenue  = Number(revenueSummary.totalRevenue  || 0)
+  const totalBookings = Number(
+    revenueSummary.totalBookings || bookingSummary.totalBookings || 0
+  )
+  const avgOrderValue = totalBookings
+    ? Math.round(totalRevenue / totalBookings)
+    : 0
 
-  const byStatus = bookingData?.byStatus || []
+  const byStatus    = bookingData?.byStatus    || []
   const byLabStatus = bookingData?.byLabStatus || []
-  const tests = testsData?.tests || testsData || []
+  const tests       = testsData?.tests || testsData || []
 
   const confirmedCount = byStatus.find((s) => s.status === 'confirmed')?.count || 0
   const completedCount = byStatus.find((s) => s.status === 'completed')?.count || 0
   const cancelledCount = byStatus.find((s) => s.status === 'cancelled')?.count || 0
 
   const revenueChartData = useMemo(
-    () => (revenueData?.chartData || []).map((item) => ({ date: item.date, revenue: Number(item.revenue || 0) })),
+    () =>
+      (revenueData?.chartData || []).map((item) => ({
+        date: item.date,
+        revenue: Number(item.revenue || 0),
+      })),
     [revenueData]
   )
 
   const bookingChartData = useMemo(
-    () => (bookingData?.chartData || []).map((item) => ({ date: item.date, bookings: Number(item.bookings || 0) })),
+    () =>
+      (bookingData?.chartData || []).map((item) => ({
+        date: item.date,
+        bookings: Number(item.bookings || 0),
+      })),
     [bookingData]
   )
 
@@ -118,42 +279,93 @@ export default function LabReportsPage() {
 
   return (
     <>
+      <style>{CSS}</style>
+
       <AdminHeader
         title="Reports"
         subtitle="Lab revenue, bookings, status tracking, and test catalogue"
         breadcrumbs={[{ label: 'Lab Admin' }, { label: 'Reports' }]}
       />
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24, overflowX: 'auto', paddingBottom: 4, justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      {/* ── Toolbar ── */}
+      <div className="rp-toolbar">
+        <div className="rp-preset-bar" style={{ flex: 1 }}>
           {PRESETS.map((p) => (
-            <PresetPill key={p.key} label={p.label} active={preset === p.key} onClick={() => setPreset(p.key)} />
+            <PresetPill
+              key={p.key}
+              label={p.label}
+              active={preset === p.key}
+              onClick={() => setPreset(p.key)}
+            />
           ))}
         </div>
-
-        <button onClick={refreshAll} style={{ padding: '10px 14px', borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 600, cursor: 'pointer' }}>
-          Refresh
+        <button
+          onClick={refreshAll}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 10,
+            border: '1px solid #e2e8f0',
+            background: '#fff',
+            color: '#334155',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontSize: 13,
+            flexShrink: 0,
+          }}
+        >
+          🔄 Refresh
         </button>
       </div>
 
+      {/* ── Error ── */}
       {error && (
-        <div style={{ marginBottom: 20, padding: '14px 16px', borderRadius: 14, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 14 }}>
+        <div style={{
+          marginBottom: 16,
+          padding: '12px 16px',
+          borderRadius: 14,
+          background: '#fef2f2',
+          border: '1px solid #fecaca',
+          color: '#b91c1c',
+          fontSize: 14,
+        }}>
           Failed to load report data.
         </div>
       )}
 
+      {/* ── Stats ── */}
       {isLoading ? (
-        <SkeletonStats count={4} style={{ marginBottom: 24 }} />
+        <SkeletonStats count={4} style={{ marginBottom: 20 }} />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14, marginBottom: 24 }}>
-          <StatsCard title="Gross Revenue" value={`₹${totalRevenue.toLocaleString('en-IN')}`} icon="💰" color="green" />
-          <StatsCard title="Total Bookings" value={totalBookings} icon="📅" color="blue" />
-          <StatsCard title="Completed" value={completedCount} icon="✅" color="purple" />
-          <StatsCard title="Avg Booking Value" value={`₹${avgOrderValue.toLocaleString('en-IN')}`} icon="📈" color="yellow" />
+        <div className="rp-stats-grid">
+          <StatsCard
+            title="Gross Revenue"
+            value={`₹${totalRevenue.toLocaleString('en-IN')}`}
+            icon="💰"
+            color="green"
+          />
+          <StatsCard
+            title="Total Bookings"
+            value={totalBookings}
+            icon="📅"
+            color="blue"
+          />
+          <StatsCard
+            title="Completed"
+            value={completedCount}
+            icon="✅"
+            color="purple"
+          />
+          <StatsCard
+            title="Avg Booking Value"
+            value={`₹${avgOrderValue.toLocaleString('en-IN')}`}
+            icon="📈"
+            color="yellow"
+          />
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(280px,1fr)', gap: 16, marginBottom: 20 }}>
+      {/* ── Revenue Chart + Booking Summary ── */}
+      <div className="rp-main-grid">
         <div style={{ minWidth: 0 }}>
           <RevenueChart
             data={revenueChartData}
@@ -161,30 +373,39 @@ export default function LabReportsPage() {
             mode="line"
             xAxisKey="date"
             dataKeys={[{ key: 'revenue', color: '#10b981', name: 'Revenue' }]}
-            height={280}
+            height={isMobile ? 220 : 280}
           />
         </div>
 
         <div style={{ minWidth: 0 }}>
           <SCard title="Booking Summary">
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                <span style={{ color: '#64748b' }}>Confirmed</span>
-                <strong style={{ color: '#0f172a' }}>{confirmedCount}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                <span style={{ color: '#64748b' }}>Completed</span>
-                <strong style={{ color: '#0f172a' }}>{completedCount}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                <span style={{ color: '#64748b' }}>Cancelled</span>
-                <strong style={{ color: '#0f172a' }}>{cancelledCount}</strong>
-              </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {[
+                { label: 'Confirmed',  value: confirmedCount },
+                { label: 'Completed',  value: completedCount },
+                { label: 'Cancelled',  value: cancelledCount },
+              ].map(({ label, value }) => (
+                <div
+                  key={label}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: 14,
+                    padding: '8px 0',
+                    borderBottom: '1px solid #f8fafc',
+                  }}
+                >
+                  <span style={{ color: '#64748b' }}>{label}</span>
+                  <strong style={{ color: '#0f172a' }}>{value}</strong>
+                </div>
+              ))}
             </div>
           </SCard>
         </div>
       </div>
 
+      {/* ── Bookings Per Day Chart ── */}
       <div style={{ marginBottom: 20 }}>
         <RevenueChart
           data={bookingChartData}
@@ -192,19 +413,39 @@ export default function LabReportsPage() {
           mode="bar"
           xAxisKey="date"
           dataKeys={[{ key: 'bookings', color: '#34d399', name: 'Bookings' }]}
-          height={260}
+          height={isMobile ? 200 : 260}
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16, marginBottom: 20 }}>
+      {/* ── Status Cards ── */}
+      <div className="rp-status-grid">
         <SCard title="Booking by Status">
           {!byStatus.length ? (
             <EmptyState text="No booking status data" />
           ) : (
             byStatus.map((item) => (
-              <div key={item.status} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f8fafc' }}>
-                <Badge variant={getStatusVariant(item.status)} size="sm">{item.status?.replace(/_/g, ' ')}</Badge>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{item.count}</span>
+              <div
+                key={item.status}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 0',
+                  borderBottom: '1px solid #f8fafc',
+                  gap: 8,
+                }}
+              >
+                <Badge variant={getStatusVariant(item.status)} size="sm">
+                  {item.status?.replace(/_/g, ' ')}
+                </Badge>
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  flexShrink: 0,
+                }}>
+                  {item.count}
+                </span>
               </div>
             ))
           )}
@@ -215,40 +456,115 @@ export default function LabReportsPage() {
             <EmptyState text="No lab workflow data" />
           ) : (
             byLabStatus.map((item) => (
-              <div key={item.status} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f8fafc' }}>
-                <span style={{ fontSize: 13, color: '#64748b', textTransform: 'capitalize' }}>{item.status.replace(/_/g, ' ')}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{item.count}</span>
+              <div
+                key={item.status}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 0',
+                  borderBottom: '1px solid #f8fafc',
+                  gap: 8,
+                }}
+              >
+                <span style={{
+                  fontSize: 13,
+                  color: '#64748b',
+                  textTransform: 'capitalize',
+                }}>
+                  {item.status.replace(/_/g, ' ')}
+                </span>
+                <span style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  flexShrink: 0,
+                }}>
+                  {item.count}
+                </span>
               </div>
             ))
           )}
         </SCard>
       </div>
 
-      <SCard title="Test Catalogue" action={<span style={{ fontSize: 12, color: '#94a3b8' }}>{tests.length} tests</span>}>
+      {/* ── Test Catalogue ── */}
+      <SCard
+        title="Test Catalogue"
+        action={
+          <span style={{ fontSize: 12, color: '#94a3b8' }}>
+            {tests.length} tests
+          </span>
+        }
+      >
         {!tests.length ? (
           <EmptyState text="No tests found for this lab" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {tests.map((t) => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: '1px solid #f8fafc', flexWrap: 'wrap' }}>
+              <div key={t.id} className="rp-test-row">
+                {/* Test Info */}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: '0 0 4px 0' }}>{t.name}</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {t.category && <span style={{ fontSize: 12, color: '#64748b' }}>{t.category}</span>}
-                    {t.sampleType && <span style={{ fontSize: 12, color: '#94a3b8' }}>{t.sampleType}</span>}
+                  <p style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#0f172a',
+                    margin: '0 0 4px',
+                    wordBreak: 'break-word',
+                  }}>
+                    {t.name}
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {t.category && (
+                      <span style={{ fontSize: 12, color: '#64748b' }}>
+                        {t.category}
+                      </span>
+                    )}
+                    {t.sampleType && (
+                      <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                        {t.sampleType}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                {/* Price + Badge */}
+                <div className="rp-test-price">
                   {t.discountedPrice ? (
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0 }}>₹{Number(t.discountedPrice).toLocaleString('en-IN')}</p>
-                      <p style={{ fontSize: 11, color: '#94a3b8', textDecoration: 'line-through', margin: 0 }}>₹{Number(t.price).toLocaleString('en-IN')}</p>
+                      <p style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        margin: 0,
+                      }}>
+                        ₹{Number(t.discountedPrice).toLocaleString('en-IN')}
+                      </p>
+                      <p style={{
+                        fontSize: 11,
+                        color: '#94a3b8',
+                        textDecoration: 'line-through',
+                        margin: 0,
+                      }}>
+                        ₹{Number(t.price).toLocaleString('en-IN')}
+                      </p>
                     </div>
                   ) : (
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0 }}>₹{Number(t.price || 0).toLocaleString('en-IN')}</p>
+                    <p style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      margin: 0,
+                    }}>
+                      ₹{Number(t.price || 0).toLocaleString('en-IN')}
+                    </p>
                   )}
-                  <Badge variant={t.isActive ? 'success' : 'danger'} size="sm">{t.isActive ? 'Active' : 'Off'}</Badge>
+                  <Badge
+                    variant={t.isActive ? 'success' : 'danger'}
+                    size="sm"
+                  >
+                    {t.isActive ? 'Active' : 'Off'}
+                  </Badge>
                 </div>
               </div>
             ))}
