@@ -1,8 +1,8 @@
 import PolicyLayout, { Section } from '@/components/PolicyLayout'
 
 export const metadata = {
-  title:       'Terms of Use | Statbook',
-  description: 'Terms of Use governing access to and use of the Statbook Platform — operated by Sectirmeld.',
+  title:       'Terms of Use | Medli',
+  description: 'Terms of Use governing access to and use of the Medli Platform — operated by Sectirmeld.',
 }
 
 export default function TermsOfUsePage() {
@@ -15,7 +15,7 @@ export default function TermsOfUsePage() {
     >
       <Section>
         <p>
-          Welcome to <strong>Statbook's Terms of Use</strong>.
+          Welcome to <strong>Medli's Terms of Use</strong>.
         </p>
         <p>
           These Terms of Use (<strong>"Terms"</strong>) govern your access to
@@ -25,11 +25,11 @@ export default function TermsOfUsePage() {
           Petlurivaripalem village, Narasaraopet Mandal, Palnadu District,
           Andhra Pradesh – 522603, India. The Company operates its digital
           healthcare facilitation platform under the brand name{' '}
-          <strong>"Statbook"</strong> (hereinafter referred to as{' '}
-          <strong>"Statbook"</strong> or the <strong>"Platform"</strong>).
+          <strong>"Medli"</strong> (hereinafter referred to as{' '}
+          <strong>"Medli"</strong> or the <strong>"Platform"</strong>).
         </p>
         <p>
-          Statbook is a technology-driven platform designed to enable users to
+          Medli is a technology-driven platform designed to enable users to
           discover healthcare service providers, including hospitals, doctors,
           and diagnostic laboratories, and to facilitate the booking of
           appointments, consultations, and related healthcare services in a
@@ -38,11 +38,11 @@ export default function TermsOfUsePage() {
         <p>
           For the purposes of these Terms, the term <strong>"Platform"</strong>{' '}
           shall mean and include the website accessible at{' '}
-          <a href="https://www.statbook.com" target="_blank" rel="noopener noreferrer">
-            www.statbook.com
+          <a href="https://www.medli.in" target="_blank" rel="noopener noreferrer">
+            www.medli.in
           </a>{' '}
           and any associated mobile applications, interfaces, or digital
-          platforms operated by the Company under the brand name Statbook.
+          platforms operated by the Company under the brand name Medli.
         </p>
         <p>
           By accessing, browsing, registering on, or using the Platform in any
@@ -113,8 +113,8 @@ export default function TermsOfUsePage() {
           <li>
             <strong>1.2.2 Platform</strong> — shall mean and refer to the
             digital healthcare facilitation platform owned and operated by the
-            Company under the brand name <strong>"Statbook"</strong>, including
-            the website accessible at www.statbook.com and any associated
+            Company under the brand name <strong>"Medli"</strong>, including
+            the website accessible at www.medli.in and any associated
             mobile applications, interfaces, or digital services made available
             by the Company.
           </li>
@@ -186,7 +186,7 @@ export default function TermsOfUsePage() {
       {/* ───────────────────────────────────────────────────────────── */}
       <Section title="2. Platform Overview">
         <p>
-          Statbook (<strong>"Platform"</strong>) is a technology-driven digital
+          Medli (<strong>"Platform"</strong>) is a technology-driven digital
           infrastructure owned and operated by Sectirmeld (
           <strong>"Company"</strong>), designed to facilitate access to
           healthcare-related services by connecting patients (
@@ -198,12 +198,12 @@ export default function TermsOfUsePage() {
         <p>
           The Platform functions as an <strong>intermediary and aggregator</strong>,
           enabling Users to discover, compare, and book healthcare services
-          offered by Service Providers. Statbook provides a unified interface
+          offered by Service Providers. Medli provides a unified interface
           for managing appointments, accessing healthcare-related information,
           and facilitating communication between Users and Service Providers.
         </p>
         <p>
-          Statbook does not own, operate, or control any hospitals, clinics,
+          Medli does not own, operate, or control any hospitals, clinics,
           laboratories, or medical establishments listed on the Platform. All
           Service Providers available through the Platform are independent
           third parties who are solely responsible for the services they offer,
@@ -221,7 +221,7 @@ export default function TermsOfUsePage() {
         <p>
           The Company's role is limited to providing the technological framework
           and support services necessary to enable such interactions. <strong>At no
-          point does Statbook provide medical advice, diagnosis, or
+          point does Medli provide medical advice, diagnosis, or
           treatment</strong>, nor does it create any doctor-patient,
           hospital-patient, or provider-patient relationship between the
           Company and the User.
@@ -246,7 +246,7 @@ export default function TermsOfUsePage() {
 
         <h3>3.1 Appointment Booking Services</h3>
         <p>
-          Statbook enables Users to search for and book appointments with
+          Medli enables Users to search for and book appointments with
           hospitals, clinics, and doctors listed on the Platform. Users may
           filter Service Providers based on factors such as location,
           specialization, availability, and type of consultation.
@@ -267,7 +267,7 @@ export default function TermsOfUsePage() {
           Service Provider.
         </p>
         <p>
-          Statbook's role is limited to enabling the scheduling and technical
+          Medli's role is limited to enabling the scheduling and technical
           facilitation of such consultations. The actual consultation,
           including the quality, accuracy, and outcome of medical advice, is
           the sole responsibility of the consulting doctor or healthcare
@@ -304,14 +304,14 @@ export default function TermsOfUsePage() {
         <p>
           The collection of samples, testing procedures, accuracy of results,
           and delivery of reports are the sole responsibility of the respective
-          laboratory. Statbook does not control or supervise the functioning of
+          laboratory. Medli does not control or supervise the functioning of
           such laboratories and disclaims all liability in relation to the
           same.
         </p>
 
         <h3>3.5 Search, Discovery, and Information Services</h3>
         <p>
-          Statbook provides Users with access to information relating to
+          Medli provides Users with access to information relating to
           Service Providers, including but not limited to:
         </p>
         <ul>
@@ -409,7 +409,7 @@ export default function TermsOfUsePage() {
         <p>
           In order to access and fully avail the services offered on the
           Platform, Users may be required to register and create an account on
-          Statbook. Registration enables Users to book appointments, manage
+          Medli. Registration enables Users to book appointments, manage
           consultations, access diagnostic services, and utilize other features
           made available on the Platform.
         </p>
@@ -1043,8 +1043,8 @@ export default function TermsOfUsePage() {
         </p>
         <p>
           You can report to{' '}
-          <a href="mailto:grievanceofficer@statbook.com">
-            grievanceofficer@statbook.com
+          <a href="mailto:grievanceofficer@medli.in">
+            grievanceofficer@medli.in
           </a>{' '}
           if you find any discrepancy with regard to Website or
           Content-related information and we will take necessary action
@@ -1382,8 +1382,8 @@ export default function TermsOfUsePage() {
           If you have any questions about these Terms of Use, the practices
           of the Website, or your experience, you can contact us by emailing
           us at{' '}
-          <a href="mailto:grievanceofficer@statbook.com">
-            grievanceofficer@statbook.com
+          <a href="mailto:grievanceofficer@medli.in">
+            grievanceofficer@medli.in
           </a>{' '}
           or by writing to us at:
         </p>

@@ -1,8 +1,8 @@
 import PolicyLayout, { Section } from '@/components/PolicyLayout'
 
 export const metadata = {
-  title:       'Privacy Policy | Statbook',
-  description: 'Privacy Policy of Statbook Platform — operated by Sectirmeld. Learn how we collect, use, and protect your personal data.',
+  title:       'Privacy Policy | Medli',
+  description: 'Privacy Policy of Medli Platform — operated by Sectirmeld. Learn how we collect, use, and protect your personal data.',
 }
 
 export default function PrivacyPolicyPage() {
@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
     >
       <Section>
         <p>
-          Welcome to the Privacy Policy of <strong>Statbook Platform</strong>.
+          Welcome to the Privacy Policy of <strong>Medli Platform</strong>.
         </p>
         <p>
           These Terms of Use (<strong>"Terms"</strong>) govern your access to and use
@@ -25,8 +25,8 @@ export default function PrivacyPolicyPage() {
           Petlurivaripalem village, Narasaraopet Mandal, Palnadu District,
           Andhra Pradesh – 522603, India. The Company operates its digital
           healthcare facilitation platform under the brand name{' '}
-          <strong>"Statbook"</strong> (hereinafter referred to as{' '}
-          <strong>"Statbook"</strong> or the <strong>"Platform"</strong>). The
+          <strong>"Medli"</strong> (hereinafter referred to as{' '}
+          <strong>"Medli"</strong> or the <strong>"Platform"</strong>). The
           Company is committed to safeguarding the privacy and confidentiality of
           personal data shared by Users. This Privacy Policy outlines the manner
           in which the Company collects, uses, processes, stores, and discloses
@@ -162,7 +162,7 @@ export default function PrivacyPolicyPage() {
           you. We shall immediately delete all such information upon withdrawal
           of your consent for the same through the <strong>'unsubscribe'</strong> button or
           through an email to be sent to{' '}
-          <a href="mailto:grievanceofficer@statbook.com">grievanceofficer@statbook.com</a>.
+          <a href="mailto:grievanceofficer@medli.in">grievanceofficer@medli.in</a>.
         </p>
         <p>
           To the extent possible, we provide you with an option of not divulging
@@ -883,8 +883,8 @@ export default function PrivacyPolicyPage() {
         <p>
           To withdraw your consent, or to request the download or delete your
           data with us for any or all our services at any time, please email to{' '}
-          <a href="mailto:grievanceofficer@statbook.com">
-            grievanceofficer@statbook.com
+          <a href="mailto:grievanceofficer@medli.in">
+            grievanceofficer@medli.in
           </a>
         </p>
       </Section>
@@ -942,7 +942,7 @@ export default function PrivacyPolicyPage() {
             </tr>
             <tr>
               <td><strong>Email</strong></td>
-              <td><a href="mailto:grievanceofficer@statbook.com">grievanceofficer@statbook.com</a></td>
+              <td><a href="mailto:grievanceofficer@medli.in">grievanceofficer@medli.in</a></td>
             </tr>
             <tr>
               <td><strong>Address</strong></td>

@@ -1,8 +1,8 @@
 import PolicyLayout, { Section } from '@/components/PolicyLayout'
 
 export const metadata = {
-  title:       'Admin Dashboard Usage Policy | Statbook',
-  description: 'Admin Dashboard Usage Policy for Healthcare Partners on the Statbook Platform — operated by Sectirmeld.',
+  title:       'Admin Dashboard Usage Policy | Medli',
+  description: 'Admin Dashboard Usage Policy for Healthcare Partners on the Medli Platform — operated by Sectirmeld.',
 }
 
 export default function AdminPolicyPage() {
@@ -24,7 +24,7 @@ export default function AdminPolicyPage() {
           <p style={{ margin: 0, fontSize: 13, color: '#475569', lineHeight: 1.7 }}>
             <strong style={{ color: '#4f46e5' }}>📌 Important:</strong> This Policy
             applies exclusively to <strong>Healthcare Partners</strong> (Hospitals,
-            Labs, Doctors, and authorized administrators) accessing the Statbook
+            Labs, Doctors, and authorized administrators) accessing the Medli
             Admin Dashboard. End users / patients should refer to our{' '}
             <a href="/terms" style={{ color: '#6366f1', fontWeight: 600 }}>
               Terms of Service
@@ -40,7 +40,7 @@ export default function AdminPolicyPage() {
           This <strong>Admin Dashboard Usage Policy</strong> (
           <strong>"Policy"</strong>) governs access to and use of the
           administrative interface (<strong>"Admin Dashboard"</strong>) made
-          available on the Statbook platform operated by{' '}
+          available on the Medli platform operated by{' '}
           <strong>Sectirmeld</strong> (<strong>"Company"</strong>).
         </p>
         <p>
@@ -516,7 +516,7 @@ export default function AdminPolicyPage() {
             marginLeft: 'auto',
             marginRight: 'auto',
           }}>
-            By accessing or using the Statbook Admin Dashboard, the Partner
+            By accessing or using the Medli Admin Dashboard, the Partner
             confirms that it has read, understood, and agreed to be bound by
             this Policy in its entirety, in addition to the Partner
             Agreement.

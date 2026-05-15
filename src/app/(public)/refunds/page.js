@@ -1,8 +1,8 @@
 import PolicyLayout, { Section } from '@/components/PolicyLayout'
 
 export const metadata = {
-  title:       'Payment, Cancellation & Refund Policy | Statbook',
-  description: 'Payment, Cancellation & Refund Policy of Statbook Healthcare Platform — operated by Sectirmeld.',
+  title:       'Payment, Cancellation & Refund Policy | Medli',
+  description: 'Payment, Cancellation & Refund Policy of Medli Healthcare Platform — operated by Sectirmeld.',
 }
 
 export default function RefundPolicyPage() {
@@ -15,7 +15,7 @@ export default function RefundPolicyPage() {
     >
       <Section>
         <p style={{ fontSize: 14, color: '#64748b', fontStyle: 'italic', marginBottom: 24 }}>
-          Statbook Healthcare Platform — Operated by Sectirmeld
+          Medli Healthcare Platform — Operated by Sectirmeld
         </p>
       </Section>
 
@@ -25,7 +25,7 @@ export default function RefundPolicyPage() {
           This Payment, Cancellation & Refund Policy (<strong>"Policy"</strong>)
           forms an integral part of the Terms of Service and governs all
           payments, cancellations, refunds, and related financial transactions
-          undertaken on the Statbook platform, including its website, mobile
+          undertaken on the Medli platform, including its website, mobile
           application, and associated services (collectively, the{' '}
           <strong>"Platform"</strong>), operated by{' '}
           <strong>Sectirmeld</strong> (<strong>"Company"</strong>,{' '}
@@ -346,7 +346,7 @@ export default function RefundPolicyPage() {
             </tr>
             <tr>
               <td><strong>Email</strong></td>
-              <td><a href="mailto:grievanceofficer@statbook.com">grievanceofficer@statbook.com</a></td>
+              <td><a href="mailto:grievanceofficer@medli.in">grievanceofficer@medli.in</a></td>
             </tr>
             <tr>
               <td><strong>Address</strong></td>
