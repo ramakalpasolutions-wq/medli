@@ -8,32 +8,28 @@ import Badge       from '@/components/ui/Badge'
 import Modal       from '@/components/ui/Modal'
 import { useToast } from '@/context/ToastContext'
 
-// ✅ Use credentials cookie — consistent with all other admin pages
 const fetcher = (url) =>
   fetch(url, { credentials: 'include' })
     .then((r) => r.json())
-    .then((j) => j.data)  // returns { payments: [], pagination: {} }
+    .then((j) => j.data)
 
 const KF = `@keyframes py-spin { to { transform: rotate(360deg) } }`
 
 const PAYMENT_BADGE = {
-  created: 'neutral',
-  success: 'success',
-  failure: 'danger',
-  timeout: 'warning',
-  pending: 'info',
+  created:    'neutral',
+  authorized: 'info',
+  captured:   'success',
+  refunded:   'purple',
+  failed:     'danger',
 }
 
-/* ─── Filter Select ──────────────────────────────────────────────────── */
 function FilterSelect({ value, onChange, children }) {
   const [f, setF] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
       <select
-        value={value}
-        onChange={onChange}
-        onFocus={() => setF(true)}
-        onBlur={() => setF(false)}
+        value={value} onChange={onChange}
+        onFocus={() => setF(true)} onBlur={() => setF(false)}
         style={{
           padding: '10px 30px 10px 12px', fontSize: 13, fontFamily: 'inherit',
           borderRadius: 12, border: `1.5px solid ${f ? '#6366f1' : '#e2e8f0'}`,
@@ -42,9 +38,7 @@ function FilterSelect({ value, onChange, children }) {
           transition: 'all .15s ease',
           boxShadow: f ? '0 0 0 3px rgba(99,102,241,0.12)' : '0 1px 3px rgba(0,0,0,0.06)',
         }}
-      >
-        {children}
-      </select>
+      >{children}</select>
       <span style={{
         position: 'absolute', right: 10, top: '50%',
         transform: 'translateY(-50%)', fontSize: 11,
@@ -54,16 +48,12 @@ function FilterSelect({ value, onChange, children }) {
   )
 }
 
-/* ─── Date Input ─────────────────────────────────────────────────────── */
 function DateInput({ value, onChange }) {
   const [f, setF] = useState(false)
   return (
     <input
-      type="date"
-      value={value}
-      onChange={onChange}
-      onFocus={() => setF(true)}
-      onBlur={() => setF(false)}
+      type="date" value={value} onChange={onChange}
+      onFocus={() => setF(true)} onBlur={() => setF(false)}
       style={{
         padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
         borderRadius: 12, border: `1.5px solid ${f ? '#6366f1' : '#e2e8f0'}`,
@@ -75,77 +65,62 @@ function DateInput({ value, onChange }) {
   )
 }
 
-/* ─── Verify Button ──────────────────────────────────────────────────── */
 function VerifyBtn({ onClick, loading: isLoading, disabled }) {
   const [h, setH] = useState(false)
   const off = isLoading || disabled
   return (
-    <button
-      onClick={onClick}
-      disabled={off}
-      onMouseEnter={() => !off && setH(true)}
-      onMouseLeave={() => setH(false)}
+    <button onClick={onClick} disabled={off}
+      onMouseEnter={() => !off && setH(true)} onMouseLeave={() => setH(false)}
       style={{
         padding: '5px 10px', borderRadius: 100,
         border: `1.5px solid ${h ? '#6366f1' : 'rgba(99,102,241,0.3)'}`,
         background: h ? 'rgba(99,102,241,0.1)' : 'transparent',
         color: '#6366f1', fontSize: 11, fontWeight: 600,
-        cursor: off ? 'not-allowed' : 'pointer',
-        opacity: off ? 0.5 : 1,
+        cursor: off ? 'not-allowed' : 'pointer', opacity: off ? 0.5 : 1,
         transition: 'all .13s ease',
         display: 'flex', alignItems: 'center', gap: 4,
-      }}
-    >
-      {isLoading && (
-        <span style={{
-          width: 11, height: 11, borderRadius: '50%',
-          border: '2px solid #6366f1', borderTopColor: 'transparent',
-          animation: 'py-spin .7s linear infinite', display: 'inline-block',
-        }} />
-      )}
+      }}>
+      {isLoading && (<span style={{
+        width: 11, height: 11, borderRadius: '50%',
+        border: '2px solid #6366f1', borderTopColor: 'transparent',
+        animation: 'py-spin .7s linear infinite', display: 'inline-block',
+      }} />)}
       {isLoading ? 'Verifying…' : 'Verify'}
     </button>
   )
 }
 
-/* ─── View Button ────────────────────────────────────────────────────── */
 function ViewBtn({ onClick }) {
   const [h, setH] = useState(false)
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
+    <button onClick={onClick}
+      onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
       style={{
         padding: '4px 9px', borderRadius: 7, border: 'none',
         background: h ? '#f1f5f9' : 'transparent',
         color: '#6366f1', fontSize: 11, fontWeight: 600,
         cursor: 'pointer', transition: 'background .13s ease',
-      }}
-    >
+      }}>
       👁 View
     </button>
   )
 }
 
-/* ─── Payment Detail Modal ───────────────────────────────────────────── */
 function PaymentDetail({ payment: p }) {
   const statusVariant = PAYMENT_BADGE[p.status] || 'neutral'
-  const statusEmoji   = p.status === 'success' ? '✅' : p.status === 'failure' ? '❌' : p.status === 'timeout' ? '⏰' : p.status === 'pending' ? '⏳' : '🔵'
+  const statusEmoji   = p.status === 'captured' ? '✅' : p.status === 'failed' ? '❌' : p.status === 'authorized' ? '🔐' : p.status === 'refunded' ? '↩️' : '🔵'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-      {/* Status banner */}
       <div style={{
         padding: '14px 16px', borderRadius: 14,
-        background: p.status === 'success' ? '#f0fdf4'
-          : p.status === 'failure' ? '#fff1f2'
-          : p.status === 'timeout' ? '#fffbeb' : '#f0f9ff',
+        background: p.status === 'captured' ? '#f0fdf4'
+          : p.status === 'failed' ? '#fff1f2'
+          : p.status === 'refunded' ? '#faf5ff' : '#f0f9ff',
         border: `1px solid ${
-          p.status === 'success' ? '#bbf7d0'
-          : p.status === 'failure' ? '#fecaca'
-          : p.status === 'timeout' ? '#fde68a' : '#bae6fd'
+          p.status === 'captured' ? '#bbf7d0'
+          : p.status === 'failed' ? '#fecaca'
+          : p.status === 'refunded' ? '#e9d5ff' : '#bae6fd'
         }`,
         display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
       }}>
@@ -153,8 +128,8 @@ function PaymentDetail({ payment: p }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
             <Badge variant={statusVariant} size="sm">{p.status?.toUpperCase()}</Badge>
-            {p.onePayInstrumentType && (
-              <Badge variant="neutral" size="sm">{p.onePayInstrumentType}</Badge>
+            {p.razorpayInstrumentType && (
+              <Badge variant="neutral" size="sm">{p.razorpayInstrumentType}</Badge>
             )}
           </div>
           <p style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -163,7 +138,6 @@ function PaymentDetail({ payment: p }) {
         </div>
       </div>
 
-      {/* Transaction IDs */}
       <div style={{
         background: '#f8fafc', borderRadius: 14,
         border: '1px solid #e2e8f0', overflow: 'hidden',
@@ -175,11 +149,11 @@ function PaymentDetail({ payment: p }) {
         </div>
         <div style={{ padding: '4px 0' }}>
           {[
-            { l: 'Transaction ID (TxnId)', v: p.onePayTxnId     || '—', mono: true },
-            { l: 'PG Reference ID',        v: p.onePayPgRefId   || '—', mono: true },
-            { l: 'Bank Reference',         v: p.onePayBankRefId || '—', mono: true },
-            { l: 'Booking ID',             v: p.bookingId       || '—', mono: true },
-            { l: 'User ID',                v: p.userId          || '—', mono: true },
+            { l: 'Razorpay Order ID',    v: p.razorpayOrderId    || '—', mono: true },
+            { l: 'Razorpay Payment ID',  v: p.razorpayPaymentId  || '—', mono: true },
+            { l: 'Bank Reference (UTR)', v: p.razorpayBankRefId  || '—', mono: true },
+            { l: 'Booking ID',           v: p.bookingId          || '—', mono: true },
+            { l: 'User ID',              v: p.userId             || '—', mono: true },
           ].map((row) => (
             <div key={row.l} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -191,15 +165,12 @@ function PaymentDetail({ payment: p }) {
                 fontSize: 11, fontWeight: 600, color: '#1e293b',
                 fontFamily: row.mono ? 'monospace' : 'inherit',
                 wordBreak: 'break-all', textAlign: 'right', maxWidth: '60%',
-              }}>
-                {row.v}
-              </span>
+              }}>{row.v}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Payment info grid */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -207,12 +178,11 @@ function PaymentDetail({ payment: p }) {
       }}>
         <InfoBox label="💰 Amount"     value={p.amount ? `₹${Number(p.amount).toLocaleString('en-IN')}` : '—'} />
         <InfoBox label="💱 Currency"   value={p.currency || 'INR'} />
-        <InfoBox label="🏧 Instrument" value={p.onePayInstrumentType || '—'} />
+        <InfoBox label="🏧 Instrument" value={p.razorpayInstrumentType || '—'} />
         <InfoBox label="📅 Date"       value={new Date(p.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' })} />
       </div>
 
-      {/* Failure message */}
-      {p.onePayFailureMsg && (
+      {p.razorpayFailureReason && (
         <div style={{
           background: '#fff1f2', border: '1px solid #fecaca',
           borderRadius: 12, padding: '12px 16px',
@@ -220,11 +190,10 @@ function PaymentDetail({ payment: p }) {
           <p style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', margin: '0 0 4px' }}>
             ⚠️ Failure Reason
           </p>
-          <p style={{ fontSize: 12, color: '#991b1b', margin: 0 }}>{p.onePayFailureMsg}</p>
+          <p style={{ fontSize: 12, color: '#991b1b', margin: 0 }}>{p.razorpayFailureReason}</p>
         </div>
       )}
 
-      {/* Refunds */}
       {p.refunds?.length > 0 && (
         <div>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
@@ -260,11 +229,10 @@ function PaymentDetail({ payment: p }) {
         </div>
       )}
 
-      {/* Callback data */}
-      {p.callbackData && (
+      {p.webhookPayload && (
         <div>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-            📦 Gateway Callback Data
+            📦 Razorpay Webhook Payload
           </p>
           <pre style={{
             background: '#0f172a', color: '#e2e8f0', borderRadius: 12,
@@ -272,12 +240,11 @@ function PaymentDetail({ payment: p }) {
             overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
             margin: 0, maxHeight: 200, overflowY: 'auto',
           }}>
-            {JSON.stringify(p.callbackData, null, 2)}
+            {JSON.stringify(p.webhookPayload, null, 2)}
           </pre>
         </div>
       )}
 
-      {/* Payment ID */}
       <div style={{
         padding: '10px 14px', background: '#f8fafc',
         borderRadius: 12, border: '1px solid #e2e8f0',
@@ -307,7 +274,6 @@ function IDRow({ label, value }) {
   )
 }
 
-/* ─── Main Page ──────────────────────────────────────────────────────── */
 export default function PaymentsPage() {
   const toast = useToast()
 
@@ -329,21 +295,20 @@ export default function PaymentsPage() {
     { revalidateOnFocus: false }
   )
 
-  // ✅ Correctly read from paginatedResponse shape
   const payments   = data?.payments   || []
   const totalPages = data?.pagination?.totalPages || 1
   const total      = data?.pagination?.total      || 0
 
-  const handleVerify = async (txnId) => {
-    if (!txnId) return
-    setVerifyingId(txnId)
+  const handleVerify = async (paymentId) => {
+    if (!paymentId) return
+    setVerifyingId(paymentId)
     try {
-      const res  = await fetch(`/api/payments/verify/${txnId}`, {
+      const res  = await fetch(`/api/payments/verify/${paymentId}`, {
         credentials: 'include',
       })
       const json = await res.json()
       json.success
-        ? toast.success('Status synced from 1Pay')
+        ? toast.success('Status synced from Razorpay')
         : toast.error(json.error || 'Verification failed')
       mutate()
     } catch {
@@ -355,8 +320,8 @@ export default function PaymentsPage() {
 
   const columns = [
     {
-      key:    'onePayTxnId',
-      header: 'Transaction ID',
+      key:    'razorpayOrderId',
+      header: 'Order ID',
       render: (v) => (
         <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#475569' }}>
           {v || '—'}
@@ -364,8 +329,8 @@ export default function PaymentsPage() {
       ),
     },
     {
-      key:    'onePayPgRefId',
-      header: 'PG Reference',
+      key:    'razorpayPaymentId',
+      header: 'Payment ID',
       render: (v) => (
         <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#475569' }}>
           {v || '—'}
@@ -373,7 +338,7 @@ export default function PaymentsPage() {
       ),
     },
     {
-      key:    'onePayInstrumentType',
+      key:    'razorpayInstrumentType',
       header: 'Instrument',
       render: (v) => (
         <span style={{ fontSize: 12, textTransform: 'capitalize', color: '#64748b' }}>
@@ -415,9 +380,9 @@ export default function PaymentsPage() {
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <ViewBtn onClick={() => setViewItem(row)} />
           <VerifyBtn
-            onClick={() => handleVerify(row.onePayTxnId)}
-            loading={verifyingId === row.onePayTxnId}
-            disabled={!row.onePayTxnId}
+            onClick={() => handleVerify(row.razorpayPaymentId)}
+            loading={verifyingId === row.razorpayPaymentId}
+            disabled={!row.razorpayPaymentId}
           />
         </div>
       ),
@@ -430,14 +395,13 @@ export default function PaymentsPage() {
 
       <AdminHeader
         title="Payments"
-        subtitle={`${total} transaction${total !== 1 ? 's' : ''} · 1Pay gateway`}
+        subtitle={`${total} transaction${total !== 1 ? 's' : ''} · Razorpay gateway`}
         breadcrumbs={[
           { label: 'Dashboard', href: '/super-admin/dashboard' },
           { label: 'Payments' },
         ]}
       />
 
-      {/* ── Filters ── */}
       <div style={{
         display: 'flex', flexWrap: 'wrap', gap: 10,
         marginBottom: 16, alignItems: 'center',
@@ -448,21 +412,15 @@ export default function PaymentsPage() {
         >
           <option value="">All Statuses</option>
           <option value="created">Created</option>
-          <option value="success">Success</option>
-          <option value="failure">Failed</option>
-          <option value="timeout">Timeout</option>
-          <option value="pending">Pending</option>
+          <option value="authorized">Authorized</option>
+          <option value="captured">Captured</option>
+          <option value="refunded">Refunded</option>
+          <option value="failed">Failed</option>
         </FilterSelect>
 
-        <DateInput
-          value={dateFrom}
-          onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-        />
+        <DateInput value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} />
         <span style={{ fontSize: 13, color: '#94a3b8' }}>to</span>
-        <DateInput
-          value={dateTo}
-          onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-        />
+        <DateInput value={dateTo}   onChange={(e) => { setDateTo(e.target.value);   setPage(1) }} />
 
         {(status || dateFrom || dateTo) && (
           <button
@@ -479,14 +437,13 @@ export default function PaymentsPage() {
         )}
       </div>
 
-      {/* ── Status legend ── */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         {[
-          { label: 'Success', variant: 'success' },
-          { label: 'Failed',  variant: 'danger'  },
-          { label: 'Timeout', variant: 'warning' },
-          { label: 'Pending', variant: 'info'    },
-          { label: 'Created', variant: 'neutral' },
+          { label: 'Captured',   variant: 'success' },
+          { label: 'Authorized', variant: 'info'    },
+          { label: 'Refunded',   variant: 'purple'  },
+          { label: 'Failed',     variant: 'danger'  },
+          { label: 'Created',    variant: 'neutral' },
         ].map((item) => (
           <Badge key={item.label} variant={item.variant} size="sm">
             {item.label}
@@ -494,7 +451,6 @@ export default function PaymentsPage() {
         ))}
       </div>
 
-      {/* ── Table ── */}
       <DataTable
         columns={columns}
         data={payments}
@@ -506,7 +462,6 @@ export default function PaymentsPage() {
         emptyMessage="Payments will appear here once transactions are initiated"
       />
 
-      {/* ── View Detail Modal ── */}
       <Modal
         open={!!viewItem}
         onClose={() => setViewItem(null)}
@@ -517,4 +472,4 @@ export default function PaymentsPage() {
       </Modal>
     </>
   )
-} 
+}
