@@ -262,8 +262,16 @@ export default function HospitalSettlements() {
   const [dlId,       setDlId]       = useState(null)
   const [viewItem,   setViewItem]   = useState(null)
   const [bankForm,   setBankForm]   = useState({
-    accountHolderName: '', accountNumber: '', ifscCode: '', bankName: '', upiId: '',
-  })
+  accountHolderName: '',
+  accountNumber:     '',
+  ifscCode:          '',
+  bankName:          '',
+  branchName:        '',
+  accountType:       'current',
+  upiId:             '',
+  panNumber:         '',
+  gstin:             '',
+})
 
   const { data: hospitalData }                       = useSWR('/api/hospitals?adminOnly=true', fetcher)
   const hospital                                     = hospitalData?.hospitals?.[0]
@@ -299,29 +307,62 @@ export default function HospitalSettlements() {
   }
 
   const saveBankAccount = async () => {
-    if (!hospitalId) { toast.error('Hospital not found'); return }
-    if (!bankForm.accountNumber || !bankForm.ifscCode) {
-      toast.error('Account number and IFSC code are required')
-      return
-    }
-    setBankSaving(true)
-    try {
-      const res  = await fetch(`/api/hospitals/${hospitalId}/bank-account`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(bankForm),
-      })
-      const json = await res.json()
-      if (json.success) {
-        toast.success('Bank account saved')
-        setBankOpen(false)
-        mutatePending()
-      } else {
-        toast.error(json.error || 'Failed to save')
-      }
-    } catch { toast.error('Network error') }
-    finally { setBankSaving(false) }
+  if (!hospitalId) { toast.error('Hospital not found'); return }
+
+  /* ── Validate required ── */
+  if (!bankForm.accountHolderName.trim()) {
+    toast.error('Account holder name is required'); return
   }
+  if (!bankForm.accountNumber.trim()) {
+    toast.error('Account number is required'); return
+  }
+  if (!/^\d{9,18}$/.test(bankForm.accountNumber.replace(/\s/g, ''))) {
+    toast.error('Account number must be 9–18 digits'); return
+  }
+  if (!bankForm.ifscCode.trim()) {
+    toast.error('IFSC code is required'); return
+  }
+  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankForm.ifscCode.toUpperCase())) {
+    toast.error('Invalid IFSC format (e.g., SBIN0001234)'); return
+  }
+
+  /* ── Validate optional ── */
+  if (bankForm.panNumber && !/^[A-Z]{5}\d{4}[A-Z]$/.test(bankForm.panNumber.toUpperCase())) {
+    toast.error('Invalid PAN format (e.g., ABCDE1234F)'); return
+  }
+  if (bankForm.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[A-Z]\d$/.test(bankForm.gstin.toUpperCase())) {
+    toast.error('Invalid GSTIN format'); return
+  }
+
+  setBankSaving(true)
+  try {
+    const res  = await fetch(`/api/hospitals/${hospitalId}/bank-account`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        accountHolderName: bankForm.accountHolderName.trim(),
+        accountNumber:     bankForm.accountNumber.replace(/\s/g, ''),
+        ifscCode:          bankForm.ifscCode.toUpperCase(),
+        bankName:          bankForm.bankName.trim() || undefined,
+        branchName:        bankForm.branchName.trim() || undefined,
+        accountType:       bankForm.accountType,
+        upiId:             bankForm.upiId.trim() || undefined,
+        panNumber:         bankForm.panNumber.toUpperCase().trim() || undefined,
+        gstin:             bankForm.gstin.toUpperCase().trim() || undefined,
+      }),
+    })
+    const json = await res.json()
+    if (json.success) {
+      toast.success(json.message || '✅ Bank account saved')
+      setBankOpen(false)
+      mutatePending()
+    } else {
+      toast.error(json.error || 'Failed to save')
+    }
+  } catch { toast.error('Network error') }
+  finally { setBankSaving(false) }
+}
 
   const cols = [
     {
@@ -521,79 +562,167 @@ export default function HospitalSettlements() {
       </Modal>
 
       {/* Bank Account Modal */}
-      <Modal open={bankOpen} onClose={() => setBankOpen(false)} title="Update Bank Account" size="md">
-        <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-          Settlement amounts will be transferred directly to this account.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <BInput
-            label="Account Holder Name *"
-            value={bankForm.accountHolderName}
-            onChange={(e) => setBankForm((f) => ({ ...f, accountHolderName: e.target.value }))}
-            placeholder="As per bank records"
-          />
-          <BInput
-            label="Account Number *"
-            value={bankForm.accountNumber}
-            onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value }))}
-          />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-            <BInput
-              label="IFSC Code *"
-              value={bankForm.ifscCode}
-              onChange={(e) => setBankForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase() }))}
-              placeholder="SBIN0001234"
-            />
-            <BInput
-              label="Bank Name"
-              value={bankForm.bankName}
-              onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
-            />
-          </div>
-          <BInput
-            label="UPI ID (Optional)"
-            value={bankForm.upiId}
-            onChange={(e) => setBankForm((f) => ({ ...f, upiId: e.target.value }))}
-            placeholder="name@upi"
-          />
+    {/* Bank Account Modal */}
+<Modal open={bankOpen} onClose={() => setBankOpen(false)} title="Update Bank Account" size="md">
+  <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
+    Settlement amounts will be transferred directly to this account.
+    Fields marked with <span style={{ color: '#ef4444' }}>*</span> are required.
+  </p>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-            <button
-              onClick={() => setBankOpen(false)}
-              style={{
-                flex: 1, padding: '11px', borderRadius: 12,
-                border: '1.5px solid #e2e8f0', background: '#fff',
-                color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveBankAccount}
-              disabled={bankSaving}
-              style={{
-                flex: 1, padding: '11px', borderRadius: 12, border: 'none',
-                background: bankSaving
-                  ? '#e2e8f0'
-                  : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-                color: bankSaving ? '#94a3b8' : '#fff',
-                fontSize: 13, fontWeight: 600,
-                cursor: bankSaving ? 'not-allowed' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              {bankSaving && (
-                <span style={{
-                  width: 14, height: 14, borderRadius: '50%',
-                  border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
-                  animation: 'sl-spin .7s linear infinite', display: 'inline-block',
-                }} />
-              )}
-              Save Bank Account
-            </button>
-          </div>
-        </div>
-      </Modal>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+    {/* ── Required fields ── */}
+    <BInput
+      label="Account Holder Name *"
+      value={bankForm.accountHolderName}
+      onChange={(e) => setBankForm((f) => ({ ...f, accountHolderName: e.target.value }))}
+      placeholder="As per bank records"
+    />
+
+    <BInput
+      label="Account Number *"
+      value={bankForm.accountNumber}
+      onChange={(e) => setBankForm((f) => ({
+        ...f,
+        accountNumber: e.target.value.replace(/\D/g, '').slice(0, 18),
+      }))}
+      placeholder="9 to 18 digits"
+    />
+
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+      <BInput
+        label="IFSC Code *"
+        value={bankForm.ifscCode}
+        onChange={(e) => setBankForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase().slice(0, 11) }))}
+        placeholder="SBIN0001234"
+      />
+      <BInput
+        label="Bank Name"
+        value={bankForm.bankName}
+        onChange={(e) => setBankForm((f) => ({ ...f, bankName: e.target.value }))}
+        placeholder="State Bank of India"
+      />
+    </div>
+
+    {/* ── Branch + Account Type ── */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+      <BInput
+        label="Branch Name"
+        value={bankForm.branchName}
+        onChange={(e) => setBankForm((f) => ({ ...f, branchName: e.target.value }))}
+        placeholder="e.g., Guntur Main"
+      />
+
+      {/* Account Type Select */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+          Account Type
+        </label>
+        <select
+          value={bankForm.accountType}
+          onChange={(e) => setBankForm((f) => ({ ...f, accountType: e.target.value }))}
+          style={{
+            padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
+            borderRadius: 12, border: '1.5px solid #e2e8f0',
+            background: '#fff', color: '#0f172a',
+            outline: 'none', cursor: 'pointer',
+            boxSizing: 'border-box', appearance: 'none',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+          }}
+        >
+          <option value="current">Current</option>
+          <option value="savings">Savings</option>
+        </select>
+      </div>
+    </div>
+
+    {/* ── UPI ── */}
+    <BInput
+      label="UPI ID (Optional)"
+      value={bankForm.upiId}
+      onChange={(e) => setBankForm((f) => ({ ...f, upiId: e.target.value }))}
+      placeholder="hospitalname@upi"
+    />
+
+    {/* ── Tax info ── */}
+    <div style={{
+      padding: 12, background: 'rgba(99,102,241,0.04)',
+      borderRadius: 12, border: '1px solid rgba(99,102,241,0.12)',
+    }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', margin: '0 0 10px',
+        textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        📋 Tax Information (Optional)
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <BInput
+          label="PAN Number"
+          value={bankForm.panNumber}
+          onChange={(e) => setBankForm((f) => ({
+            ...f, panNumber: e.target.value.toUpperCase().slice(0, 10),
+          }))}
+          placeholder="ABCDE1234F"
+        />
+        <BInput
+          label="GSTIN"
+          value={bankForm.gstin}
+          onChange={(e) => setBankForm((f) => ({
+            ...f, gstin: e.target.value.toUpperCase().slice(0, 15),
+          }))}
+          placeholder="22AAAAA0000A1Z5"
+        />
+      </div>
+    </div>
+
+    {/* ── Action Buttons ── */}
+    <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+      <button
+        onClick={() => setBankOpen(false)}
+        disabled={bankSaving}
+        style={{
+          flex: 1, padding: '11px', borderRadius: 12,
+          border: '1.5px solid #e2e8f0', background: '#fff',
+          color: '#475569', fontSize: 13, fontWeight: 600,
+          cursor: bankSaving ? 'not-allowed' : 'pointer',
+        }}
+      >
+        Cancel
+      </button>
+      <button
+        onClick={saveBankAccount}
+        disabled={bankSaving}
+        style={{
+          flex: 1, padding: '11px', borderRadius: 12, border: 'none',
+          background: bankSaving
+            ? '#e2e8f0'
+            : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          color: bankSaving ? '#94a3b8' : '#fff',
+          fontSize: 13, fontWeight: 600,
+          cursor: bankSaving ? 'not-allowed' : 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}
+      >
+        {bankSaving && (
+          <span style={{
+            width: 14, height: 14, borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+            animation: 'sl-spin .7s linear infinite', display: 'inline-block',
+          }} />
+        )}
+        💾 Save Bank Account
+      </button>
+    </div>
+
+    {/* ⚠️ Re-verification notice */}
+    <div style={{
+      background: 'rgba(245,158,11,0.08)',
+      border: '1px solid rgba(245,158,11,0.25)',
+      borderRadius: 10, padding: '8px 12px',
+      fontSize: 11, color: '#92400e',
+    }}>
+      ⚠️ Note: After updating bank details, super admin will need to re-verify the account before settlements can be processed.
+    </div>
+  </div>
+</Modal>
     </>
   )
 }

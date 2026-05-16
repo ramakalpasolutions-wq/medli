@@ -53,9 +53,8 @@ function TransferInstructionsModal({ isOpen, onClose, data }) {
     { label: 'Account Type', value: data.accountType                            },
     { label: 'Reference',    value: data.referenceNote,    canCopy: true, highlight: true },
   ].filter((r) => r.value)
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Bank Transfer Instructions" size="md">
+return (
+  <Modal open={isOpen} onClose={onClose} title="Bank Transfer Instructions" size="md">
       <div style={{ padding: '0 24px 24px' }}>
         <div style={{
           background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12,
@@ -148,6 +147,8 @@ function TransferInstructionsModal({ isOpen, onClose, data }) {
 
 // ─── Confirm UTR Modal ────────────────────────────────────────────────────────
 
+// ─── Confirm UTR Modal ────────────────────────────────────────────────────────
+
 function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
   const toast = useToast()
   const [utrNumber,    setUtrNumber]    = useState('')
@@ -159,25 +160,66 @@ function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
   }, [isOpen])
 
   const handleConfirm = async () => {
-    if (!utrNumber.trim()) { toast.error('Please enter the UTR number'); return }
+    /* ── Validate UTR ── */
+    const cleaned = utrNumber.trim().toUpperCase()
+
+    if (!cleaned) {
+      toast.error('Please enter the UTR number')
+      return
+    }
+    if (cleaned.length < 6) {
+      toast.error('UTR number must be at least 6 characters')
+      return
+    }
+    if (cleaned.length > 30) {
+      toast.error('UTR number is too long (max 30 characters)')
+      return
+    }
+    /* UTR is alphanumeric — letters and digits only */
+    if (!/^[A-Z0-9]+$/.test(cleaned)) {
+      toast.error('UTR can only contain letters and numbers')
+      return
+    }
+
+    if (!settlement?.id) {
+      toast.error('Settlement information missing')
+      return
+    }
+
+    console.log('[confirm-settlement] Submitting:', {
+      settlementId: settlement.id,
+      utrNumber:    cleaned,
+      transferMode,
+    })
+
     setLoading(true)
     try {
       const res  = await fetch(`/api/settlements/${settlement.id}/confirm`, {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body:        JSON.stringify({ utrNumber: utrNumber.trim(), transferMode }),
+        body:        JSON.stringify({
+          utrNumber:    cleaned,
+          transferMode,
+        }),
       })
-      const json = await res.json()
+
+      console.log('[confirm-settlement] Response status:', res.status)
+
+      const json = await res.json().catch(() => ({}))
+      console.log('[confirm-settlement] Response body:', json)
+
       if (!json.success) {
-        toast.error(json.error || 'Failed to confirm settlement')
+        toast.error(json.error || `Failed (HTTP ${res.status})`)
         return
       }
-      toast.success(`Settlement confirmed! UTR: ${utrNumber.trim()}`)
+
+      toast.success(`✅ Settlement confirmed! UTR: ${cleaned}`)
       onConfirmed()
       onClose()
-    } catch {
-      toast.error('Failed to confirm settlement')
+    } catch (err) {
+      console.error('[confirm-settlement] Network error:', err)
+      toast.error(`Network error: ${err.message || 'Unknown'}`)
     } finally {
       setLoading(false)
     }
@@ -190,10 +232,11 @@ function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
     borderRadius: 10, boxSizing: 'border-box',
     border: '1.5px solid #e2e8f0', outline: 'none',
     background: '#fff', transition: 'border-color .15s ease',
+    fontFamily: 'inherit',
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Confirm Settlement" size="sm">
+    <Modal open={isOpen} onClose={onClose} title="Confirm Settlement" size="sm">
       <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{
           background: '#f8fafc', borderRadius: 12, padding: '12px 16px',
@@ -225,11 +268,19 @@ function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
           </label>
           <input
             type="text"
-            placeholder="Enter UTR number from your bank"
+            placeholder="e.g., NEFT12345ABCXYZ"
             value={utrNumber}
-            onChange={(e) => setUtrNumber(e.target.value)}
-            style={{ ...inputStyle, fontFamily: 'monospace' }}
+            onChange={(e) => setUtrNumber(e.target.value.toUpperCase())}
+            disabled={loading}
+            style={{ ...inputStyle, fontFamily: 'monospace', textTransform: 'uppercase' }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleConfirm()
+            }}
+            autoFocus
           />
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+            Found in your bank statement after the transfer (6–30 alphanumeric chars)
+          </p>
         </div>
 
         <div>
@@ -242,6 +293,7 @@ function ConfirmUTRModal({ isOpen, onClose, settlement, onConfirmed }) {
           <select
             value={transferMode}
             onChange={(e) => setTransferMode(e.target.value)}
+            disabled={loading}
             style={{ ...inputStyle, cursor: 'pointer', appearance: 'none' }}
           >
             <option value="NEFT">NEFT</option>
@@ -689,27 +741,44 @@ export default function SettlementsPage() {
   }
 
   // ── Cancel processing settlement ───────────────────────────────────────────
-  const handleCancelSettlement = async (settlement) => {
-    const reason = prompt('Reason for cancellation (required):')
-    if (!reason?.trim()) return
-    try {
-      const res  = await fetch(`/api/settlements/${settlement.id}/cancel`, {
-        method:      'POST',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body:        JSON.stringify({ reason: reason.trim() }),
-      })
-      const json = await res.json()
-      json.success
-        ? toast.success('Settlement cancelled')
-        : toast.error(json.error || 'Cancel failed')
-      mutateProcessing()
-      mutateHistory()
-      mutatePending()
-    } catch {
-      toast.error('Failed to cancel settlement')
-    }
+  // ── Cancel processing settlement ───────────────────────────────────────────
+const handleCancelSettlement = async (settlement) => {
+  const reason = prompt(
+    `Cancel settlement ${settlement.settlementNumber}?\n\nReason for cancellation (required, min 5 chars):`
+  )
+
+  if (reason === null) return     // user clicked "Cancel" in the prompt
+
+  const cleanReason = reason.trim()
+
+  if (cleanReason.length < 5) {
+    toast.error('Cancellation reason must be at least 5 characters')
+    return
   }
+
+  try {
+    const res  = await fetch(`/api/settlements/${settlement.id}/cancel`, {
+      method:      'POST',
+      headers:     { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body:        JSON.stringify({ reason: cleanReason }),
+    })
+    const json = await res.json()
+
+    if (json.success) {
+      toast.success('Settlement cancelled')
+    } else {
+      toast.error(json.error || 'Cancel failed')
+    }
+
+    mutateProcessing()
+    mutateHistory()
+    mutatePending()
+  } catch (err) {
+    console.error('[cancel-settlement] Error:', err)
+    toast.error('Failed to cancel settlement')
+  }
+}
 
   // ── Download ───────────────────────────────────────────────────────────────
   const handleDownload = async (settlementId, settlementNumber) => {
