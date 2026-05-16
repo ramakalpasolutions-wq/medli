@@ -47,24 +47,24 @@ export async function PATCH(request, { params }) {
       ).catch((e) => console.warn('[audit]', e?.message))
 
       // Send approval email — fire and forget
-      if (hospital.contactEmail) {
-        try {
-          const { emailQueue } = await import('@/lib/queues/setup')
-          await emailQueue.add('hospital_approved', {
-            to:      hospital.contactEmail,
-            subject: 'Your hospital has been approved on MEDLI',
-            html:    `
-              <p>Dear ${hospital.name},</p>
-              <p>Congratulations! Your hospital has been <strong>approved</strong> and is now visible to patients on MEDLI.</p>
-              <p>Patients can now book appointments with your doctors.</p>
-              <br/>
-              <p>Team MEDLI</p>
-            `,
-          })
-        } catch (e) {
-          console.warn('[approve] email queue error:', e?.message)
-        }
-      }
+    // ✅ Fire-and-forget — doesn't block response
+if (hospital.contactEmail) {
+  import('@/lib/queues/setup')
+    .then(({ emailQueue }) =>
+      emailQueue.add('hospital_approved', {
+        to:      hospital.contactEmail,
+        subject: 'Your hospital has been approved on MEDLI',
+        html:    `
+          <p>Dear ${hospital.name},</p>
+          <p>Congratulations! Your hospital has been <strong>approved</strong> and is now visible to patients on MEDLI.</p>
+          <p>Patients can now book appointments with your doctors.</p>
+          <br/>
+          <p>Team MEDLI</p>
+        `,
+      })
+    )
+    .catch((e) => console.warn('[approve] email queue:', e?.message))
+}
 
       return successResponse(updated, 'Hospital approved successfully')
 

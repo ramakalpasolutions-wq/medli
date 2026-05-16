@@ -1,3 +1,5 @@
+// C:\Users\ASUS\medli2\src\app\api\labs\route.js
+
 import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { checkRole }  from '@/lib/middleware/rbac.middleware'
@@ -20,12 +22,15 @@ import {
 
 export function OPTIONS() { return handleOptions() }
 
+/* ────────────────────────────────────────────────────────────
+   GET — unchanged
+──────────────────────────────────────────────────────────── */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const search    = sanitizeInput(searchParams.get('search') || '')
-    const city      = sanitizeInput(searchParams.get('city')   || '')
-    const state     = sanitizeInput(searchParams.get('state')  || '')
+    const search     = sanitizeInput(searchParams.get('search') || '')
+    const city       = sanitizeInput(searchParams.get('city')   || '')
+    const state      = sanitizeInput(searchParams.get('state')  || '')
     const isApproved = searchParams.get('isApproved')
     const isActive   = searchParams.get('isActive')
     const adminOnly  = searchParams.get('adminOnly') === 'true'
@@ -81,30 +86,19 @@ export async function GET(request) {
 
     const [labs, total] = await Promise.all([
       prisma.lab.findMany({
-        where,
-        skip,
-        take,
+        where, skip, take,
         orderBy: { createdAt: 'desc' },
         select: {
-          id:                 true,
-          name:               true,
-          slug:               true,
-          address:            true,
-          location:           true,
-          images:             true,
-          certifications:     true,
-          homeCollection:     true,
-          walkInSlots:        true,
-          contactPhone:       true,
-          contactEmail:       true,
-          rating:             true,
-          isApproved:         true,
-          isActive:           true,
+          id: true, name: true, slug: true,
+          address: true, location: true,
+          images: true,
+          certifications: true, homeCollection: true, walkInSlots: true,
+          contactPhone: true, contactEmail: true,
+          rating: true,
+          isApproved: true, isActive: true,
           platformFeePercent: true,
-          adminUserId:        true,
-          regionId:           true,
-          createdAt:          true,
-          updatedAt:          true,
+          adminUserId: true, regionId: true,
+          createdAt: true, updatedAt: true,
         },
       }),
       prisma.lab.count({ where }),
@@ -122,6 +116,9 @@ export async function GET(request) {
   }
 }
 
+/* ────────────────────────────────────────────────────────────
+   POST — ✅ FIXED with proper defaults
+──────────────────────────────────────────────────────────── */
 export async function POST(request) {
   return verifyAuth(request, async (req, user) => {
     try {
@@ -138,23 +135,46 @@ export async function POST(request) {
       const exists = await prisma.lab.findUnique({ where: { slug } })
       if (exists)  slug = `${slug}-${Date.now()}`
 
+      /* ✅ Smart defaults */
+      const certifications = Array.isArray(body.certifications) && body.certifications.length > 0
+        ? body.certifications
+        : ['Diagnostic Services']
+
+      const defaultHomeCollection = {
+        enabled:      false,
+        areaCoverage: [],
+        slots:        [],
+      }
+
+      const defaultImages = {
+        cover:   null,
+        logo:    null,
+        gallery: [],
+      }
+
       const lab = await prisma.lab.create({
         data: {
           name,
           slug,
-          address:            body.address         || undefined,
-          location:           body.location         || undefined,
-          images:             body.images           || undefined,
-          certifications:     body.certifications   || [],
-          homeCollection:     body.homeCollection   || undefined,
-          walkInSlots:        body.walkInSlots      || [],
-          contactPhone:       sanitizeInput(body.contactPhone || ''),
-          contactEmail:       sanitizeInput(body.contactEmail || ''),
-          adminUserId:        body.adminUserId       || undefined,
-          regionId:           body.regionId          || undefined,
-          platformFeePercent: Number(body.platformFeePercent) ||
-                              parseFloat(process.env.DEFAULT_PLATFORM_FEE_LAB || '8'),
-          isApproved: false,
+          address:        body.address  || undefined,
+          location:       body.location || undefined,
+          images:         body.images   || defaultImages,        // ✅ default
+          certifications,                                         // ✅ never empty
+          homeCollection: body.homeCollection || defaultHomeCollection, // ✅ default
+          walkInSlots:    Array.isArray(body.walkInSlots) ? body.walkInSlots : [],
+          contactPhone:   sanitizeInput(body.contactPhone || ''),
+          contactEmail:   sanitizeInput(body.contactEmail || ''),
+          adminUserId:    body.adminUserId || undefined,
+          regionId:       body.regionId    || undefined,
+          platformFeePercent:
+            Number(body.platformFeePercent) ||
+            parseFloat(process.env.DEFAULT_PLATFORM_FEE_LAB || '8'),
+
+          /* ✅ Initialize rating */
+          rating: { average: 0, count: 0 },
+
+          /* ✅ Auto-approve when created by super_admin */
+          isApproved: user.role === 'super_admin' ? true : false,
           isActive:   true,
         },
       })

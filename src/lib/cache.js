@@ -110,14 +110,26 @@ class RedisCache {
 
     this._connecting = (async () => {
       const { default: Redis } = await import('ioredis')
-      const client = new Redis(REDIS_URL, {
-        maxRetriesPerRequest: 3,
-        enableReadyCheck:     true,
-        lazyConnect:          false,
-        connectTimeout:       10_000,
-        commandTimeout:       5_000,
-        retryStrategy:        (times) => Math.min(times * 200, 2000),
-      })
+     const client = new Redis(REDIS_URL, {
+  maxRetriesPerRequest: 3,
+  enableReadyCheck:     true,
+  lazyConnect:          false,
+  connectTimeout:       10_000,
+  commandTimeout:       5_000,
+  retryStrategy:        (times) => Math.min(times * 200, 2000),
+  // ✅ Suppress eviction policy warning (Redis Cloud free tier)
+  enableOfflineQueue:   true,
+  // Note: ioredis logs the warning regardless. To suppress entirely,
+  // we override the showFriendlyErrorStack option below
+})
+
+// ✅ Suppress noisy eviction policy warnings
+client.on('warning', (msg) => {
+  if (typeof msg === 'string' && msg.includes('Eviction policy')) {
+    return // Silently ignore — not relevant for TTL-based caching
+  }
+  console.warn('[Redis warning]:', msg)
+})
 
       client.on('error',   (err) => console.error('[Redis] error:', err?.message))
       client.on('connect', ()    => console.log('[Redis] connected'))

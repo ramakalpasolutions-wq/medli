@@ -1,5 +1,7 @@
+// C:\Users\ASUS\medli2\src\app\auth\login\page.js
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams }    from 'next/navigation'
 import { useAuth, getDashboardForRole }  from '@/context/AuthContext'
@@ -17,7 +19,9 @@ function getSafeRedirect(role, redirectParam) {
     user:             ['/user', '/hospitals', '/labs', '/doctors', '/search', '/'],
   }
   const prefixes = allowed[role] || ['/']
-  return prefixes.some((p) => redirectParam.startsWith(p)) ? redirectParam : defaultDash
+  return prefixes.some((p) => redirectParam.startsWith(p))
+    ? redirectParam
+    : defaultDash
 }
 
 /* ─── Keyframes ──────────────────────────────────────────────────────── */
@@ -58,7 +62,10 @@ function OtpBoxes({ value, onChange, idPrefix = 'otp' }) {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }} onPaste={handlePaste}>
+    <div
+      style={{ display: 'flex', gap: 8, justifyContent: 'center' }}
+      onPaste={handlePaste}
+    >
       {Array.from({ length: 6 }).map((_, idx) => (
         <OtpBox
           key={idx}
@@ -90,10 +97,12 @@ function OtpBox({ id, value, onChange, onKeyDown, filled }) {
         width: 46, height: 52, textAlign: 'center',
         fontSize: 20, fontWeight: 700, fontFamily: 'inherit',
         borderRadius: 12,
-        border: `2px solid ${focused ? '#6366f1' : filled ? '#a5b4fc' : '#e2e8f0'}`,
-        background: filled ? 'rgba(99,102,241,0.05)' : '#fff',
-        color: '#0f172a', outline: 'none', transition: 'all .15s ease',
-        boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.15)' : 'none',
+        border: `2px solid ${
+          focused ? '#6366f1' : filled ? '#a5b4fc' : 'rgba(255,255,255,0.15)'
+        }`,
+        background: filled ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.06)',
+        color: '#fff', outline: 'none', transition: 'all .15s ease',
+        boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.2)' : 'none',
       }}
     />
   )
@@ -105,17 +114,21 @@ function AuthInput({ label, icon, rightElement, ...props }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {label && (
-        <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+        <label style={{
+          fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.65)',
+        }}>
           {label}
         </label>
       )}
       <div style={{ position: 'relative' }}>
         {icon && (
           <span style={{
-            position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-            color: focused ? '#6366f1' : '#94a3b8',
+            position: 'absolute', left: 12, top: '50%',
+            transform: 'translateY(-50%)',
+            color: focused ? '#818cf8' : 'rgba(255,255,255,0.35)',
             display: 'flex', alignItems: 'center',
             pointerEvents: 'none', transition: 'color .15s ease',
+            fontSize: 16,
           }}>
             {icon}
           </span>
@@ -131,16 +144,22 @@ function AuthInput({ label, icon, rightElement, ...props }) {
             paddingRight: rightElement ? 44 : 14,
             fontSize: 14, fontFamily: 'inherit',
             borderRadius: 12,
-            border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
-            background: '#fff', color: '#0f172a', outline: 'none',
+            border: `1.5px solid ${
+              focused ? '#6366f1' : 'rgba(255,255,255,0.1)'
+            }`,
+            background: 'rgba(255,255,255,0.07)',
+            color: '#fff', outline: 'none',
             boxShadow: focused
-              ? '0 0 0 3px rgba(99,102,241,0.12)'
-              : '0 1px 3px rgba(0,0,0,0.06)',
+              ? '0 0 0 3px rgba(99,102,241,0.15)'
+              : 'none',
             transition: 'all .15s ease', boxSizing: 'border-box',
           }}
         />
         {rightElement && (
-          <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}>
+          <div style={{
+            position: 'absolute', right: 12,
+            top: '50%', transform: 'translateY(-50%)',
+          }}>
             {rightElement}
           </div>
         )}
@@ -150,7 +169,9 @@ function AuthInput({ label, icon, rightElement, ...props }) {
 }
 
 /* ─── Primary Button ─────────────────────────────────────────────────── */
-function AuthBtn({ children, loading: isLoading, disabled, onClick, type = 'button' }) {
+function AuthBtn({
+  children, loading: isLoading, disabled, onClick, type = 'button',
+}) {
   const [h, setH] = useState(false)
   const isDisabled = disabled || isLoading
   return (
@@ -164,16 +185,18 @@ function AuthBtn({ children, loading: isLoading, disabled, onClick, type = 'butt
         width: '100%', padding: '13px',
         borderRadius: 12, border: 'none',
         background: isDisabled
-          ? '#e2e8f0'
+          ? 'rgba(255,255,255,0.1)'
           : h
             ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
             : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-        color: isDisabled ? '#94a3b8' : '#fff',
+        color: isDisabled ? 'rgba(255,255,255,0.3)' : '#fff',
         fontSize: 14, fontWeight: 600,
         cursor: isDisabled ? 'not-allowed' : 'pointer',
         boxShadow: isDisabled
           ? 'none'
-          : h ? '0 8px 24px rgba(99,102,241,0.45)' : '0 4px 14px rgba(99,102,241,0.3)',
+          : h
+            ? '0 8px 24px rgba(99,102,241,0.5)'
+            : '0 4px 14px rgba(99,102,241,0.3)',
         transition: 'all .18s ease',
         transform: h && !isDisabled ? 'scale(1.01)' : 'scale(1)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -197,10 +220,10 @@ function ErrorBanner({ error }) {
   if (!error) return null
   return (
     <div style={{
-      background: 'rgba(239,68,68,0.08)',
-      border: '1px solid rgba(239,68,68,0.2)',
+      background: 'rgba(239,68,68,0.1)',
+      border: '1px solid rgba(239,68,68,0.25)',
       borderRadius: 12, padding: '10px 14px',
-      fontSize: 13, color: '#ef4444',
+      fontSize: 13, color: '#fca5a5',
       marginBottom: 16,
       animation: 'auth-shake .4s ease',
     }}>
@@ -213,7 +236,8 @@ function ErrorBanner({ error }) {
 function SpinnerPage() {
   return (
     <div style={{
-      minHeight: '100vh', background: '#f8fafc',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg,#0f0f1a,#1a1a2e,#16213e)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       flexDirection: 'column', gap: 12,
     }}>
@@ -223,7 +247,7 @@ function SpinnerPage() {
         border: '3px solid #6366f1', borderTopColor: 'transparent',
         animation: 'auth-spin .8s linear infinite',
       }} />
-      <p style={{ fontSize: 13, color: '#94a3b8' }}>Loading...</p>
+      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Loading...</p>
     </div>
   )
 }
@@ -237,13 +261,15 @@ function LoginTabBtn({ label, icon, active, onClick }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        flex: 1, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', gap: 5,
         padding: '8px 4px', borderRadius: 9, border: 'none',
         background: active
           ? 'rgba(255,255,255,0.12)'
           : h ? 'rgba(255,255,255,0.06)' : 'transparent',
         color: active ? '#fff' : 'rgba(255,255,255,0.45)',
-        fontSize: 12, fontWeight: active ? 600 : 500, cursor: 'pointer',
+        fontSize: 12, fontWeight: active ? 600 : 500,
+        cursor: 'pointer',
         boxShadow: active ? '0 1px 4px rgba(0,0,0,0.2)' : 'none',
         transition: 'all .15s ease',
       }}
@@ -258,7 +284,9 @@ function LoginTabBtn({ label, icon, active, onClick }) {
 function ResendRow({ countdown, onResend, sending, onBack, backLabel }) {
   const [h, setH] = useState(false)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    }}>
       <button
         onClick={onBack}
         style={{
@@ -282,7 +310,9 @@ function ResendRow({ countdown, onResend, sending, onBack, backLabel }) {
             background: 'none', border: 'none',
             cursor: sending ? 'not-allowed' : 'pointer',
             fontSize: 13, fontWeight: 600,
-            color: sending ? 'rgba(255,255,255,0.25)' : h ? '#a5b4fc' : '#818cf8',
+            color: sending
+              ? 'rgba(255,255,255,0.25)'
+              : h ? '#a5b4fc' : '#818cf8',
             padding: 0, transition: 'color .15s ease',
           }}
         >
@@ -295,8 +325,8 @@ function ResendRow({ countdown, onResend, sending, onBack, backLabel }) {
 
 /* ─── Login Content ──────────────────────────────────────────────────── */
 function LoginContent() {
-  const router        = useRouter()
-  const searchParams  = useSearchParams()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
   const { login, loginWithOtp, user, loading: authLoading } = useAuth()
 
   const redirectParam = searchParams.get('redirect') || ''
@@ -335,43 +365,30 @@ function LoginContent() {
   if (authLoading) return <SpinnerPage />
 
   const resetOtpState = () => {
-    setOtpSent(false)
-    setPhoneOtp('')
-    setEmailOtp('')
-    setError('')
-    setCountdown(0)
+    setOtpSent(false); setPhoneOtp(''); setEmailOtp('')
+    setError(''); setCountdown(0)
   }
 
   const switchTab = (newTab) => {
-    setTab(newTab)
-    resetOtpState()
-    setPassword('')
-    setPhone('')
-    setEmail('')
+    setTab(newTab); resetOtpState()
+    setPassword(''); setPhone(''); setEmail('')
   }
 
-  /* ── Send OTP ── */
   const sendOtp = async () => {
-    setSending(true)
-    setError('')
+    setSending(true); setError('')
     try {
-      // ✅ CORRECT endpoint — /api/auth/otp/send
       const res  = await fetch('/api/auth/otp/send', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(
+        body: JSON.stringify(
           tab === 'phone'
             ? { phone: phone.replace(/\D/g, '') }
             : { email: email.trim().toLowerCase() }
         ),
       })
       const json = await res.json()
-      if (json.success) {
-        setOtpSent(true)
-        setCountdown(30)
-      } else {
-        setError(json.error || 'Failed to send OTP')
-      }
+      if (json.success) { setOtpSent(true); setCountdown(30) }
+      else setError(json.error || 'Failed to send OTP')
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -379,18 +396,15 @@ function LoginContent() {
     }
   }
 
-  /* ── Verify Phone OTP ── */
   const verifyPhoneOtp = async () => {
     if (phoneOtp.length !== 6) { setError('Enter the 6-digit OTP'); return }
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const result = await loginWithOtp(phone.replace(/\D/g, ''), phoneOtp)
       if (result.success) {
         router.replace(getSafeRedirect(result.user.role, redirectParam))
       } else {
-        setError(result.error || 'Invalid OTP')
-        setPhoneOtp('')
+        setError(result.error || 'Invalid OTP'); setPhoneOtp('')
       }
     } catch {
       setError('Network error')
@@ -399,18 +413,15 @@ function LoginContent() {
     }
   }
 
-  /* ── Verify Email OTP ── */
   const verifyEmailOtp = async () => {
     if (emailOtp.length !== 6) { setError('Enter the 6-digit OTP'); return }
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const res  = await fetch('/api/auth/otp/verify', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          email: email.trim().toLowerCase(),
-          otp:   emailOtp,
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(), otp: emailOtp,
         }),
       })
       const json = await res.json()
@@ -421,8 +432,7 @@ function LoginContent() {
         }
         router.replace(getSafeRedirect(u.role, redirectParam))
       } else {
-        setError(json.error || 'Invalid OTP')
-        setEmailOtp('')
+        setError(json.error || 'Invalid OTP'); setEmailOtp('')
       }
     } catch {
       setError('Network error')
@@ -431,15 +441,16 @@ function LoginContent() {
     }
   }
 
-  /* ── Email + Password login ── */
   const loginWithEmail = async (e) => {
     e.preventDefault()
-    if (!email.trim() || !password) { setError('Email and password are required'); return }
-    setLoading(true)
-    setError('')
+    if (!email.trim() || !password) {
+      setError('Email and password are required'); return
+    }
+    setLoading(true); setError('')
     try {
-      // ✅ CORRECT — calls login from AuthContext which hits /api/auth/login
-      const result = await login({ email: email.trim().toLowerCase(), password })
+      const result = await login({
+        email: email.trim().toLowerCase(), password,
+      })
       if (result.success) {
         router.replace(getSafeRedirect(result.user.role, redirectParam))
       } else {
@@ -471,8 +482,18 @@ function LoginContent() {
         position: 'relative', overflow: 'hidden',
       }}>
         {/* Background orbs */}
-        <div style={{ position:'absolute',top:'10%',left:'10%',width:350,height:350,borderRadius:'50%',background:'radial-gradient(circle,rgba(99,102,241,0.12),transparent 70%)',filter:'blur(60px)',pointerEvents:'none' }} />
-        <div style={{ position:'absolute',bottom:'10%',right:'10%',width:280,height:280,borderRadius:'50%',background:'radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%)',filter:'blur(50px)',pointerEvents:'none' }} />
+        <div style={{
+          position: 'absolute', top: '10%', left: '10%',
+          width: 350, height: 350, borderRadius: '50%',
+          background: 'radial-gradient(circle,rgba(99,102,241,0.12),transparent 70%)',
+          filter: 'blur(60px)', pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: '10%', right: '10%',
+          width: 280, height: 280, borderRadius: '50%',
+          background: 'radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%)',
+          filter: 'blur(50px)', pointerEvents: 'none',
+        }} />
 
         {/* Card */}
         <div style={{
@@ -481,39 +502,72 @@ function LoginContent() {
           transform: visible ? 'translateY(0)' : 'translateY(20px)',
           transition: 'opacity .4s ease, transform .4s ease',
         }}>
-          {/* Logo */}
+
+          {/* ── Logo ── */}
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <a
+              href="/"
+              style={{
+                display: 'inline-flex', alignItems: 'center',
+                gap: 10, textDecoration: 'none', marginBottom: 8,
+              }}
+            >
               <div style={{
-                width: 44, height: 44, borderRadius: 13,
-                background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                width: 44, height: 44, borderRadius: 12,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 22, boxShadow: '0 6px 20px rgba(99,102,241,0.4)',
-              }}>🏥</div>
-              <span style={{
-                fontSize: 26, fontWeight: 800,
-                backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
-                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text', letterSpacing: '-0.5px',
-              }}>MEDLI</span>
-            </div>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', margin: 0 }}>
+                padding: 4, flexShrink: 0, overflow: 'hidden',
+              }}>
+                <Image
+                  src="/MEDLI-LOGOICON.png"
+                  alt="MEDLI Logo"
+                  width={44}
+                  height={44}
+                  priority
+                  style={{ objectFit: 'contain', display: 'block' }}
+                />
+              </div>
+              <div style={{ lineHeight: 1, textAlign: 'left' }}>
+                <div style={{
+                  fontWeight: 900, fontSize: 24,
+                  background: 'linear-gradient(135deg,#818cf8,#a78bfa)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text', letterSpacing: '-0.5px',
+                }}>
+                  MEDLI
+                </div>
+                <div style={{
+                  fontSize: 9, color: 'rgba(255,255,255,0.4)',
+                  letterSpacing: '1.5px', fontWeight: 600,
+                }}>
+                  HEALTHCARE
+                </div>
+              </div>
+            </a>
+            <p style={{
+              fontSize: 14, color: 'rgba(255,255,255,0.4)', margin: 0,
+            }}>
               Healthcare made simple
             </p>
           </div>
 
-          {/* Glass card */}
+          {/* ── Glass card ── */}
           <div style={{
             background: 'rgba(255,255,255,0.06)',
             border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 24, padding: 'clamp(24px,5vw,36px)',
+            borderRadius: 24,
+            padding: 'clamp(24px,5vw,36px)',
             backdropFilter: 'blur(24px)',
             boxShadow: '0 24px 80px rgba(0,0,0,0.3)',
           }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 4 }}>
+            <h1 style={{
+              fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 4,
+            }}>
               Welcome back
             </h1>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 24 }}>
+            <p style={{
+              fontSize: 13, color: 'rgba(255,255,255,0.45)', marginBottom: 24,
+            }}>
               Sign in to your account
             </p>
 
@@ -534,7 +588,6 @@ function LoginContent() {
               ))}
             </div>
 
-            {/* Error */}
             <ErrorBanner error={error} />
 
             {/* ── Phone OTP ── */}
@@ -546,9 +599,12 @@ function LoginContent() {
                       label="Phone Number"
                       type="tel"
                       value={phone}
-                      onChange={(e) => { setPhone(e.target.value.replace(/\D/g,'').slice(0,10)); setError('') }}
+                      onChange={(e) => {
+                        setPhone(e.target.value.replace(/\D/g,'').slice(0,10))
+                        setError('')
+                      }}
                       placeholder="10-digit mobile number"
-                      icon={<span style={{ fontSize:16 }}>📱</span>}
+                      icon="📱"
                       maxLength={10}
                     />
                     <AuthBtn
@@ -562,14 +618,23 @@ function LoginContent() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>
+                      <p style={{
+                        fontSize: 13, fontWeight: 600,
+                        color: 'rgba(255,255,255,0.8)', marginBottom: 4,
+                      }}>
                         OTP sent to +91 {phone}
                       </p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
+                      <p style={{
+                        fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0,
+                      }}>
                         Enter the 6-digit code below
                       </p>
                     </div>
-                    <OtpBoxes value={phoneOtp} onChange={setPhoneOtp} idPrefix="ph-otp" />
+                    <OtpBoxes
+                      value={phoneOtp}
+                      onChange={setPhoneOtp}
+                      idPrefix="ph-otp"
+                    />
                     <AuthBtn
                       onClick={verifyPhoneOtp}
                       loading={loading}
@@ -600,7 +665,7 @@ function LoginContent() {
                       value={email}
                       onChange={(e) => { setEmail(e.target.value); setError('') }}
                       placeholder="you@example.com"
-                      icon={<span style={{ fontSize:16 }}>📧</span>}
+                      icon="📧"
                       autoComplete="email"
                     />
                     <AuthBtn
@@ -614,14 +679,23 @@ function LoginContent() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)', marginBottom: 4 }}>
+                      <p style={{
+                        fontSize: 13, fontWeight: 600,
+                        color: 'rgba(255,255,255,0.8)', marginBottom: 4,
+                      }}>
                         OTP sent to {email}
                       </p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
+                      <p style={{
+                        fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0,
+                      }}>
                         Check inbox and spam/junk folder
                       </p>
                     </div>
-                    <OtpBoxes value={emailOtp} onChange={setEmailOtp} idPrefix="em-otp" />
+                    <OtpBoxes
+                      value={emailOtp}
+                      onChange={setEmailOtp}
+                      idPrefix="em-otp"
+                    />
                     <AuthBtn
                       onClick={verifyEmailOtp}
                       loading={loading}
@@ -654,7 +728,7 @@ function LoginContent() {
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); setError('') }}
                     placeholder="you@example.com"
-                    icon={<span style={{ fontSize:16 }}>📧</span>}
+                    icon="📧"
                     autoComplete="email"
                   />
                   <AuthInput
@@ -670,7 +744,7 @@ function LoginContent() {
                         onClick={() => setShowPass((p) => !p)}
                         style={{
                           background: 'none', border: 'none',
-                          cursor: 'pointer', color: '#94a3b8',
+                          cursor: 'pointer', color: 'rgba(255,255,255,0.4)',
                           fontSize: 16, display: 'flex', alignItems: 'center',
                         }}
                       >
@@ -696,7 +770,12 @@ function LoginContent() {
               marginTop: 24, marginBottom: 0,
             }}>
               Don&apos;t have an account?{' '}
-              <a href="/auth/register" style={{ color: '#818cf8', fontWeight: 600, textDecoration: 'none' }}>
+              <a
+                href="/auth/register"
+                style={{
+                  color: '#818cf8', fontWeight: 600, textDecoration: 'none',
+                }}
+              >
                 Create one
               </a>
             </p>

@@ -1,3 +1,7 @@
+// C:\Users\ASUS\medli2\src\app\loading.js
+
+import Image from 'next/image'
+
 export default function Loading() {
   return (
     <div style={{
@@ -9,84 +13,109 @@ export default function Loading() {
       background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
       gap: '20px',
     }}>
-      {/* Animated logo ring */}
+
+      {/* ── Animated logo ring ── */}
       <div style={{ position: 'relative', width: 80, height: 80 }}>
+
         {/* Outer spinning ring */}
         <div style={{
-          position: 'absolute',
-          inset: 0,
-          borderRadius: '50%',
-          border: '3px solid transparent',
-          borderTopColor: '#6366f1',
-          borderRightColor: '#8b5cf6',
-          animation: 'medli-spin 1s linear infinite',
+          position:        'absolute',
+          inset:           0,
+          borderRadius:    '50%',
+          border:          '3px solid transparent',
+          borderTopColor:  '#6366f1',
+          borderRightColor:'#8b5cf6',
+          animation:       'medli-spin 1s linear infinite',
         }} />
-        {/* Inner pulsing circle */}
+
+        {/* Inner circle with PNG logo */}
         <div style={{
-          position: 'absolute',
-          inset: 8,
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          animation: 'medli-pulse 2s ease-in-out infinite',
-          fontSize: 24,
+          position:        'absolute',
+          inset:           8,
+          borderRadius:    '50%',
+          // background:      'linear-gradient(135deg, #6366f1, #8b5cf6)',
+          display:         'flex',
+          alignItems:      'center',
+          justifyContent:  'center',
+          animation:       'medli-pulse 2s ease-in-out infinite',
+          overflow:        'hidden',
+          padding:         6,
         }}>
-          🏥
+          <Image
+            src="/MEDLI-LOGOICON.png"
+            alt="MEDLI"
+            width={40}
+            height={40}
+            priority
+            style={{
+              objectFit: 'contain',
+              display:   'block',
+              // If your logo is dark, uncomment to make it white:
+              // filter: 'brightness(0) invert(1)',
+            }}
+          />
         </div>
       </div>
 
-      {/* Brand text */}
+      {/* ── Brand text ── */}
       <div style={{ textAlign: 'center' }}>
         <div style={{
-          fontSize: 28,
-          fontWeight: 800,
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4)',
+          fontSize:             28,
+          fontWeight:           800,
+          background:           'linear-gradient(135deg, #818cf8, #a78bfa, #06b6d4)',
           WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-          letterSpacing: '-0.5px',
-          marginBottom: 6,
+          WebkitTextFillColor:  'transparent',
+          backgroundClip:       'text',
+          letterSpacing:        '-0.5px',
+          marginBottom:         4,
         }}>
           MEDLI
         </div>
         <div style={{
-          fontSize: 13,
-          color: 'rgba(255,255,255,0.5)',
+          fontSize:      9,
+          color:         'rgba(255,255,255,0.35)',
           letterSpacing: '2px',
           textTransform: 'uppercase',
-          fontWeight: 500,
+          fontWeight:    600,
+          marginBottom:  6,
+        }}>
+          HEALTHCARE
+        </div>
+        <div style={{
+          fontSize:      13,
+          color:         'rgba(255,255,255,0.5)',
+          letterSpacing: '1px',
+          fontWeight:    500,
         }}>
           Loading...
         </div>
       </div>
 
-      {/* Progress dots */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+      {/* ── Progress dots ── */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
         {[0, 1, 2].map((i) => (
           <div key={i} style={{
-            width: 6,
-            height: 6,
+            width:        6,
+            height:       6,
             borderRadius: '50%',
-            background: '#6366f1',
-            animation: `medli-bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+            background:   '#6366f1',
+            animation:    `medli-bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
           }} />
         ))}
       </div>
 
-      {/* Inline keyframes via style tag */}
+      {/* ── Keyframes ── */}
       <style>{`
         @keyframes medli-spin {
           to { transform: rotate(360deg); }
         }
         @keyframes medli-pulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(0.92); opacity: 0.8; }
+          0%, 100% { transform: scale(1);    opacity: 1;   }
+          50%       { transform: scale(0.92); opacity: 0.85; }
         }
         @keyframes medli-bounce {
-          0%, 100% { transform: translateY(0); opacity: 0.4; }
-          50% { transform: translateY(-6px); opacity: 1; }
+          0%, 100% { transform: translateY(0);   opacity: 0.4; }
+          50%       { transform: translateY(-6px); opacity: 1;   }
         }
       `}</style>
     </div>

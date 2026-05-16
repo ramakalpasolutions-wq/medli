@@ -1,57 +1,78 @@
-import { prisma } from '@/lib/prisma'
-import { cache } from '@/lib/cache'
-import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole } from '@/lib/middleware/rbac.middleware'
+import { prisma }         from '@/lib/prisma'
+import { cache }          from '@/lib/cache'
+import { verifyAuth }     from '@/lib/middleware/auth.middleware'
+import { checkRole }      from '@/lib/middleware/rbac.middleware'
 import { logAdminAction } from '@/lib/middleware/audit.middleware'
-import { emailQueue } from '@/lib/queues/setup'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+} from '@/lib/utils/apiResponse'
 
-export function OPTIONS() {
-  return handleOptions()
-}
+export function OPTIONS() { return handleOptions() }
 
 export async function PATCH(request, { params }) {
-  try {
-    const { id } = await params
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin')
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin')
 
-    const lab = await prisma.lab.findUnique({ where: { id } })
-    if (!lab) {
-      return errorResponse('Lab not found', 'NOT_FOUND', 404)
-    }
+      const { id } = await params
 
-    const updated = await prisma.lab.update({
-      where: { id },
-      data: { isApproved: true },
-    })
+      const lab = await prisma.lab.findUnique({ where: { id } })
+      if (!lab) {
+        return errorResponse('Lab not found', 404)
+      }
 
-    await cache.del(`lab:${id}`)
+      if (lab.isApproved) {
+        return errorResponse('Lab is already approved', 400)
+      }
 
-    await logAdminAction({
-      actorId: user.id,
-      actorRole: user.role,
-      action: 'lab_approved',
-      targetType: 'lab',
-      targetId: id,
-      details: { labName: lab.name },
-      request,
-    })
-
-    if (lab.contactEmail) {
-      await emailQueue.add('lab_approved', {
-        to: lab.contactEmail,
-        subject: 'Your lab has been approved on MEDLI',
-        html: `<p>Dear ${lab.name},</p><p>Your lab has been approved and is now visible on MEDLI.</p>`,
+      const updated = await prisma.lab.update({
+        where: { id },
+        data:  { isApproved: true },
       })
-    }
 
-    return successResponse(updated, 'Lab approved')
-  } catch (err) {
-    console.error('[Lab Approve]', err.message)
-    if (err.message.includes('Access denied') || err.message.includes('token')) {
-      return errorResponse(err.message, 'AUTH_ERROR', 403)
+      // Invalidate cache
+      await cache.del(`lab:${id}`)
+
+      // ✅ CORRECT signature
+      logAdminAction(
+        request,
+        user,
+        'LAB_APPROVED',
+        'Lab',
+        id,
+        { labName: lab.name }
+      ).catch((e) => console.warn('[audit]', e?.message))
+
+      // Send approval email — fire and forget, don't block response
+      if (lab.contactEmail) {
+        try {
+          const { emailQueue } = await import('@/lib/queues/setup')
+          emailQueue.add('lab_approved', {
+            to:      lab.contactEmail,
+            subject: 'Your lab has been approved on MEDLI',
+            html:    `
+              <p>Dear ${lab.name},</p>
+              <p>Congratulations! Your lab has been <strong>approved</strong> and is now visible to patients on MEDLI.</p>
+              <p>Patients can now book diagnostic services with you.</p>
+              <br/>
+              <p>Team MEDLI</p>
+            `,
+          }).catch((e) => console.warn('[approve] email queue:', e?.message))
+        } catch (e) {
+          console.warn('[approve] email queue import:', e?.message)
+        }
+      }
+
+      return successResponse(updated, 'Lab approved successfully')
+
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+      console.error('[PATCH /api/labs/[id]/approve]', error)
+      return errorResponse('Failed to approve lab', 500)
     }
-    return errorResponse('Failed to approve lab', 'SERVER_ERROR', 500)
-  }
+  })
 }
