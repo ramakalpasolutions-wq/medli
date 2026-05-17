@@ -186,7 +186,7 @@ function AppRow({ b, mounted, now, onComplete, onNoShow }) {
           {b.status === 'confirmed' && (
             <>
               <ABtn variant="primary" onClick={() => onComplete(b.id)}>✓ Complete</ABtn>
-              <ABtn variant="danger"  onClick={() => onNoShow(b.id)}>✕ No-show</ABtn>
+              <ABtn variant="danger"  onClick={() => onNoShow(b.id)}>✕ Not-Attended</ABtn>
             </>
           )}
         </div>

@@ -36,7 +36,7 @@ const QUICK = [
   { icon: '🏥', label: 'Book Appointment', href: '/hospitals',     grad: 'linear-gradient(135deg,#6366f1,#8b5cf6)' },
   { icon: '🧪', label: 'Book Lab Test',    href: '/labs',          grad: 'linear-gradient(135deg,#10b981,#059669)' },
   { icon: '👨‍⚕️', label: 'Online Consult',  href: '/doctors',       grad: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-  { icon: '📄', label: 'My Reports',       href: '/user/bookings', grad: 'linear-gradient(135deg,#f59e0b,#f97316)' },
+  // { icon: '📄', label: 'My Reports',       href: '/user/bookings', grad: 'linear-gradient(135deg,#f59e0b,#f97316)' },
 ]
 
 /* ─── Quick Action Card ──────────────────────────────────────────────── */

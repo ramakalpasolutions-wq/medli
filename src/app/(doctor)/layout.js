@@ -8,9 +8,7 @@ import DoctorSidebar from '@/components/admin/DoctorSidebar'
 
 const ALLOWED_ROLES = ['doctor', 'super_admin']
 
-const KF = `
-  @keyframes dl-spin { to{transform:rotate(360deg)} }
-`
+const KF = `@keyframes dl-spin { to{transform:rotate(360deg)} }`
 
 function DoctorGuard({ children }) {
   const { user, loading } = useAuth()
@@ -57,9 +55,7 @@ function DoctorGuard({ children }) {
               backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-            }}>
-              Loading...
-            </div>
+            }}>Loading...</div>
           </div>
         </div>
       </>
@@ -69,15 +65,30 @@ function DoctorGuard({ children }) {
   return (
     <>
       <style>{KF}</style>
-      <div style={{
-        display: 'flex', height: '100vh',
-        background: '#f8fafc', overflow: 'hidden',
+      {/* ✅ Responsive layout — flex on desktop, column on mobile */}
+      <div className="dl-container" style={{
+        display: 'flex',
+        height: '100vh',
+        background: '#f8fafc',
+        overflow: 'hidden',
       }}>
+        <style>{`
+          @media(max-width:1023px){
+            .dl-container { flex-direction: column !important; }
+            .dl-main      { padding-top: 16px !important; }
+          }
+        `}</style>
+
         <DoctorSidebar />
-        <main style={{
-          flex: 1, overflowY: 'auto',
-          padding: 'clamp(16px,3vw,28px)',
-        }}>
+
+        <main
+          className="dl-main"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 'clamp(16px,3vw,28px)',
+          }}
+        >
           {children}
         </main>
       </div>

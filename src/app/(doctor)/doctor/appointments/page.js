@@ -693,7 +693,7 @@ function DetailPanel({ booking: bk, mounted, onClose, onComplete, onNoShow }) {
                 fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}
             >
-              ✕ No-show
+              ✕ Not-Attended
             </button>
           </div>
         )}

@@ -122,6 +122,7 @@ function BInput({ label, ...props }) {
 }
 
 /* ─── Settlement Detail ──────────────────────────────────────────────── */
+/* ─── Settlement Detail ──────────────────────────────────────────────── */
 function SettlementDetail({ s, mounted }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -177,7 +178,7 @@ function SettlementDetail({ s, mounted }) {
         ))}
       </div>
 
-      {/* Details */}
+      {/* ✅ Settlement Details — Only Total Bookings & Total Amount */}
       <div style={{
         background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden',
       }}>
@@ -185,19 +186,8 @@ function SettlementDetail({ s, mounted }) {
           <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', margin: 0 }}>Settlement Details</p>
         </div>
         {[
-          { l: 'Total Bookings',   v: String(s.totalBookings || 0) },
-          { l: 'UTR Number',       v: s.utrNumber     || '—', mono: true },
-          { l: 'Transfer Mode',    v: s.transferMode  || '—' },
-          { l: 'Beneficiary',      v: s.beneficiaryName || '—' },
-          { l: 'Bank Name',        v: s.bankName       || '—' },
-          { l: 'Coupon Absorbed',  v: Number(s.couponAbsorbed || 0) > 0 ? fmtRs(s.couponAbsorbed) : '—' },
-          { l: 'Platform Fee',     v: fmtRs(s.platformFee) },
-          { l: 'GST',              v: fmtRs(s.gst) },
-          { l: 'Transferred At',   v: s.transferredAt && mounted
-              ? new Date(s.transferredAt).toLocaleDateString('en-IN', { dateStyle: 'long' })
-              : '—' },
-          { l: 'Period From',      v: s.periodFrom ? new Date(s.periodFrom).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—' },
-          { l: 'Period To',        v: s.periodTo   ? new Date(s.periodTo).toLocaleDateString('en-IN', { dateStyle: 'medium' })   : '—' },
+          { l: 'Total Bookings', v: String(s.totalBookings || 0) },
+          { l: 'Total Amount',   v: fmtRs(s.netSettlementAmount) },
         ].map((row) => (
           <div key={row.l} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -207,7 +197,6 @@ function SettlementDetail({ s, mounted }) {
             <span style={{ fontSize: 12, color: '#64748b', flexShrink: 0 }}>{row.l}</span>
             <span style={{
               fontSize: 12, fontWeight: 600, color: '#1e293b',
-              fontFamily: row.mono ? 'monospace' : 'inherit',
               wordBreak: 'break-all', textAlign: 'right',
             }}>
               {row.v}

@@ -18,42 +18,38 @@ const NAV_GROUPS = [
   {
     label: 'Overview',
     items: [
-      { label: 'Dashboard',   href: '/super-admin/dashboard', icon: '📊' },
-      { label: 'Analytics',   href: '/super-admin/analytics', icon: '📈' },
-      { label: 'Revenue',     href: '/super-admin/revenue',   icon: '💰' },
+      { label: 'Dashboard', href: '/super-admin/dashboard', icon: '📊' },
+      { label: 'Analytics', href: '/super-admin/analytics', icon: '📈' },
+      { label: 'Revenue',   href: '/super-admin/revenue',   icon: '💰' },
     ],
   },
   {
     label: 'Entities',
     items: [
-      { label: 'Hospitals',   href: '/super-admin/hospitals', icon: '🏥' },
-      { label: 'Labs',        href: '/super-admin/labs',      icon: '🧪' },
-      { label: 'Doctors',     href: '/super-admin/doctors',   icon: '👨‍⚕️' },
-      { label: 'Users',       href: '/super-admin/users',     icon: '👥' },
-      { label: 'Regions',     href: '/super-admin/regions',   icon: '🗺️' },
+      { label: 'Hospitals', href: '/super-admin/hospitals', icon: '🏥' },
+      { label: 'Labs',      href: '/super-admin/labs',      icon: '🧪' },
+      { label: 'Doctors',   href: '/super-admin/doctors',   icon: '👨‍⚕️' },
+      { label: 'Users',     href: '/super-admin/users',     icon: '👥' },
+      { label: 'Regions',   href: '/super-admin/regions',   icon: '🗺️' },
     ],
   },
   {
     label: 'Transactions',
     items: [
-      { label: 'Bookings',     href: '/super-admin/bookings',     icon: '📅' },
-      { label: 'Payments',     href: '/super-admin/payments',     icon: '💳' },
-      { label: 'Invoices',     href: '/super-admin/invoices',     icon: '🧾' },
-      { label: 'Settlements',  href: '/super-admin/settlements',  icon: '🏦' },
-      { label: 'Refunds',      href: '/super-admin/refunds',      icon: '↩️' },
+      { label: 'Bookings',    href: '/super-admin/bookings',    icon: '📅' },
+      { label: 'Payments',    href: '/super-admin/payments',    icon: '💳' },
+      { label: 'Invoices',    href: '/super-admin/invoices',    icon: '🧾' },
+      { label: 'Settlements', href: '/super-admin/settlements', icon: '🏦' },
+      { label: 'Refunds',     href: '/super-admin/refunds',     icon: '↩️' },
     ],
   },
   {
     label: 'Platform',
     items: [
-      { label: 'Coupons',        href: '/super-admin/coupons',       icon: '🏷️' },
-      // { label: 'Fees',           href: '/super-admin/fees',          icon: '📊' },
-      { label: 'Bank Accounts',  href: '/super-admin/bank-accounts', icon: '🏦' },
-      { label: 'Notifications',  href: '/super-admin/notifications', icon: '🔔' },
-      // { label: 'Roles',          href: '/super-admin/roles',         icon: '🛡️' },
-      // { label: 'Audit Logs',     href: '/super-admin/audit-logs',    icon: '📋' },
-      // { label: 'Cache & Queues', href: '/super-admin/cache',         icon: '⚙️' },
-      { label: 'Settings',       href: '/super-admin/settings',      icon: '🔧' },
+      { label: 'Coupons',       href: '/super-admin/coupons',       icon: '🏷️' },
+      { label: 'Bank Accounts', href: '/super-admin/bank-accounts', icon: '🏦' },
+      { label: 'Notifications', href: '/super-admin/notifications', icon: '🔔' },
+      { label: 'Settings',      href: '/super-admin/settings',      icon: '🔧' },
     ],
   },
 ]
@@ -78,9 +74,7 @@ function NavItem({ item, active, onClick }) {
         background: active
           ? 'linear-gradient(135deg,rgba(99,102,241,0.18),rgba(139,92,246,0.12))'
           : h ? 'rgba(255,255,255,0.05)' : 'transparent',
-        border: active
-          ? '1px solid rgba(99,102,241,0.25)'
-          : '1px solid transparent',
+        border: active ? '1px solid rgba(99,102,241,0.25)' : '1px solid transparent',
         color: active ? '#a5b4fc' : h ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.42)',
         fontSize: 13, fontWeight: active ? 600 : 400,
         transition: 'all .14s ease', cursor: 'pointer',
@@ -103,6 +97,54 @@ function NavItem({ item, active, onClick }) {
   )
 }
 
+/* ─── ✅ Logo (purple theme) ─────────────────────────────────────────── */
+function SidebarLogo({ size = 'normal' }) {
+  const isSmall = size === 'small'
+  const boxSize = isSmall ? 32 : 36
+
+  return (
+    <a
+      href="/super-admin/dashboard"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 9,
+        textDecoration: 'none', flexShrink: 0,
+      }}
+    >
+      <div style={{
+        width: boxSize, height: boxSize, borderRadius: 9,
+        background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, padding: 5, boxSizing: 'border-box',
+        boxShadow: '0 3px 12px rgba(99,102,241,0.5)',
+      }}>
+        <img
+          src="/MEDLI-LOGOICON.png"
+          alt="MEDLI"
+          style={{
+            width: '100%', height: '100%',
+            objectFit: 'contain',
+            filter: 'brightness(0) invert(1)',
+            display: 'block',
+          }}
+        />
+      </div>
+      <div style={{ lineHeight: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: isSmall ? 13 : 14, fontWeight: 800,
+          backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text', letterSpacing: '-0.3px', lineHeight: 1,
+        }}>MEDLI</div>
+        <div style={{
+          fontSize: 8, color: 'rgba(255,255,255,0.4)',
+          letterSpacing: '1.4px', fontWeight: 600,
+          textTransform: 'uppercase', marginTop: 3,
+        }}>Super Admin</div>
+      </div>
+    </a>
+  )
+}
+
 function SidebarContent({ pathname, onClose }) {
   const { user, logout } = useAuth()
   const [logoutH, setLogoutH] = useState(false)
@@ -113,35 +155,15 @@ function SidebarContent({ pathname, onClose }) {
       display: 'flex', flexDirection: 'column', height: '100%',
       background: 'linear-gradient(180deg,#0a0a14 0%,#12101e 100%)',
     }}>
-      {/* Logo */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        height: 56, padding: '0 14px',
+        height: 60, padding: '0 14px',
         borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 8,
-            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, boxShadow: '0 3px 10px rgba(99,102,241,0.45)',
-          }}>🏥</div>
-          <div>
-            <div style={{
-              fontSize: 14, fontWeight: 800,
-              backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text', letterSpacing: '-0.3px', lineHeight: 1,
-            }}>MEDLI</div>
-            <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: '1.5px', fontWeight: 600, textTransform: 'uppercase' }}>
-              Super Admin
-            </div>
-          </div>
-        </div>
+        <SidebarLogo />
         {onClose && <CloseBtn onClick={onClose} />}
       </div>
 
-      {/* User info */}
       {user && (
         <div style={{
           padding: '10px 12px',
@@ -153,11 +175,16 @@ function SidebarContent({ pathname, onClose }) {
             background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 700, fontSize: 12,
-            flexShrink: 0, overflow: 'hidden',
+            flexShrink: 0, overflow: 'hidden', position: 'relative',
           }}>
             {user.avatar
               ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : initials}
+            <div style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 8, height: 8, borderRadius: '50%',
+              background: '#10b981', border: '1.5px solid #0a0a14',
+            }} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -170,7 +197,6 @@ function SidebarContent({ pathname, onClose }) {
         </div>
       )}
 
-      {/* Nav */}
       <nav style={{ flex: 1, overflowY: 'auto', padding: '8px 8px', scrollbarWidth: 'none' }}>
         {NAV_GROUPS.map((group) => (
           <div key={group.label} style={{ marginBottom: 16 }}>
@@ -189,7 +215,6 @@ function SidebarContent({ pathname, onClose }) {
         ))}
       </nav>
 
-      {/* Logout */}
       <div style={{ padding: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
         <button
           onClick={logout}
@@ -225,27 +250,44 @@ function CloseBtn({ onClick }) {
   )
 }
 
-function HamburgerBtn({ onClick }) {
+function MobileTopBar({ onOpenMenu }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      aria-label="Open menu"
-      style={{
-        position: 'fixed', top: 12, left: 12, zIndex: 800,
-        width: 42, height: 42, borderRadius: 11,
-        border: '1px solid rgba(255,255,255,0.08)',
-        background: h ? 'rgba(99,102,241,0.2)' : 'rgba(10,10,20,0.95)',
-        backdropFilter: 'blur(12px)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer', transition: 'background .14s ease',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-      }}>
-      <svg width="17" height="13" viewBox="0 0 17 13" fill="none">
-        <rect y="0"  width="17" height="2" rx="1" fill="rgba(255,255,255,0.75)" />
-        <rect y="5.5" width="12" height="2" rx="1" fill="#818cf8" />
-        <rect y="11" width="14" height="2" rx="1" fill="rgba(255,255,255,0.75)" />
-      </svg>
-    </button>
+    <div className="sa-mobile-topbar" style={{
+      position: 'sticky', top: 0, left: 0, right: 0,
+      zIndex: 800, height: 56,
+      background: 'linear-gradient(180deg,#0a0a14 0%,#12101e 100%)',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+      display: 'none',
+      alignItems: 'center', padding: '0 14px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+      flexShrink: 0,
+      gridTemplateColumns: '40px 1fr 40px',
+    }}>
+      <button
+        onClick={onOpenMenu}
+        onMouseEnter={() => setH(true)}
+        onMouseLeave={() => setH(false)}
+        aria-label="Open menu"
+        style={{
+          width: 40, height: 40, borderRadius: 10, border: 'none',
+          background: h ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)',
+          cursor: 'pointer', gridColumn: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background .14s ease', flexShrink: 0,
+        }}
+      >
+        <svg width="17" height="13" viewBox="0 0 17 13" fill="none">
+          <rect y="0"  width="17" height="2" rx="1" fill="rgba(255,255,255,0.85)" />
+          <rect y="5.5" width="12" height="2" rx="1" fill="#818cf8" />
+          <rect y="11"  width="14" height="2" rx="1" fill="rgba(255,255,255,0.85)" />
+        </svg>
+      </button>
+      <div style={{ gridColumn: 2, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <SidebarLogo size="small" />
+      </div>
+      <div style={{ gridColumn: 3, width: 40, height: 40 }} />
+    </div>
   )
 }
 
@@ -261,20 +303,26 @@ export default function SuperAdminSidebar() {
   return (
     <>
       <style>{KF}</style>
+      <style>{`
+        @media(min-width:1024px){
+          .sa-desktop      { display:block !important; }
+          .sa-mobile-topbar{ display:none  !important; }
+        }
+        @media(max-width:1023px){
+          .sa-desktop      { display:none !important; }
+          .sa-mobile-topbar{ display:grid !important; }
+        }
+      `}</style>
 
-      {/* Desktop */}
-      <aside style={{ width: 240, height: '100vh', position: 'sticky', top: 0, flexShrink: 0, display: 'none' }}
-        className="sa-desktop">
-        <style>{`@media(min-width:1024px){.sa-desktop{display:block!important}.sa-burger{display:none!important}}@media(max-width:1023px){.sa-burger{display:flex!important}}`}</style>
+      <aside
+        className="sa-desktop"
+        style={{ width: 240, height: '100vh', position: 'sticky', top: 0, flexShrink: 0, display: 'none' }}
+      >
         <SidebarContent pathname={pathname} />
       </aside>
 
-      {/* Mobile hamburger */}
-      <div className="sa-burger" style={{ display: 'none' }}>
-        <HamburgerBtn onClick={() => setOpen(true)} />
-      </div>
+      <MobileTopBar onOpenMenu={() => setOpen(true)} />
 
-      {/* Mobile drawer */}
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{
@@ -284,8 +332,9 @@ export default function SuperAdminSidebar() {
           }} />
           <aside style={{
             position: 'fixed', top: 0, left: 0, bottom: 0,
-            width: 240, zIndex: 910,
+            width: 'min(280px, 85vw)', zIndex: 910,
             animation: 'sa-slide .28s cubic-bezier(0.34,1.56,0.64,1)',
+            boxShadow: '8px 0 32px rgba(0,0,0,0.3)',
           }}>
             <SidebarContent pathname={pathname} onClose={() => setOpen(false)} />
           </aside>

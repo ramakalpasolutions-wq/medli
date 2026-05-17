@@ -20,7 +20,6 @@ const NAV_ITEMS = [
   { label: 'Doctors',     href: '/hospital-admin/doctors',     icon: '👨‍⚕️' },
   { label: 'Coupons',     href: '/hospital-admin/coupons',     icon: '🏷️' },
   { label: 'Settlements', href: '/hospital-admin/settlements', icon: '💰' },
-  { label: 'Invoices',    href: '/hospital-admin/invoices',    icon: '🧾' },
   { label: 'Reports',     href: '/hospital-admin/reports',     icon: '📈' },
   { label: 'Settings',    href: '/hospital-admin/settings',    icon: '⚙️' },
 ]
@@ -39,35 +38,23 @@ function NavItem({ item, active, onClick }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '10px 12px',
-        borderRadius: 12,
-        marginBottom: 2,
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 12px', borderRadius: 12, marginBottom: 2,
         textDecoration: 'none',
         background: active
           ? 'linear-gradient(135deg,rgba(99,102,241,0.15),rgba(139,92,246,0.1))'
           : h ? 'rgba(255,255,255,0.06)' : 'transparent',
-        border: active
-          ? '1px solid rgba(99,102,241,0.25)'
-          : '1px solid transparent',
-        color: active
-          ? '#a5b4fc'
-          : h ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)',
-        fontSize: 13,
-        fontWeight: active ? 600 : 400,
-        transition: 'all .15s ease',
-        cursor: 'pointer',
+        border: active ? '1px solid rgba(99,102,241,0.25)' : '1px solid transparent',
+        color: active ? '#a5b4fc' : h ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)',
+        fontSize: 13, fontWeight: active ? 600 : 400,
+        transition: 'all .15s ease', cursor: 'pointer',
       }}
     >
       <span style={{
         fontSize: 16, flexShrink: 0,
         opacity: active ? 1 : h ? 0.9 : 0.6,
         transition: 'opacity .15s ease',
-      }}>
-        {item.icon}
-      </span>
+      }}>{item.icon}</span>
       <span style={{ flex: 1 }}>{item.label}</span>
       {active && (
         <span style={{
@@ -76,6 +63,54 @@ function NavItem({ item, active, onClick }) {
           boxShadow: '0 0 6px rgba(99,102,241,0.6)',
         }} />
       )}
+    </a>
+  )
+}
+
+/* ─── ✅ Logo (purple theme — Hospital Admin) ────────────────────────── */
+function SidebarLogo({ size = 'normal' }) {
+  const isSmall = size === 'small'
+  const boxSize = isSmall ? 34 : 38
+
+  return (
+    <a
+      href="/hospital-admin/dashboard"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        textDecoration: 'none', flexShrink: 0,
+      }}
+    >
+      <div style={{
+        width: boxSize, height: boxSize, borderRadius: 10,
+        background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, padding: 6, boxSizing: 'border-box',
+        boxShadow: '0 4px 14px rgba(99,102,241,0.45)',
+      }}>
+        <img
+          src="/MEDLI-LOGOICON.png"
+          alt="MEDLI"
+          style={{
+            width: '100%', height: '100%',
+            objectFit: 'contain',
+            filter: 'brightness(0) invert(1)',
+            display: 'block',
+          }}
+        />
+      </div>
+      <div style={{ lineHeight: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: isSmall ? 14 : 15, fontWeight: 900,
+          backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text', letterSpacing: '-0.3px', lineHeight: 1,
+        }}>MEDLI</div>
+        <div style={{
+          fontSize: 9, color: 'rgba(255,255,255,0.4)',
+          letterSpacing: '1.3px', fontWeight: 600,
+          textTransform: 'uppercase', marginTop: 3,
+        }}>Hospital Admin</div>
+      </div>
     </a>
   )
 }
@@ -90,32 +125,13 @@ function SidebarContent({ pathname, onClose }) {
       display: 'flex', flexDirection: 'column', height: '100%',
       background: 'linear-gradient(180deg,#0f172a 0%,#1e1b4b 100%)',
     }}>
-      {/* Logo */}
+      {/* Header with Logo */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        height: 56, padding: '0 16px',
+        height: 64, padding: '0 16px',
         borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 9,
-            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 16, boxShadow: '0 3px 10px rgba(99,102,241,0.4)',
-          }}>🏥</div>
-          <div>
-            <div style={{
-              fontSize: 15, fontWeight: 800,
-              backgroundImage: 'linear-gradient(135deg,#818cf8,#a78bfa)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text', letterSpacing: '-0.3px', lineHeight: 1,
-            }}>MEDLI</div>
-            <div style={{
-              fontSize: 9, color: 'rgba(255,255,255,0.35)',
-              letterSpacing: '1.5px', fontWeight: 600, textTransform: 'uppercase',
-            }}>Hospital Admin</div>
-          </div>
-        </div>
+        <SidebarLogo />
         {onClose && <CloseBtn onClick={onClose} />}
       </div>
 
@@ -131,19 +147,23 @@ function SidebarContent({ pathname, onClose }) {
             background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 700, fontSize: 14,
-            flexShrink: 0, overflow: 'hidden',
+            flexShrink: 0, overflow: 'hidden', position: 'relative',
+            boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
           }}>
             {user.avatar
               ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : initials}
+            <div style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 9, height: 9, borderRadius: '50%',
+              background: '#10b981', border: '1.5px solid #0f172a',
+            }} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{
               fontSize: 13, fontWeight: 700, color: '#fff', margin: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {user.name}
-            </p>
+            }}>{user.name}</p>
             <p style={{
               fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '1px 0 0',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -158,9 +178,7 @@ function SidebarContent({ pathname, onClose }) {
       <nav style={{ flex: 1, padding: '10px 10px', overflowY: 'auto', scrollbarWidth: 'none' }}>
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname?.startsWith(item.href + '/')
-          return (
-            <NavItem key={item.href} item={item} active={active} onClick={onClose} />
-          )
+          return <NavItem key={item.href} item={item} active={active} onClick={onClose} />
         })}
       </nav>
 
@@ -196,38 +214,54 @@ function CloseBtn({ onClick }) {
         color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 18,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'background .15s ease',
-      }}>
-      ✕
-    </button>
+      }}>✕</button>
   )
 }
 
-function HamburgerBtn({ onClick }) {
+/* ─── Mobile Top Bar — Centered Logo ─────────────────────────────────── */
+function MobileTopBar({ onOpenMenu }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      aria-label="Open menu"
-      style={{
-        position: 'fixed', top: 12, left: 12, zIndex: 800,
-        width: 44, height: 44, borderRadius: 12,
-        border: '1px solid rgba(255,255,255,0.1)',
-        background: h ? 'rgba(99,102,241,0.2)' : 'rgba(15,23,42,0.92)',
-        backdropFilter: 'blur(12px)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        cursor: 'pointer', transition: 'background .15s ease',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-      }}>
-      <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-        <rect y="0"  width="18" height="2" rx="1" fill="rgba(255,255,255,0.8)" />
-        <rect y="6"  width="13" height="2" rx="1" fill="#818cf8" />
-        <rect y="12" width="15" height="2" rx="1" fill="rgba(255,255,255,0.8)" />
-      </svg>
-    </button>
+    <div className="ha-mobile-topbar" style={{
+      position: 'sticky', top: 0, left: 0, right: 0,
+      zIndex: 800, height: 56,
+      background: 'linear-gradient(180deg,#0f172a 0%,#1e1b4b 100%)',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+      display: 'none',
+      alignItems: 'center', padding: '0 14px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+      flexShrink: 0,
+      gridTemplateColumns: '40px 1fr 40px',
+    }}>
+      <button
+        onClick={onOpenMenu}
+        onMouseEnter={() => setH(true)}
+        onMouseLeave={() => setH(false)}
+        aria-label="Open menu"
+        style={{
+          width: 40, height: 40, borderRadius: 10, border: 'none',
+          background: h ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.06)',
+          cursor: 'pointer', gridColumn: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background .15s ease', flexShrink: 0,
+        }}
+      >
+        <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+          <rect y="0"  width="18" height="2" rx="1" fill="rgba(255,255,255,0.9)" />
+          <rect y="6"  width="13" height="2" rx="1" fill="#818cf8" />
+          <rect y="12" width="15" height="2" rx="1" fill="rgba(255,255,255,0.9)" />
+        </svg>
+      </button>
+      <div style={{ gridColumn: 2, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <SidebarLogo size="small" />
+      </div>
+      <div style={{ gridColumn: 3, width: 40, height: 40 }} />
+    </div>
   )
 }
 
 export default function HospitalAdminSidebar() {
-  const pathname    = usePathname()
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -238,18 +272,27 @@ export default function HospitalAdminSidebar() {
   return (
     <>
       <style>{KF}</style>
+      <style>{`
+        @media(min-width:1024px){
+          .ha-desktop      { display:block !important; }
+          .ha-mobile-topbar{ display:none  !important; }
+        }
+        @media(max-width:1023px){
+          .ha-desktop      { display:none !important; }
+          .ha-mobile-topbar{ display:grid !important; }
+        }
+      `}</style>
 
-      {/* Desktop */}
-      <aside style={{ width: 240, height: '100vh', position: 'sticky', top: 0, flexShrink: 0, display: 'none' }}
-        className="ha-desktop">
-        <style>{`@media(min-width:1024px){.ha-desktop{display:block!important}.ha-burger{display:none!important}}@media(max-width:1023px){.ha-burger{display:flex!important}}`}</style>
+      {/* Desktop sidebar */}
+      <aside
+        className="ha-desktop"
+        style={{ width: 240, height: '100vh', position: 'sticky', top: 0, flexShrink: 0, display: 'none' }}
+      >
         <SidebarContent pathname={pathname} />
       </aside>
 
-      {/* Mobile hamburger */}
-      <div className="ha-burger" style={{ display: 'none' }}>
-        <HamburgerBtn onClick={() => setOpen(true)} />
-      </div>
+      {/* Mobile top bar */}
+      <MobileTopBar onOpenMenu={() => setOpen(true)} />
 
       {/* Mobile drawer */}
       {open && (
@@ -261,8 +304,9 @@ export default function HospitalAdminSidebar() {
           }} />
           <aside style={{
             position: 'fixed', top: 0, left: 0, bottom: 0,
-            width: 240, zIndex: 910,
+            width: 'min(280px, 85vw)', zIndex: 910,
             animation: 'ha-slide .28s cubic-bezier(0.34,1.56,0.64,1)',
+            boxShadow: '8px 0 32px rgba(0,0,0,0.3)',
           }}>
             <SidebarContent pathname={pathname} onClose={() => setOpen(false)} />
           </aside>

@@ -20,20 +20,23 @@ function normalizeAvailability(list = []) {
   return list
     .filter(Boolean)
     .map((item) => ({
-      dayOfWeek: Number(item.dayOfWeek),
-      startTime: item.startTime,
-      endTime: item.endTime,
+      dayOfWeek:    Number(item.dayOfWeek),
+      startTime:    item.startTime,
+      endTime:      item.endTime,
       slotDuration: Number(item.slotDuration || 10),
     }))
 }
 
+// ✅ FIXED — now includes startTime, endTime, available
 function normalizeExceptions(list = []) {
   return list
     .filter((item) => item?.date)
     .map((item) => ({
-      date: new Date(item.date),
+      date:      new Date(item.date),
       available: Boolean(item.available),
-      reason: item.reason || null,
+      reason:    item.reason || null,
+      startTime: item.startTime || null,   // ✅ was missing
+      endTime:   item.endTime   || null,   // ✅ was missing
     }))
 }
 
@@ -63,7 +66,10 @@ function validateAvailability(list) {
       return 'startTime must be earlier than endTime'
     }
 
-    if (!Number.isFinite(Number(item.slotDuration)) || Number(item.slotDuration) <= 0) {
+    if (
+      !Number.isFinite(Number(item.slotDuration)) ||
+      Number(item.slotDuration) <= 0
+    ) {
       return 'slotDuration must be a positive number'
     }
   }
@@ -79,6 +85,16 @@ function validateExceptions(list) {
     if (!item?.date || Number.isNaN(new Date(item.date).getTime())) {
       return 'Each exception must have a valid date'
     }
+
+    // ✅ Validate partial-day time range if provided
+    if (item.startTime || item.endTime) {
+      if (!isValidTime(item.startTime) || !isValidTime(item.endTime)) {
+        return 'Exception startTime and endTime must be in HH:mm format'
+      }
+      if (item.startTime >= item.endTime) {
+        return 'Exception startTime must be earlier than endTime'
+      }
+    }
   }
 
   return null
@@ -88,8 +104,8 @@ function validateConsultationTypes(list) {
   if (list == null) return null
   if (!Array.isArray(list)) return 'consultationTypes must be an array'
 
-  const allowed = ['offline', 'online']
-  const invalid = list.find((v) => !allowed.includes(v))
+  const allowed  = ['offline', 'online']
+  const invalid  = list.find((v) => !allowed.includes(v))
   if (invalid) return 'consultationTypes contains invalid value'
 
   return null
@@ -102,7 +118,7 @@ async function authorizeDoctorAccess(user, doctor) {
 
   if (user.role === 'hospital_admin') {
     const hospital = await prisma.hospital.findUnique({
-      where: { id: doctor.hospitalId },
+      where:  { id: doctor.hospitalId },
       select: { adminUserId: true },
     })
 
@@ -115,17 +131,17 @@ async function authorizeDoctorAccess(user, doctor) {
 export async function GET(request, context) {
   try {
     const { id } = await context.params
-    const user = await verifyAuth(request)
+    const user   = await verifyAuth(request)
     checkRole(user, 'super_admin', 'hospital_admin', 'doctor')
 
     const doctor = await prisma.doctor.findUnique({
-      where: { id },
+      where:  { id },
       select: {
-        id: true,
-        userId: true,
-        hospitalId: true,
-        availability: true,
-        exceptions: true,
+        id:                true,
+        userId:            true,
+        hospitalId:        true,
+        availability:      true,
+        exceptions:        true,
         consultationTypes: true,
       },
     })
@@ -138,8 +154,8 @@ export async function GET(request, context) {
 
     return successResponse(
       {
-        availability: doctor.availability || [],
-        exceptions: doctor.exceptions || [],
+        availability:      doctor.availability      || [],
+        exceptions:        doctor.exceptions        || [],
         consultationTypes: doctor.consultationTypes || [],
       },
       'Availability fetched'
@@ -159,16 +175,12 @@ export async function GET(request, context) {
 export async function PUT(request, context) {
   try {
     const { id } = await context.params
-    const user = await verifyAuth(request)
+    const user   = await verifyAuth(request)
     checkRole(user, 'super_admin', 'hospital_admin', 'doctor')
 
     const doctor = await prisma.doctor.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        hospitalId: true,
-      },
+      where:  { id },
+      select: { id: true, userId: true, hospitalId: true },
     })
 
     if (!doctor) {
@@ -194,22 +206,23 @@ export async function PUT(request, context) {
       return errorResponse(consultError, 'VALIDATION_ERROR', 400)
     }
 
-       const updated = await prisma.doctor.update({
+    const updated = await prisma.doctor.update({
       where: { id },
       data: {
-        availability: normalizeAvailability(body.availability || []),
-        exceptions: normalizeExceptions(body.exceptions || []),
+        availability:      normalizeAvailability(body.availability || []),
+        exceptions:        normalizeExceptions(body.exceptions     || []),  // ✅ now saves hours
         consultationTypes: body.consultationTypes || [],
       },
       select: {
-        id: true,
-        availability: true,
-        exceptions: true,
+        id:                true,
+        availability:      true,
+        exceptions:        true,
         consultationTypes: true,
-        updatedAt: true,
+        updatedAt:         true,
       },
     })
 
+    // ✅ FIXED — cache invalidation before return, no duplicate return
     try {
       if (typeof cache?.delPattern === 'function') {
         await cache.delPattern(`slots:${id}:*`)
@@ -220,12 +233,8 @@ export async function PUT(request, context) {
       console.error('[Doctor Availability][Cache Invalidate]', cacheErr)
     }
 
-    return successResponse(updated, 'Availability updated')
+    return successResponse(updated, 'Availability updated')  // ✅ only one return
 
-if (typeof cache?.delPattern === 'function') {
-  await cache.delPattern(`slots:${id}:*`)
-}
-    return successResponse(updated, 'Availability updated')
   } catch (err) {
     console.error('[Doctor Availability][PUT]', err)
     if (

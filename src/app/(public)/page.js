@@ -584,13 +584,13 @@ const QUICK = [
   { emoji:'🏥', label:'Find Hospitals', sub:'Book appointments nearby',   href:'/hospitals',      gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
   { emoji:'🧪', label:'Book Lab Tests', sub:'Home collection available',  href:'/labs',           gradient:'linear-gradient(135deg,#10b981,#059669)' },
   { emoji:'👨‍⚕️', label:'Online Consult', sub:'Video call with doctors',    href:'/doctors',        gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-  { emoji:'📋', label:'My Reports',     sub:'Download lab reports',       href:'/user/bookings',  gradient:'linear-gradient(135deg,#f59e0b,#f97316)' },
+  // { emoji:'📋', label:'My Reports',     sub:'Download lab reports',       href:'/user/bookings',  gradient:'linear-gradient(135deg,#f59e0b,#f97316)' },
 ]
 
 const STEPS = [
   { step:'01', icon:'🔍', title:'Search & Discover', desc:'Find top-rated hospitals, labs and doctors near you with real-time availability.', gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
   { step:'02', icon:'📅', title:'Book Instantly',    desc:'Select your preferred date, time slot and book in seconds. No waiting.',          gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-  { step:'03', icon:'🛡️', title:'Pay Securely',      desc:'Pay via 1Pay gateway. Get instant confirmation and smart reminders.',             gradient:'linear-gradient(135deg,#10b981,#059669)' },
+  { step:'03', icon:'🛡️', title:'Pay Securely',      desc:'Pay via Razorpay gateway. Get instant confirmation and smart reminders.',             gradient:'linear-gradient(135deg,#10b981,#059669)' },
 ]
 
 const STATS = [

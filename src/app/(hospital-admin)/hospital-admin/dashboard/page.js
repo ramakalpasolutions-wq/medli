@@ -176,7 +176,7 @@ function BookingRow({ b, mounted, now, onComplete, onNoShow }) {
           {b.status === 'confirmed' && (
             <>
               <ABtn variant="primary" onClick={() => onComplete(b.id)}>✓ Complete</ABtn>
-              <ABtn variant="danger"  onClick={() => onNoShow(b.id)}>✕ No-show</ABtn>
+              <ABtn variant="danger"  onClick={() => onNoShow(b.id)}>✕ Not-Attended</ABtn>
             </>
           )}
         </div>
@@ -455,7 +455,7 @@ export default function HospitalAdminDashboard() {
               { label: '🏷️ Hospital Coupons',    href: '/hospital-admin/coupons'     },
               { label: '💰 Settlements',         href: '/hospital-admin/settlements' },
               { label: '🧾 Invoices',            href: '/hospital-admin/invoices'    },
-              { label: '📈 Reports',             href: '/hospital-admin/reports'     },
+              { label: '📈 Analytics',             href: '/hospital-admin/reports'     },
               { label: '⚙️ Settings',            href: '/hospital-admin/settings'    },
             ].map((item) => (
               <button

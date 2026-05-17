@@ -18,15 +18,19 @@ import {
 export function OPTIONS() { return handleOptions() }
 
 /* ────────────────────────────────────────────────────────────
-   GET — unchanged
+   GET — ✅ FIXED: added specialization filter
 ──────────────────────────────────────────────────────────── */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const search     = sanitizeInput(searchParams.get('search') || '')
-    const hospitalId = searchParams.get('hospitalId') || ''
-    const isVerified = searchParams.get('isVerified')
-    const isActive   = searchParams.get('isActive')
+    const search         = sanitizeInput(searchParams.get('search')         || '')
+    const specialization = sanitizeInput(searchParams.get('specialization') || '')  // ✅ NEW
+    const hospitalId     = searchParams.get('hospitalId') || ''
+    const isVerified     = searchParams.get('isVerified')
+    const isActive       = searchParams.get('isActive')
+
+    // 🐛 DEBUG (remove after confirming it works)
+    console.log('🔍 [DOCTORS API] query:', { search, specialization, hospitalId })
 
     const { page, limit, skip, take } = getPaginationParams(
       searchParams.get('page'),
@@ -35,13 +39,22 @@ export async function GET(request) {
 
     const where = {}
 
+    // ✅ Filter by specialization pill (exact match in array)
+    if (specialization) {
+      where.specialization = { has: specialization }
+    }
+
+    // ✅ Free-text search across multiple fields
     if (search) {
       where.OR = [
         { name:           { contains: search, mode: 'insensitive' } },
         { specialization: { has: search } },
+        { qualifications: { has: search } },
       ]
     }
+
     if (hospitalId) where.hospitalId = hospitalId
+
     if (isVerified !== null && isVerified !== '' && isVerified !== undefined) {
       where.isVerified = isVerified === 'true'
     }
@@ -57,6 +70,9 @@ export async function GET(request) {
       where.isVerified = true
       where.isActive   = true
     }
+
+    // 🐛 DEBUG (remove after confirming it works)
+    console.log('🔍 [DOCTORS API] where:', JSON.stringify(where))
 
     const [doctors, total] = await Promise.all([
       prisma.doctor.findMany({
@@ -76,6 +92,8 @@ export async function GET(request) {
       prisma.doctor.count({ where }),
     ])
 
+    console.log(`🔍 [DOCTORS API] returned ${doctors.length} / ${total} doctors`)
+
     return paginatedResponse(
       doctors,
       buildPaginationMeta(total, page, limit),
@@ -89,7 +107,7 @@ export async function GET(request) {
 }
 
 /* ────────────────────────────────────────────────────────────
-   POST — ✅ FIXED with auto-verification + defaults
+   POST — unchanged
 ──────────────────────────────────────────────────────────── */
 export async function POST(request) {
   return verifyAuth(request, async (req, user) => {
@@ -101,7 +119,6 @@ export async function POST(request) {
       if (!body.name)       return errorResponse('Name is required', 400)
       if (!body.hospitalId) return errorResponse('Hospital ID is required', 400)
 
-      /* ✅ Verify hospital_admin owns this hospital before allowing add */
       if (user.role === 'hospital_admin') {
         const hospital = await prisma.hospital.findUnique({
           where:  { id: body.hospitalId },
@@ -116,7 +133,6 @@ export async function POST(request) {
         }
       }
 
-      /* ✅ Smart defaults */
       const specialization = Array.isArray(body.specialization) && body.specialization.length > 0
         ? body.specialization
         : ['General Physician']
@@ -131,7 +147,6 @@ export async function POST(request) {
 
       const consultationFee = body.consultationFee || { online: 0, offline: 500 }
 
-      /* ✅ Default availability — Mon-Fri 9-5 */
       const defaultAvailability = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
         dayOfWeek,
         startTime:    '09:00',
@@ -144,21 +159,16 @@ export async function POST(request) {
           name:              sanitizeInput(body.name),
           hospitalId:        body.hospitalId,
           userId:            body.userId || undefined,
-          specialization,                                                  // ✅ never empty
-          qualifications,                                                  // ✅ never empty
-          experience:        body.experience ? Number(body.experience) : 0, // ✅ default 0
+          specialization,
+          qualifications,
+          experience:        body.experience ? Number(body.experience) : 0,
           avatar:            body.avatar || undefined,
-          consultationFee,                                                 // ✅ default fees
-          consultationTypes,                                               // ✅ default offline
+          consultationFee,
+          consultationTypes,
           availability:      Array.isArray(body.availability) && body.availability.length > 0
                               ? body.availability
-                              : defaultAvailability,                       // ✅ Mon-Fri 9-5
-
-          /* ✅ Initialize rating */
-          rating: { average: 0, count: 0 },
-
-          /* ✅ Auto-verify when created by super_admin or hospital_admin
-             (both are trusted creators — patients can immediately book) */
+                              : defaultAvailability,
+          rating:     { average: 0, count: 0 },
           isVerified: true,
           isActive:   true,
         },

@@ -311,7 +311,7 @@ export default function DoctorPage({ params }) {
             />
             {doctor?.consultationFee?.online > 0 && (
               <ConsultTypeBtn
-                label="Video Call"
+                label="Online Consultation"
                 icon="🎥"
                 fee={doctor?.consultationFee?.online}
                 active={consultType === 'online'}

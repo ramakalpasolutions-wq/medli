@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'  // ✅ add useEffect
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/public/Navbar'
@@ -15,6 +15,16 @@ const SPECIALIZATIONS = [
   'Cardiologist','Neurologist','Gynecologist','Dermatologist',
   'Orthopedic Surgeon','General Physician','Pediatrician','Diabetologist',
 ]
+
+// ✅ Debounce hook
+function useDebounce(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
 
 function SearchInput({ value, onChange }) {
   const [focused, setFocused] = useState(false)
@@ -70,62 +80,83 @@ export default function DoctorsPage() {
   const [search, setSearch] = useState('')
   const [spec,   setSpec]   = useState('')
 
-  const qs = new URLSearchParams({ limit:20 })
-  if (search) qs.set('search', search)
-  if (spec)   qs.set('specialization', spec)
+  // ✅ Debounce search input (waits 300ms after user stops typing)
+  const debouncedSearch = useDebounce(search, 300)
 
-  const { data, isLoading } = useSWR(`/api/doctors?${qs}`, fetcher)
+  const qs = new URLSearchParams({ limit: 20 })
+  if (debouncedSearch) qs.set('search', debouncedSearch)
+  if (spec)            qs.set('specialization', spec)
+
+  const { data, isLoading } = useSWR(`/api/doctors?${qs}`, fetcher, {
+    revalidateOnFocus: false,
+    keepPreviousData: true,  // ✅ smoother UX while loading new filter
+  })
   const doctors = data?.doctors || data || []
 
   return (
-    <div style={{ minHeight:'100vh',background:'#f8fafc' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
       <Navbar />
 
       <div style={{
-        maxWidth:1280,margin:'0 auto',
-        padding:'clamp(80px,10vw,96px) clamp(16px,3vw,32px) 64px',
+        maxWidth: 1280, margin: '0 auto',
+        padding: 'clamp(80px,10vw,96px) clamp(16px,3vw,32px) 64px',
       }}>
         {/* Header */}
-        <div style={{ marginBottom:24 }}>
-          <h1 style={{ fontSize:'clamp(22px,3vw,32px)',fontWeight:800,color:'#0f172a',margin:'0 0 6px' }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 'clamp(22px,3vw,32px)', fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
             Find Doctors
           </h1>
-          <p style={{ fontSize:14,color:'#64748b',margin:0 }}>
+          <p style={{ fontSize: 14, color: '#64748b', margin: 0 }}>
             Book appointments with verified doctors — in-person or online
           </p>
         </div>
 
         {/* Search */}
-        <div style={{ maxWidth:400,marginBottom:20 }}>
+        <div style={{ maxWidth: 400, marginBottom: 20 }}>
           <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
         {/* Specialization pills */}
-        <div style={{ display:'flex',flexWrap:'wrap',gap:8,marginBottom:28 }}>
-          <SpecPill
-            label="All"
-            active={!spec}
-            onClick={() => setSpec('')}
-          />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+          <SpecPill label="All" active={!spec} onClick={() => setSpec('')} />
           {SPECIALIZATIONS.map((s) => (
             <SpecPill
               key={s}
               label={s}
               active={spec === s}
-              onClick={() => setSpec(spec===s?'':s)}
+              onClick={() => setSpec(spec === s ? '' : s)}
             />
           ))}
         </div>
 
-        {/* Count */}
-        <p style={{ fontSize:13,color:'#94a3b8',marginBottom:16 }}>
-          {isLoading ? 'Searching…' : `${Array.isArray(doctors)?doctors.length:0} doctor${doctors.length!==1?'s':''} found`}
-        </p>
+        {/* Count + active filter chip */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+            {isLoading
+              ? 'Searching…'
+              : `${doctors.length} doctor${doctors.length !== 1 ? 's' : ''} found`}
+          </p>
+          {(spec || debouncedSearch) && (
+            <button
+              onClick={() => { setSearch(''); setSpec('') }}
+              style={{
+                fontSize: 12, color: '#6366f1', background: 'rgba(99,102,241,0.08)',
+                border: 'none', borderRadius: 100, padding: '4px 12px',
+                cursor: 'pointer', fontWeight: 600,
+              }}
+            >
+              ✕ Clear filters
+            </button>
+          )}
+        </div>
 
         {/* Grid */}
         {isLoading ? (
-          <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:20 }}>
-            {[1,2,3,4,5,6].map((i) => <SkeletonCard key={i} />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 20 }}>
+            {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
           </div>
         ) : !doctors?.length ? (
           <EmptyState
@@ -133,8 +164,8 @@ export default function DoctorsPage() {
             message="Try adjusting your search or specialization filter"
           />
         ) : (
-          <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:20 }}>
-            {(Array.isArray(doctors)?doctors:[]).map((d) => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 20 }}>
+            {doctors.map((d) => (
               <DoctorCard
                 key={d.id}
                 doctor={d}

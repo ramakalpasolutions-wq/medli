@@ -59,12 +59,33 @@ function SuperAdminGuard({ children }) {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', overflow: 'hidden' }}>
-      <SuperAdminSidebar />
-      <main style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px,3vw,28px)' }}>
-        {children}
-      </main>
-    </div>
+    <>
+      {/* ✅ Responsive layout — column on mobile, row on desktop */}
+      <style>{`
+        @media(max-width:1023px){
+          .sa-layout-container { flex-direction: column !important; }
+        }
+      `}</style>
+
+      <div
+        className="sa-layout-container"
+        style={{
+          display: 'flex',
+          height: '100vh',
+          background: '#f8fafc',
+          overflow: 'hidden',
+        }}
+      >
+        <SuperAdminSidebar />
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 'clamp(16px,3vw,28px)',
+        }}>
+          {children}
+        </main>
+      </div>
+    </>
   )
 }
 

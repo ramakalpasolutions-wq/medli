@@ -1,6 +1,7 @@
+// C:\Users\ASUS\medli2\src\app\(public)\hospitals\page.js
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import dynamic       from 'next/dynamic'
 import useSWR        from 'swr'
 import { useRouter } from 'next/navigation'
@@ -34,15 +35,12 @@ const fetcher = async (url) => {
 
   if (!json.success && json.error) throw new Error(json.error)
 
-  // New shape: { data: { hospitals, pagination } }
   if (json.data?.hospitals) {
     return { hospitals: json.data.hospitals, pagination: json.data.pagination }
   }
-  // Fallback: { data: [...] }
   if (Array.isArray(json.data)) {
     return { hospitals: json.data, pagination: json.pagination || null }
   }
-  // Fallback: { hospitals: [...] }
   if (Array.isArray(json.hospitals)) {
     return { hospitals: json.hospitals, pagination: json.pagination || null }
   }
@@ -55,6 +53,8 @@ const VIEWS = [
   { key: 'split', label: 'Split', icon: '⊞' },
   { key: 'map',   label: 'Map',   icon: '🗺' },
 ]
+
+const VIEW_STORAGE_KEY = 'medli_hospitals_view'
 
 function SearchInput({ value, onChange, placeholder }) {
   const [focused, setFocused] = useState(false)
@@ -134,11 +134,41 @@ function SelectedWrapper({ children, selected, onClick }) {
 
 export default function HospitalsPage() {
   const router = useRouter()
+
   const [search,   setSearch]   = useState('')
   const [city,     setCity]     = useState('')
-  const [view,     setView]     = useState('split')
   const [selected, setSelected] = useState(null)
 
+  /* ─────────────────────────────────────────────────────────────
+     ✅ Default view = 'list' (no flicker — SSR-safe)
+     ✅ Then read saved preference from localStorage on mount
+  ───────────────────────────────────────────────────────────── */
+  const [view, setView] = useState('list')
+
+  /* Load saved view preference on mount */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_STORAGE_KEY)
+      if (saved && ['list', 'split', 'map'].includes(saved)) {
+        setView(saved)
+      }
+    } catch {
+      /* localStorage blocked — keep default 'list' */
+    }
+  }, [])
+
+  /* Persist view preference whenever it changes */
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, view)
+    } catch {
+      /* silent fail */
+    }
+  }, [view])
+
+  /* ─────────────────────────────────────────────────────────────
+     Data fetching
+  ───────────────────────────────────────────────────────────── */
   const qs = new URLSearchParams({ limit: 50 })
   if (search) qs.set('search', search)
   if (city)   qs.set('city',   city)
@@ -149,7 +179,6 @@ export default function HospitalsPage() {
     { revalidateOnFocus: false }
   )
 
-  // ✅ Always safe
   const hospitals = data?.hospitals ?? []
   const total     = data?.pagination?.total ?? hospitals.length
 
@@ -196,14 +225,14 @@ export default function HospitalsPage() {
     />
   )
 
-  // Grid for list view
+  /* Grid for list view */
   const HospitalGrid = () => {
     if (isLoading) return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
         {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
       </div>
     )
-    if (error)           return <ErrorBox />
+    if (error)             return <ErrorBox />
     if (!hospitals.length) return <EmptyBox />
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
@@ -220,14 +249,14 @@ export default function HospitalsPage() {
     )
   }
 
-  // List for split view (scrollable)
+  /* List for split view (scrollable) */
   const HospitalList = () => {
     if (isLoading) return (
       <div style={{ display: 'grid', gap: 12 }}>
         {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
       </div>
     )
-    if (error)            return <ErrorBox />
+    if (error)             return <ErrorBox />
     if (!hospitals.length) return <EmptyBox />
     return (
       <div style={{

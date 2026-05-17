@@ -63,15 +63,24 @@ function HospitalAdminGuard({ children }) {
   }
 
   return (
-    <div style={{
-      display: 'flex', height: '100vh',
-      background: '#f8fafc', overflow: 'hidden',
-    }}>
-      <HospitalAdminSidebar />
-      <main style={{ flex: 1, overflowY: 'auto', padding: 'clamp(16px,3vw,28px)' }}>
-        {children}
-      </main>
-    </div>
+    <div className="ha-layout-container" style={{
+  display: 'flex', height: '100vh',
+  background: '#f8fafc', overflow: 'hidden',
+}}>
+  <style>{`
+    @media(max-width:1023px){
+      .ha-layout-container { flex-direction: column !important; }
+    }
+  `}</style>
+
+  <HospitalAdminSidebar />
+  <main style={{
+    flex: 1, overflowY: 'auto',
+    padding: 'clamp(16px,3vw,28px)',
+  }}>
+    {children}
+  </main>
+</div>
   )
 }
 

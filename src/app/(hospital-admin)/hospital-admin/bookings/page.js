@@ -425,7 +425,7 @@ const STATUS_FILTERS = [
   { key: 'completed',       label: 'Completed'  },
   { key: 'cancelled',       label: 'Cancelled'  },
   { key: 'pending_payment', label: 'Pending'    },
-  { key: 'no_show',         label: 'No Show'    },
+  { key: 'no_show',         label: 'Not Attended'    },
 ]
 
 export default function HospitalAdminBookings() {
