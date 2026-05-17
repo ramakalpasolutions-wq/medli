@@ -424,29 +424,37 @@ function NearbySection({ title, subtitle, viewHref, viewColor, children }) {
 }
 
 /* ─── Location Prompt ────────────────────────────────────────────────── */
-function LocationPrompt({ onAllow }) {
+/* ─── Location Banner (soft hint, not a blocker) ─────────────────────── */
+function LocationBanner({ onAllow, city }) {
   const [hov, setHov] = useState(false)
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-      background: 'rgba(99,102,241,0.05)', border: '1.5px solid rgba(99,102,241,0.15)',
-      borderRadius: 20, padding: 'clamp(20px,4vw,32px)', textAlign: 'center',
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: 'rgba(99,102,241,0.06)',
+      border: '1px solid rgba(99,102,241,0.15)',
+      borderRadius: 14, padding: '12px 16px', marginBottom: 16,
+      flexWrap: 'wrap',
     }}>
-      <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, boxShadow: '0 8px 24px rgba(99,102,241,0.35)' }}>📍</div>
-      <div>
-        <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 6px' }}>Enable Location Access</p>
-        <p style={{ fontSize: 13, color: '#64748b', margin: 0, maxWidth: 320 }}>Allow location to discover hospitals and labs near you</p>
-      </div>
-      <button onClick={onAllow} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      <span style={{ fontSize: 18, flexShrink: 0 }}>📍</span>
+      <span style={{ fontSize: 13, color: '#475569', flex: 1, minWidth: 0 }}>
+        Showing results for <strong style={{ color: '#6366f1' }}>{city || 'default city'}</strong>.
+        {' '}Enable location for accurate nearby results.
+      </span>
+      <button
+        onClick={onAllow}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
         style={{
-          padding: '11px 24px', borderRadius: 12, border: 'none',
-          background: hov ? 'linear-gradient(135deg,#7c3aed,#6d28d9)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-          color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          boxShadow: '0 6px 20px rgba(99,102,241,0.4)', transition: 'all .18s ease',
-          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '7px 14px', borderRadius: 10, border: 'none',
+          background: hov
+            ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
+            : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+          color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+          transition: 'all .18s ease', flexShrink: 0,
         }}
       >
-        📍 Allow Location
+        📍 Enable Location
       </button>
     </div>
   )
@@ -646,11 +654,16 @@ export default function HomePage() {
   }
 
   const handleAllowLocation = () => {
-    navigator.geolocation?.getCurrentPosition(
-      () => window.location.reload(),
-      () => alert('Please allow location in browser settings.')
-    )
-  }
+  /* ✅ Clear cached fallback so it tries fresh geolocation */
+  try {
+    sessionStorage.removeItem('medli_geo')
+  } catch {}
+
+  navigator.geolocation?.getCurrentPosition(
+    () => window.location.reload(),
+    () => alert('Please allow location access in your browser settings, then refresh the page.')
+  )
+}
 
   return (
     <>
@@ -822,56 +835,104 @@ export default function HomePage() {
         </section>
 
         {/* ══════════ NEARBY HOSPITALS ══════════ */}
-        <NearbySection title="🏥 Hospitals Near You" subtitle={geo.lat ? 'Top-rated hospitals within 15km' : 'Allow location to see nearby hospitals'} viewHref="/hospitals" viewColor="#6366f1">
-          {!mounted || geo.loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.1)', borderRadius: 16, padding: 16 }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'spin-ring .8s linear infinite' }} />
-              <span style={{ fontSize: 13, color: '#6366f1' }}>Detecting your location...</span>
-            </div>
-          ) : !geo.lat ? (
-            <LocationPrompt onAllow={handleAllowLocation} />
-          ) : hospLoad ? (
-            <SkeletonRow />
-          ) : hospErr ? (
-            <ErrorState type="hospitals" onRetry={() => setRetryKey((k) => k + 1)} />
-          ) : !nearbyHosp?.length ? (
-            <EmptyNearby type="hospitals" href="/hospitals" />
-          ) : (
-            <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
-              <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
-                {nearbyHosp.map((h, i) => (
-                  <NearbyHospCard key={h.id || i} h={h} onClick={() => router.push(`/hospitals/${h.id}`)} />
-                ))}
-              </div>
-            </div>
-          )}
-        </NearbySection>
+      {/* ══════════ NEARBY HOSPITALS ══════════ */}
+<NearbySection
+  title="🏥 Hospitals Near You"
+  subtitle={
+    geo.isDefault
+      ? `Showing top-rated hospitals near ${geo.address || 'default city'}`
+      : 'Top-rated hospitals within 15km'
+  }
+  viewHref="/hospitals"
+  viewColor="#6366f1"
+>
+  {/* ✅ Show soft location banner if using default fallback */}
+  {mounted && geo.isDefault && (
+    <LocationBanner
+      onAllow={handleAllowLocation}
+      city={geo.address?.split(',')[0] || 'your city'}
+    />
+  )}
+
+  {!mounted || geo.loading ? (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.1)',
+      borderRadius: 16, padding: 16,
+    }}>
+      <div style={{
+        width: 20, height: 20, borderRadius: '50%',
+        border: '2px solid #6366f1', borderTopColor: 'transparent',
+        animation: 'spin-ring .8s linear infinite',
+      }} />
+      <span style={{ fontSize: 13, color: '#6366f1' }}>Detecting your location...</span>
+    </div>
+  ) : hospLoad ? (
+    <SkeletonRow />
+  ) : hospErr ? (
+    <ErrorState type="hospitals" onRetry={() => setRetryKey((k) => k + 1)} />
+  ) : !nearbyHosp?.length ? (
+    <EmptyNearby type="hospitals" href="/hospitals" />
+  ) : (
+    <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
+      <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
+        {nearbyHosp.map((h, i) => (
+          <NearbyHospCard key={h.id || i} h={h} onClick={() => router.push(`/hospitals/${h.id}`)} />
+        ))}
+      </div>
+    </div>
+  )}
+</NearbySection>
 
         {/* ══════════ NEARBY LABS ══════════ */}
-        <NearbySection title="🧪 Labs Near You" subtitle={geo.lat ? 'Trusted labs with home collection within 15km' : 'Allow location to see nearby labs'} viewHref="/labs" viewColor="#10b981">
-          {!mounted || geo.loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.1)', borderRadius: 16, padding: 16 }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid #10b981', borderTopColor: 'transparent', animation: 'spin-ring .8s linear infinite' }} />
-              <span style={{ fontSize: 13, color: '#10b981' }}>Detecting your location...</span>
-            </div>
-          ) : !geo.lat ? (
-            <LocationPrompt onAllow={handleAllowLocation} />
-          ) : labLoad ? (
-            <SkeletonRow />
-          ) : labErr ? (
-            <ErrorState type="labs" onRetry={() => setRetryKey((k) => k + 1)} />
-          ) : !nearbyLab?.length ? (
-            <EmptyNearby type="labs" href="/labs" />
-          ) : (
-            <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
-              <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
-                {nearbyLab.map((l, i) => (
-                  <NearbyLabCard key={l.id || i} l={l} onClick={() => router.push(`/labs/${l.id}`)} />
-                ))}
-              </div>
-            </div>
-          )}
-        </NearbySection>
+{/* ══════════ NEARBY LABS ══════════ */}
+<NearbySection
+  title="🧪 Labs Near You"
+  subtitle={
+    geo.isDefault
+      ? `Showing trusted labs near ${geo.address || 'default city'}`
+      : 'Trusted labs with home collection within 15km'
+  }
+  viewHref="/labs"
+  viewColor="#10b981"
+>
+  {/* ✅ Show soft location banner if using default fallback */}
+  {mounted && geo.isDefault && (
+    <LocationBanner
+      onAllow={handleAllowLocation}
+      city={geo.address?.split(',')[0] || 'your city'}
+    />
+  )}
+
+  {!mounted || geo.loading ? (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.1)',
+      borderRadius: 16, padding: 16,
+    }}>
+      <div style={{
+        width: 20, height: 20, borderRadius: '50%',
+        border: '2px solid #10b981', borderTopColor: 'transparent',
+        animation: 'spin-ring .8s linear infinite',
+      }} />
+      <span style={{ fontSize: 13, color: '#10b981' }}>Detecting your location...</span>
+    </div>
+  ) : labLoad ? (
+    <SkeletonRow />
+  ) : labErr ? (
+    <ErrorState type="labs" onRetry={() => setRetryKey((k) => k + 1)} />
+  ) : !nearbyLab?.length ? (
+    <EmptyNearby type="labs" href="/labs" />
+  ) : (
+    <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
+      <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
+        {nearbyLab.map((l, i) => (
+          <NearbyLabCard key={l.id || i} l={l} onClick={() => router.push(`/labs/${l.id}`)} />
+        ))}
+      </div>
+    </div>
+  )}
+</NearbySection>
 
         {/* ══════════ HOW IT WORKS ══════════ */}
         <section style={{ background: 'linear-gradient(180deg,#f8fafc,#fff)', padding: 'clamp(48px,8vw,96px) 0', position: 'relative', overflow: 'hidden' }}>
