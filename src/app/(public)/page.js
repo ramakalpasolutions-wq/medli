@@ -870,7 +870,7 @@ export default function HomePage() {
                       <Video size={22} strokeWidth={2} color="#7c3aed" />
                     </div>
                     <div>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>Video Consult</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>online  Consult</p>
                       <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Talk to doctors live</p>
                     </div>
                   </div>

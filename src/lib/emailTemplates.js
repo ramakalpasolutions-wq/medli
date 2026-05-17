@@ -228,7 +228,7 @@ MEDLI Team
                   MEDLI · Online Consultation
                 </div>
                 <h1 style="margin:12px 0 0 0;font-size:28px;line-height:34px;color:#ffffff;">
-                  🎥 Your Video Consultation
+                  🎥 Your online  Consultation
                 </h1>
                 <p style="margin:10px 0 0 0;font-size:15px;line-height:22px;color:#e0e7ff;">
                   Meeting link generated successfully
@@ -251,7 +251,7 @@ MEDLI Team
                   <tr>
                     <td align="center" style="background:linear-gradient(135deg,#8b5cf6,#6366f1);border-radius:12px;box-shadow:0 8px 20px rgba(99,102,241,0.4);">
                       <a href="${meetLink}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:18px 36px;font-size:17px;line-height:22px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:12px;">
-                        🎥 Join Video Consultation
+                        🎥 Join online  Consultation
                       </a>
                     </td>
                   </tr>

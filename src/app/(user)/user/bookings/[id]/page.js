@@ -770,7 +770,7 @@ export default function BookingDetailPage({ params }) {
           {/* ── Online meet ── */}
           {booking.type === 'online' && !isFinished && (
             <div style={{ background:'linear-gradient(135deg,rgba(16,185,129,0.06),rgba(5,150,105,0.04))', border:'1px solid rgba(16,185,129,0.2)', borderRadius:20, padding:20 }}>
-              <p style={{ fontSize:14, fontWeight:700, color:'#065f46', marginBottom:10 }}>Video Consultation</p>
+              <p style={{ fontSize:14, fontWeight:700, color:'#065f46', marginBottom:10 }}>online  Consultation</p>
               {!mounted ? (
                 <div style={{ height:14, width:192, borderRadius:6, ...SHIMMER }} />
               ) : showJoin ? (
