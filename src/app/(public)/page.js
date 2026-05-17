@@ -6,6 +6,12 @@ import useSWR from 'swr'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import { useGeoLocation } from '@/hooks/useGeoLocation'
+import {
+  Building2, FlaskConical, Stethoscope, Video,
+  Shield, Heart, Search, MapPin, Star, Zap,
+  Lock, Clock, Calendar, CheckCircle, AlertTriangle,
+  RefreshCw, Home, Loader2, Users
+} from 'lucide-react'
 
 const fetcher = (url) =>
   fetch(url).then((r) => r.json()).then((j) => {
@@ -32,9 +38,8 @@ function WordRotator() {
 
   if (!mounted) {
     return (
-    
       <span style={{
-        backgroundImage: 'linear-gradient(135deg,#c7d2fe,#a5f3fc)', // Use backgroundImage
+        backgroundImage: 'linear-gradient(135deg,#c7d2fe,#a5f3fc)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         backgroundClip: 'text',
@@ -47,7 +52,7 @@ function WordRotator() {
   return (
    <span style={{
   display: 'inline-block',
-  backgroundImage: 'linear-gradient(135deg,#c7d2fe,#67e8f9)', // Fixed here
+  backgroundImage: 'linear-gradient(135deg,#c7d2fe,#67e8f9)',
   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
       opacity: visible ? 1 : 0,
       transform: visible ? 'translateY(0)' : 'translateY(-12px)',
@@ -151,27 +156,34 @@ function NearbyHospCard({ h, onClick }) {
       <div style={{ position: 'relative', height: 128, background: 'linear-gradient(135deg,#dbeafe,#c7d2fe)', overflow: 'hidden' }}>
         {h.images?.cover
           ? <img src={h.images.cover} alt={h.name} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: hov ? 'scale(1.05)' : 'scale(1)', transition: 'transform .3s ease' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>🏥</div>
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Building2 size={48} strokeWidth={1.5} color="#93c5fd" />
+            </div>
         }
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,0.2),transparent)' }} />
         {h.distance && (
           <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
-            📍 {(h.distance / 1000).toFixed(1)}km
+            <MapPin size={10} strokeWidth={2.5} color="#6366f1" />
+            {(h.distance / 1000).toFixed(1)}km
           </div>
         )}
         {h.images?.logo && (
-          <div style={{ position: 'absolute', bottom: -18, left: 12, width: 38, height: 38, borderRadius: 10, background: '#fff', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', bottom: -18, left: 12, width: 38, height: 38, borderRadius: 10, background: '#fff', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
             <img src={h.images.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         )}
       </div>
-
       <div style={{ padding: '24px 14px 14px' }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</h3>
-        {h.address?.city && <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>📍 {h.address.city}</p>}
+        {h.address?.city && (
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <MapPin size={10} strokeWidth={2} color="#94a3b8" />
+            {h.address.city}
+          </p>
+        )}
         {h.rating?.average > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-            <span>⭐</span>
+            <Star size={12} strokeWidth={0} fill="#f59e0b" color="#f59e0b" />
             <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>{h.rating.average.toFixed(1)}</span>
             <span style={{ fontSize: 11, color: '#94a3b8' }}>({h.rating.count})</span>
           </div>
@@ -207,27 +219,36 @@ function NearbyLabCard({ l, onClick }) {
       <div style={{ position: 'relative', height: 128, background: 'linear-gradient(135deg,#d1fae5,#a7f3d0)', overflow: 'hidden' }}>
         {l.images?.cover
           ? <img src={l.images.cover} alt={l.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>🧪</div>
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FlaskConical size={48} strokeWidth={1.5} color="#6ee7b7" />
+            </div>
         }
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(0,0,0,0.2),transparent)' }} />
         {l.distance && (
           <div style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 4 }}>
-            📍 {(l.distance / 1000).toFixed(1)}km
+            <MapPin size={10} strokeWidth={2.5} color="#10b981" />
+            {(l.distance / 1000).toFixed(1)}km
           </div>
         )}
         {l.homeCollection?.enabled && (
-          <div style={{ position: 'absolute', top: 10, left: 10, background: '#10b981', color: '#fff', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>
-            🏠 Home Collection
+          <div style={{ position: 'absolute', top: 10, left: 10, background: '#10b981', color: '#fff', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Home size={10} strokeWidth={2.5} color="#fff" />
+            Home Collection
           </div>
         )}
       </div>
 
       <div style={{ padding: 14 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</h3>
-        {l.address?.city && <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>📍 {l.address.city}</p>}
+        {l.address?.city && (
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <MapPin size={10} strokeWidth={2} color="#94a3b8" />
+            {l.address.city}
+          </p>
+        )}
         {l.rating?.average > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-            <span>⭐</span>
+            <Star size={12} strokeWidth={0} fill="#f59e0b" color="#f59e0b" />
             <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>{l.rating.average.toFixed(1)}</span>
           </div>
         )}
@@ -266,29 +287,37 @@ function NearbyBtn({ color, label }) {
 }
 
 /* ─── Quick Action ───────────────────────────────────────────────────── */
-function QuickAction({ emoji, label, sub, href, gradient }) {
+function QuickAction({ Icon, label, sub, href, color }) {
   const [h, setH] = useState(false)
+  const COLORS = {
+    blue:   { bg: '#dbeafe', icon: '#2563eb', glow: 'rgba(37,99,235,0.25)' },
+    green:  { bg: '#dcfce7', icon: '#16a34a', glow: 'rgba(22,163,74,0.25)' },
+    purple: { bg: '#ede9fe', icon: '#7c3aed', glow: 'rgba(124,58,237,0.25)' },
+  }
+  const C = COLORS[color] || COLORS.blue
   return (
-    <a href={href} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+    <a href={href}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
       style={{
         display: 'block', background: '#fff', borderRadius: 20,
         padding: 'clamp(16px,3vw,24px)',
-        border: `1.5px solid ${h ? '#e0e7ff' : '#f1f5f9'}`,
+        border: `1.5px solid ${h ? C.icon + '40' : '#f1f5f9'}`,
         textDecoration: 'none',
-        boxShadow: h ? '0 16px 40px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.05)',
+        boxShadow: h ? `0 16px 40px ${C.glow}` : '0 2px 8px rgba(0,0,0,0.05)',
         transform: h ? 'translateY(-6px)' : 'translateY(0)',
         transition: 'all .25s ease', position: 'relative', overflow: 'hidden',
       }}
     >
-      <div style={{ position: 'absolute', inset: 0, background: gradient, opacity: h ? 0.04 : 0, transition: 'opacity .25s ease', borderRadius: 20 }} />
       <div style={{
-        width: 56, height: 56, borderRadius: 16, background: gradient,
+        width: 56, height: 56, borderRadius: 16,
+        background: C.bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 26, marginBottom: 14,
-        boxShadow: h ? '0 8px 24px rgba(0,0,0,0.2)' : '0 4px 12px rgba(0,0,0,0.15)',
-        transform: h ? 'scale(1.08)' : 'scale(1)', transition: 'all .2s ease',
+        marginBottom: 14,
+        transform: h ? 'scale(1.08)' : 'scale(1)',
+        transition: 'transform .2s ease',
       }}>
-        {emoji}
+        <Icon size={28} strokeWidth={2} color={C.icon} />
       </div>
       <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>{label}</p>
       <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{sub}</p>
@@ -297,7 +326,7 @@ function QuickAction({ emoji, label, sub, href, gradient }) {
 }
 
 /* ─── Step Card ──────────────────────────────────────────────────────── */
-function StepCard({ step, icon, title, desc, gradient, delay }) {
+function StepCard({ step, Icon, iconColor, title, desc, gradient, delay }) {
   const [vis, setVis]   = useState(false)
   const [hov, setHov]   = useState(false)
   const ref             = useRef(null)
@@ -324,11 +353,11 @@ function StepCard({ step, icon, title, desc, gradient, delay }) {
       <div style={{ position: 'relative', marginBottom: 24, width: 'fit-content' }}>
         <div style={{
           width: 64, height: 64, borderRadius: 18, background: gradient,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           transform: hov ? 'scale(1.08)' : 'scale(1)', transition: 'transform .2s ease',
         }}>
-          {icon}
+          <Icon size={30} strokeWidth={2} color="#fff" />
         </div>
         <div style={{
           position: 'absolute', top: -8, right: -8,
@@ -370,9 +399,9 @@ function TestiCard({ name, role, avatar, text, rating, delay }) {
         opacity: vis ? 1 : 0, transition: 'all .3s ease',
       }}
     >
-      <div style={{ display: 'flex', gap: 2, marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 3, marginBottom: 14 }}>
         {Array.from({ length: rating }).map((_, i) => (
-          <span key={i} style={{ fontSize: 15 }}>⭐</span>
+          <Star key={i} size={14} strokeWidth={0} fill="#f59e0b" color="#f59e0b" />
         ))}
       </div>
       <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.75, marginBottom: 20 }}>
@@ -423,8 +452,7 @@ function NearbySection({ title, subtitle, viewHref, viewColor, children }) {
   )
 }
 
-/* ─── Location Prompt ────────────────────────────────────────────────── */
-/* ─── Location Banner (soft hint, not a blocker) ─────────────────────── */
+/* ─── Location Banner ────────────────────────────────────────────────── */
 function LocationBanner({ onAllow, city }) {
   const [hov, setHov] = useState(false)
   return (
@@ -435,7 +463,7 @@ function LocationBanner({ onAllow, city }) {
       borderRadius: 14, padding: '12px 16px', marginBottom: 16,
       flexWrap: 'wrap',
     }}>
-      <span style={{ fontSize: 18, flexShrink: 0 }}>📍</span>
+      <MapPin size={16} strokeWidth={2} color="#6366f1" style={{ flexShrink: 0 }} />
       <span style={{ fontSize: 13, color: '#475569', flex: 1, minWidth: 0 }}>
         Showing results for <strong style={{ color: '#6366f1' }}>{city || 'default city'}</strong>.
         {' '}Enable location for accurate nearby results.
@@ -452,9 +480,11 @@ function LocationBanner({ onAllow, city }) {
           color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
           boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
           transition: 'all .18s ease', flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 6,
         }}
       >
-        📍 Enable Location
+        <MapPin size={12} strokeWidth={2.5} color="#fff" />
+        Enable Location
       </button>
     </div>
   )
@@ -464,18 +494,26 @@ function LocationBanner({ onAllow, city }) {
 function ErrorState({ type, onRetry }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 16, padding: 16 }}>
-      <span style={{ fontSize: 20 }}>⚠️</span>
+      <AlertTriangle size={20} strokeWidth={2} color="#ef4444" style={{ flexShrink: 0 }} />
       <span style={{ fontSize: 13, color: '#ef4444', flex: 1 }}>Could not load nearby {type}.</span>
-      <button onClick={onRetry} style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', flexShrink: 0 }}>Retry</button>
+      <button onClick={onRetry} style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <RefreshCw size={12} strokeWidth={2.5} color="#ef4444" /> Retry
+      </button>
     </div>
   )
 }
 
 /* ─── Empty Nearby ───────────────────────────────────────────────────── */
 function EmptyNearby({ type, href }) {
+  const cfg = type === 'hospitals'
+    ? { Icon: Building2, bg: '#dbeafe', color: '#2563eb' }
+    : { Icon: FlaskConical, bg: '#dcfce7', color: '#16a34a' }
+  const { Icon, bg, color } = cfg
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 16, padding: 20 }}>
-      <span style={{ fontSize: 28, opacity: 0.3 }}>{type === 'hospitals' ? '🏥' : '🧪'}</span>
+      <div style={{ width: 44, height: 44, borderRadius: 12, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5, flexShrink: 0 }}>
+        <Icon size={22} strokeWidth={2} color={color} />
+      </div>
       <div>
         <p style={{ fontSize: 13, fontWeight: 500, color: '#94a3b8', margin: '0 0 4px' }}>No {type} found within 15km</p>
         <a href={href} style={{ fontSize: 12, color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>Browse all {type} →</a>
@@ -485,11 +523,12 @@ function EmptyNearby({ type, href }) {
 }
 
 /* ─── Section Header ─────────────────────────────────────────────────── */
-function SectionHeader({ badge, title, sub }) {
+function SectionHeader({ badge, BadgeIcon, title, sub }) {
   return (
     <div style={{ textAlign: 'center', marginBottom: 'clamp(32px,5vw,56px)' }}>
       {badge && (
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 100, padding: '5px 16px', marginBottom: 16, fontSize: 12, fontWeight: 600, color: '#6366f1' }}>
+          {BadgeIcon && <BadgeIcon size={13} strokeWidth={2.5} color="#6366f1" />}
           {badge}
         </div>
       )}
@@ -516,19 +555,22 @@ function SearchSubmitBtn() {
         display: 'flex', alignItems: 'center', gap: 6,
       }}
     >
-      Search →
+      <Search size={14} strokeWidth={2.5} color="#fff" />
+      Search
     </button>
   )
 }
 
 /* ─── Stat Card ──────────────────────────────────────────────────────── */
-function StatCard({ value, suffix, label, icon, delay }) {
+function StatCard({ value, suffix, label, Icon, iconBg, iconColor, delay }) {
   const [vis, setVis] = useState(false)
   const [hov, setHov] = useState(false)
-  const ref           = useRef(null)
+  const ref = useRef(null)
 
   useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setTimeout(() => setVis(true), delay) }, { threshold: 0.2 })
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) setTimeout(() => setVis(true), delay)
+    }, { threshold: 0.2 })
     if (ref.current) obs.observe(ref.current)
     return () => obs.disconnect()
   }, [delay])
@@ -537,8 +579,17 @@ function StatCard({ value, suffix, label, icon, delay }) {
     <div ref={ref} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{ textAlign: 'center', opacity: vis ? 1 : 0, transform: vis ? (hov ? 'translateY(-4px)' : 'translateY(0)') : 'translateY(20px)', transition: 'all .3s ease' }}
     >
-      <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 14px', backdropFilter: 'blur(10px)', transform: hov ? 'scale(1.1)' : 'scale(1)', transition: 'transform .2s ease' }}>
-        {icon}
+      <div style={{
+        width: 56, height: 56, borderRadius: 16,
+        background: iconBg,
+        border: '1px solid rgba(255,255,255,0.15)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        margin: '0 auto 14px',
+        backdropFilter: 'blur(10px)',
+        transform: hov ? 'scale(1.1)' : 'scale(1)',
+        transition: 'transform .2s ease',
+      }}>
+        <Icon size={26} strokeWidth={2} color={iconColor} />
       </div>
       <div style={{ fontSize: 'clamp(28px,4vw,40px)', fontWeight: 900, background: 'linear-gradient(135deg,#a5b4fc,#67e8f9)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', letterSpacing: '-1px', marginBottom: 6 }}>
         <AnimCounter target={value} suffix={suffix} />
@@ -566,7 +617,8 @@ function CtaBlock() {
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
           <a href="/hospitals" onMouseEnter={() => setH1(true)} onMouseLeave={() => setH1(false)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 28px', borderRadius: 14, background: h1 ? '#f0f4ff' : '#fff', color: '#4f46e5', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'all .18s ease', transform: h1 ? 'scale(1.02)' : 'scale(1)', boxShadow: h1 ? '0 8px 24px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.1)' }}>
-            🏥 Find Hospitals
+            <Building2 size={16} strokeWidth={2.5} color="#4f46e5" />
+            Find Hospitals
           </a>
           <a href="/auth/register" onMouseEnter={() => setH2(true)} onMouseLeave={() => setH2(false)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '13px 28px', borderRadius: 14, background: h2 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.3)', color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', transition: 'all .18s ease', backdropFilter: 'blur(10px)' }}>
@@ -589,29 +641,36 @@ const KF = `
 `
 
 const QUICK = [
-  { emoji:'🏥', label:'Find Hospitals', sub:'Book appointments nearby',   href:'/hospitals',      gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
-  { emoji:'🧪', label:'Book Lab Tests', sub:'Home collection available',  href:'/labs',           gradient:'linear-gradient(135deg,#10b981,#059669)' },
-  { emoji:'👨‍⚕️', label:'Online Consult', sub:'Video call with doctors',    href:'/doctors',        gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-  // { emoji:'📋', label:'My Reports',     sub:'Download lab reports',       href:'/user/bookings',  gradient:'linear-gradient(135deg,#f59e0b,#f97316)' },
+  { Icon: Building2,    label: 'Find Hospitals', sub: 'Book appointments nearby',  href: '/hospitals', color: 'blue'   },
+  { Icon: FlaskConical, label: 'Book Lab Tests', sub: 'Home collection available', href: '/labs',      color: 'green'  },
+  { Icon: Stethoscope,  label: 'Online Consult', sub: 'Video call with doctors',   href: '/doctors',   color: 'purple' },
 ]
 
 const STEPS = [
-  { step:'01', icon:'🔍', title:'Search & Discover', desc:'Find top-rated hospitals, labs and doctors near you with real-time availability.', gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
-  { step:'02', icon:'📅', title:'Book Instantly',    desc:'Select your preferred date, time slot and book in seconds. No waiting.',          gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-  { step:'03', icon:'🛡️', title:'Pay Securely',      desc:'Pay via Razorpay gateway. Get instant confirmation and smart reminders.',             gradient:'linear-gradient(135deg,#10b981,#059669)' },
+  { step:'01', Icon: Search,   title:'Search & Discover', desc:'Find top-rated hospitals, labs and doctors near you with real-time availability.', gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
+  { step:'02', Icon: Calendar, title:'Book Instantly',    desc:'Select your preferred date, time slot and book in seconds. No waiting.',          gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+  { step:'03', Icon: Shield,   title:'Pay Securely',      desc:'Pay via Razorpay gateway. Get instant confirmation and smart reminders.',          gradient:'linear-gradient(135deg,#10b981,#059669)' },
 ]
 
 const STATS = [
-  { value:500,   suffix:'+', label:'Hospitals',       icon:'🏥' },
-  { value:200,   suffix:'+', label:'Labs',            icon:'🧪' },
-  { value:2000,  suffix:'+', label:'Doctors',         icon:'👨‍⚕️' },
-  { value:50000, suffix:'+', label:'Patients Served', icon:'❤️' },
+  { value:500,   suffix:'+', label:'Hospitals',       Icon: Building2,    iconBg:'rgba(255,255,255,0.1)', iconColor:'#a5b4fc' },
+  { value:200,   suffix:'+', label:'Labs',            Icon: FlaskConical, iconBg:'rgba(255,255,255,0.1)', iconColor:'#6ee7b7' },
+  { value:2000,  suffix:'+', label:'Doctors',         Icon: Stethoscope,  iconBg:'rgba(255,255,255,0.1)', iconColor:'#a5b4fc' },
+  { value:50000, suffix:'+', label:'Patients Served', Icon: Users,        iconBg:'rgba(255,255,255,0.1)', iconColor:'#fca5a5' },
 ]
 
 const TESTI = [
-  { name:'Priya Sharma',    role:'Patient',              avatar:'P', rating:5, text:'Booked a cardiologist in 2 minutes. The doctor was amazing and the platform is so smooth!' },
-  { name:'Rajesh Kumar',    role:'Father of 2',          avatar:'R', rating:5, text:'Lab test with home collection was super convenient. Got reports same day. Highly recommend.' },
-  { name:'Ananya Patel',    role:'Working Professional', avatar:'A', rating:5, text:'Online consultation saved me a hospital trip. Great video quality and very helpful doctor.' },
+  { name:'Priya Sharma',  role:'Patient',              avatar:'P', rating:5, text:'Booked a cardiologist in 2 minutes. The doctor was amazing and the platform is so smooth!' },
+  { name:'Rajesh Kumar',  role:'Father of 2',          avatar:'R', rating:5, text:'Lab test with home collection was super convenient. Got reports same day. Highly recommend.' },
+  { name:'Ananya Patel',  role:'Working Professional', avatar:'A', rating:5, text:'Online consultation saved me a hospital trip. Great video quality and very helpful doctor.' },
+]
+
+/* trust pills data */
+const TRUST_PILLS = [
+  { Icon: Shield,   label: 'Verified Providers' },
+  { Icon: Zap,      label: 'Instant Booking'    },
+  { Icon: Star,     label: '4.8 Avg Rating'     },
+  { Icon: Lock,     label: 'Secure Payments'    },
 ]
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -654,16 +713,12 @@ export default function HomePage() {
   }
 
   const handleAllowLocation = () => {
-  /* ✅ Clear cached fallback so it tries fresh geolocation */
-  try {
-    sessionStorage.removeItem('medli_geo')
-  } catch {}
-
-  navigator.geolocation?.getCurrentPosition(
-    () => window.location.reload(),
-    () => alert('Please allow location access in your browser settings, then refresh the page.')
-  )
-}
+    try { sessionStorage.removeItem('medli_geo') } catch {}
+    navigator.geolocation?.getCurrentPosition(
+      () => window.location.reload(),
+      () => alert('Please allow location access in your browser settings, then refresh the page.')
+    )
+  }
 
   return (
     <>
@@ -710,7 +765,7 @@ export default function HomePage() {
               <div>
                 {/* Badge */}
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 100, padding: '6px 16px', marginBottom: 28 }}>
-                  <span style={{ fontSize: 13 }}>✨</span>
+                  <CheckCircle size={14} strokeWidth={2.5} color="rgba(255,255,255,0.85)" />
                   <span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.85)' }}>Trusted by 50,000+ patients across India</span>
                 </div>
 
@@ -736,7 +791,7 @@ export default function HomePage() {
                   transition: 'border-color .2s ease', marginBottom: 24,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, padding: '6px 10px' }}>
-                    <span style={{ fontSize: 16, flexShrink: 0 }}>🔍</span>
+                    <Search size={16} strokeWidth={2} color="#94a3b8" style={{ flexShrink: 0 }} />
                     <input
                       type="text" value={query} onChange={(e) => setQuery(e.target.value)}
                       onFocus={() => setSearchFocused(true)} onBlur={() => setSearchFocused(false)}
@@ -750,7 +805,10 @@ export default function HomePage() {
                     className="hide-xs"
                   >
                     <style>{`@media(max-width:480px){.hide-xs{display:none!important}}`}</style>
-                    <span style={{ fontSize: 14 }}>{geo.loading ? '⏳' : '📍'}</span>
+                    {geo.loading
+                      ? <Loader2 size={14} strokeWidth={2} color="#94a3b8" style={{ animation: 'spin-ring .8s linear infinite' }} />
+                      : <MapPin size={14} strokeWidth={2} color="#6366f1" />
+                    }
                     <span style={{ fontSize: 11, color: '#94a3b8', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {geo.address ? geo.address.split(',')[0] : geo.loading ? 'Detecting...' : 'Near me'}
                     </span>
@@ -761,14 +819,10 @@ export default function HomePage() {
 
                 {/* Trust pills */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                  {[
-                    { icon:'🛡️', label:'Verified Providers' },
-                    { icon:'⚡', label:'Instant Booking'    },
-                    { icon:'⭐', label:'4.8★ Avg Rating'    },
-                    { icon:'🔒', label:'Secure Payments'    },
-                  ].map((b) => (
+                  {TRUST_PILLS.map((b) => (
                     <div key={b.label} style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 500 }}>
-                      <span style={{ fontSize: 13 }}>{b.icon}</span>{b.label}
+                      <b.Icon size={13} strokeWidth={2.5} color="rgba(255,255,255,0.65)" />
+                      {b.label}
                     </div>
                   ))}
                 </div>
@@ -780,40 +834,46 @@ export default function HomePage() {
 
                 <FloatCard delay={0} style={{ top: 0, right: 0, width: 240 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🏥</div>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Building2 size={22} strokeWidth={2} color="#2563eb" />
+                    </div>
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>500+ Hospitals</p>
                       <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Verified and rated</p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    {[1,2,3,4,5].map((s) => <span key={s} style={{ fontSize: 12 }}>⭐</span>)}
+                  <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    {[1,2,3,4,5].map((s) => <Star key={s} size={12} strokeWidth={0} fill="#f59e0b" color="#f59e0b" />)}
                     <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 4 }}>4.8 avg</span>
                   </div>
                 </FloatCard>
 
                 <FloatCard delay={0.8} style={{ top: 130, left: 0, width: 228 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🧪</div>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <FlaskConical size={22} strokeWidth={2} color="#16a34a" />
+                    </div>
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>Home Collection</p>
                       <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Lab tests at your door</p>
                     </div>
                   </div>
-                  <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, padding: '6px 12px', fontSize: 11, color: '#059669', fontWeight: 600 }}>
-                    ✓ Free pickup · Same-day reports
+                  <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, padding: '6px 12px', fontSize: 11, color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CheckCircle size={12} strokeWidth={2.5} color="#059669" />
+                    Free pickup · Same-day reports
                   </div>
                 </FloatCard>
 
                 <FloatCard delay={1.5} style={{ bottom: 0, right: 20, width: 220 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(139,92,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🎥</div>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Video size={22} strokeWidth={2} color="#7c3aed" />
+                    </div>
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>Video Consult</p>
                       <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Talk to doctors live</p>
                     </div>
                   </div>
-                  {/* ✅ FIXED: removed stray quote after 10 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <div style={{ position: 'relative', width: 10, height: 10 }}>
                       <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#10b981', animation: 'dot-ping 1.5s ease infinite' }} />
@@ -835,110 +895,98 @@ export default function HomePage() {
         </section>
 
         {/* ══════════ NEARBY HOSPITALS ══════════ */}
-      {/* ══════════ NEARBY HOSPITALS ══════════ */}
-<NearbySection
-  title="🏥 Hospitals Near You"
-  subtitle={
-    geo.isDefault
-      ? `Showing top-rated hospitals near ${geo.address || 'default city'}`
-      : 'Top-rated hospitals within 15km'
-  }
-  viewHref="/hospitals"
-  viewColor="#6366f1"
->
-  {/* ✅ Show soft location banner if using default fallback */}
-  {mounted && geo.isDefault && (
-    <LocationBanner
-      onAllow={handleAllowLocation}
-      city={geo.address?.split(',')[0] || 'your city'}
-    />
-  )}
+        <NearbySection
+          title={
+            <span style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ width:32, height:32, borderRadius:10, background:'#dbeafe', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                <Building2 size={18} strokeWidth={2} color="#2563eb" />
+              </span>
+              Hospitals Near You
+            </span>
+          }
+          subtitle={
+            geo.isDefault
+              ? `Showing top-rated hospitals near ${geo.address || 'default city'}`
+              : 'Top-rated hospitals within 15km'
+          }
+          viewHref="/hospitals"
+          viewColor="#6366f1"
+        >
+          {mounted && geo.isDefault && (
+            <LocationBanner onAllow={handleAllowLocation} city={geo.address?.split(',')[0] || 'your city'} />
+          )}
 
-  {!mounted || geo.loading ? (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.1)',
-      borderRadius: 16, padding: 16,
-    }}>
-      <div style={{
-        width: 20, height: 20, borderRadius: '50%',
-        border: '2px solid #6366f1', borderTopColor: 'transparent',
-        animation: 'spin-ring .8s linear infinite',
-      }} />
-      <span style={{ fontSize: 13, color: '#6366f1' }}>Detecting your location...</span>
-    </div>
-  ) : hospLoad ? (
-    <SkeletonRow />
-  ) : hospErr ? (
-    <ErrorState type="hospitals" onRetry={() => setRetryKey((k) => k + 1)} />
-  ) : !nearbyHosp?.length ? (
-    <EmptyNearby type="hospitals" href="/hospitals" />
-  ) : (
-    <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
-      <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
-        {nearbyHosp.map((h, i) => (
-          <NearbyHospCard key={h.id || i} h={h} onClick={() => router.push(`/hospitals/${h.id}`)} />
-        ))}
-      </div>
-    </div>
-  )}
-</NearbySection>
+          {!mounted || geo.loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.1)', borderRadius: 16, padding: 16 }}>
+              <Loader2 size={20} strokeWidth={2} color="#6366f1" style={{ animation: 'spin-ring .8s linear infinite', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, color: '#6366f1' }}>Detecting your location...</span>
+            </div>
+          ) : hospLoad ? (
+            <SkeletonRow />
+          ) : hospErr ? (
+            <ErrorState type="hospitals" onRetry={() => setRetryKey((k) => k + 1)} />
+          ) : !nearbyHosp?.length ? (
+            <EmptyNearby type="hospitals" href="/hospitals" />
+          ) : (
+            <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
+              <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
+                {nearbyHosp.map((h, i) => (
+                  <NearbyHospCard key={h.id || i} h={h} onClick={() => router.push(`/hospitals/${h.id}`)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </NearbySection>
 
         {/* ══════════ NEARBY LABS ══════════ */}
-{/* ══════════ NEARBY LABS ══════════ */}
-<NearbySection
-  title="🧪 Labs Near You"
-  subtitle={
-    geo.isDefault
-      ? `Showing trusted labs near ${geo.address || 'default city'}`
-      : 'Trusted labs with home collection within 15km'
-  }
-  viewHref="/labs"
-  viewColor="#10b981"
->
-  {/* ✅ Show soft location banner if using default fallback */}
-  {mounted && geo.isDefault && (
-    <LocationBanner
-      onAllow={handleAllowLocation}
-      city={geo.address?.split(',')[0] || 'your city'}
-    />
-  )}
+        <NearbySection
+          title={
+            <span style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ width:32, height:32, borderRadius:10, background:'#dcfce7', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>
+                <FlaskConical size={18} strokeWidth={2} color="#16a34a" />
+              </span>
+              Labs Near You
+            </span>
+          }
+          subtitle={
+            geo.isDefault
+              ? `Showing trusted labs near ${geo.address || 'default city'}`
+              : 'Trusted labs with home collection within 15km'
+          }
+          viewHref="/labs"
+          viewColor="#10b981"
+        >
+          {mounted && geo.isDefault && (
+            <LocationBanner onAllow={handleAllowLocation} city={geo.address?.split(',')[0] || 'your city'} />
+          )}
 
-  {!mounted || geo.loading ? (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.1)',
-      borderRadius: 16, padding: 16,
-    }}>
-      <div style={{
-        width: 20, height: 20, borderRadius: '50%',
-        border: '2px solid #10b981', borderTopColor: 'transparent',
-        animation: 'spin-ring .8s linear infinite',
-      }} />
-      <span style={{ fontSize: 13, color: '#10b981' }}>Detecting your location...</span>
-    </div>
-  ) : labLoad ? (
-    <SkeletonRow />
-  ) : labErr ? (
-    <ErrorState type="labs" onRetry={() => setRetryKey((k) => k + 1)} />
-  ) : !nearbyLab?.length ? (
-    <EmptyNearby type="labs" href="/labs" />
-  ) : (
-    <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
-      <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
-        {nearbyLab.map((l, i) => (
-          <NearbyLabCard key={l.id || i} l={l} onClick={() => router.push(`/labs/${l.id}`)} />
-        ))}
-      </div>
-    </div>
-  )}
-</NearbySection>
+          {!mounted || geo.loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.1)', borderRadius: 16, padding: 16 }}>
+              <Loader2 size={20} strokeWidth={2} color="#10b981" style={{ animation: 'spin-ring .8s linear infinite', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, color: '#10b981' }}>Detecting your location...</span>
+            </div>
+          ) : labLoad ? (
+            <SkeletonRow />
+          ) : labErr ? (
+            <ErrorState type="labs" onRetry={() => setRetryKey((k) => k + 1)} />
+          ) : !nearbyLab?.length ? (
+            <EmptyNearby type="labs" href="/labs" />
+          ) : (
+            <div style={{ overflowX: 'auto', marginInline: '-4px', paddingInline: '4px' }}>
+              <div style={{ display: 'flex', gap: 16, paddingBottom: 12 }}>
+                {nearbyLab.map((l, i) => (
+                  <NearbyLabCard key={l.id || i} l={l} onClick={() => router.push(`/labs/${l.id}`)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </NearbySection>
 
         {/* ══════════ HOW IT WORKS ══════════ */}
         <section style={{ background: 'linear-gradient(180deg,#f8fafc,#fff)', padding: 'clamp(48px,8vw,96px) 0', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'clamp(300px,50vw,600px)', height: 'clamp(300px,50vw,600px)', borderRadius: '50%', background: 'radial-gradient(circle,rgba(99,102,241,0.05),transparent 70%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
           <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)', position: 'relative', zIndex: 1 }}>
-            <SectionHeader badge="⚡ Simple Process" title="How MEDLI Works" sub="Book your healthcare in 3 simple steps" />
+            <SectionHeader BadgeIcon={Zap} badge="Simple Process" title="How MEDLI Works" sub="Book your healthcare in 3 simple steps" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 24 }}>
               {STEPS.map((s, i) => <StepCard key={s.step} {...s} delay={i * 150} />)}
             </div>
@@ -963,7 +1011,7 @@ export default function HomePage() {
         {/* ══════════ TESTIMONIALS ══════════ */}
         <section style={{ padding: 'clamp(48px,8vw,96px) 0', background: '#fff' }}>
           <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)' }}>
-            <SectionHeader badge="❤️ Patient Stories" title="What Our Patients Say" />
+            <SectionHeader BadgeIcon={Heart} badge="Patient Stories" title="What Our Patients Say" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 20 }}>
               {TESTI.map((t, i) => <TestiCard key={t.name} {...t} delay={i * 100} />)}
             </div>

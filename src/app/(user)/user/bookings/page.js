@@ -7,6 +7,19 @@ import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import Badge, { getStatusVariant } from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
+import {
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  FlaskConical,
+  Video,
+  Building2,
+  Plus,
+  ChevronRight,
+  Clock,
+  AlertCircle,
+  Wifi,
+} from 'lucide-react'
 
 function useMounted() {
   const [m, setM] = useState(false)
@@ -20,6 +33,7 @@ const fetcher = (url) =>
 const KF = `
   @keyframes bk-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   @keyframes bk-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes ping { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.2);opacity:0} }
 `
 
 const SHIMMER = {
@@ -29,19 +43,39 @@ const SHIMMER = {
 }
 
 const TABS = [
-  { key: 'upcoming',  label: 'Upcoming',  icon: '📅' },
-  { key: 'completed', label: 'Completed', icon: '✅' },
-  { key: 'cancelled', label: 'Cancelled', icon: '❌' },
+  { key: 'upcoming',  label: 'Upcoming',  Icon: Calendar,      activeColor: '#6366f1' },
+  { key: 'completed', label: 'Completed', Icon: CheckCircle2,  activeColor: '#10b981' },
+  { key: 'cancelled', label: 'Cancelled', Icon: XCircle,       activeColor: '#ef4444' },
 ]
 
 const UPCOMING_STATUSES  = new Set(['confirmed', 'pending_payment', 'created'])
 const COMPLETED_STATUSES = new Set(['completed'])
 const CANCELLED_STATUSES = new Set(['cancelled', 'refunded', 'no_show'])
 
-function typeIcon(type) {
-  if (type === 'lab') return '🧪'
-  if (type === 'online') return '🎥'
-  return '🏥'
+/* ─── Type Icon Box ─────────────────────────────────────────────── */
+const TYPE_CONFIG = {
+  lab:    { Icon: FlaskConical, bg: '#dcfce7', color: '#16a34a' },
+  online: { Icon: Video,        bg: '#ede9fe', color: '#7c3aed' },
+  _default: { Icon: Building2,  bg: '#dbeafe', color: '#2563eb' },
+}
+
+function TypeIconBox({ type, size = 18, boxSize = 36 }) {
+  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG._default
+  const { Icon, bg, color } = cfg
+  return (
+    <div style={{
+      width: boxSize,
+      height: boxSize,
+      borderRadius: 10,
+      background: bg,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      <Icon size={size} strokeWidth={2} color={color} />
+    </div>
+  )
 }
 
 function typeLabel(type) {
@@ -50,6 +84,7 @@ function typeLabel(type) {
   return 'Hospital Visit'
 }
 
+/* ─── Skeleton ──────────────────────────────────────────────────── */
 function BookingCardSkeleton() {
   return (
     <div style={{
@@ -62,8 +97,8 @@ function BookingCardSkeleton() {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ width: 128, height: 14, borderRadius: 6, ...SHIMMER }} />
-          <div style={{ width: 96, height: 11, borderRadius: 6, ...SHIMMER }} />
-          <div style={{ width: 80, height: 11, borderRadius: 6, ...SHIMMER }} />
+          <div style={{ width: 96,  height: 11, borderRadius: 6, ...SHIMMER }} />
+          <div style={{ width: 80,  height: 11, borderRadius: 6, ...SHIMMER }} />
         </div>
         <div style={{ width: 76, height: 22, borderRadius: 100, ...SHIMMER }} />
       </div>
@@ -75,6 +110,7 @@ function BookingCardSkeleton() {
   )
 }
 
+/* ─── Booking Card ──────────────────────────────────────────────── */
 function BookingCard({ booking, onClick, mounted }) {
   const [h, setH] = useState(false)
   const [timeLeft, setTimeLeft] = useState(null)
@@ -91,14 +127,12 @@ function BookingCard({ booking, onClick, mounted }) {
 
   useEffect(() => {
     if (!isPendingExpiring) return
-
     const calc = () => {
       const created = new Date(booking.createdAt)
       const expiresAt = new Date(created.getTime() + 15 * 60 * 1000)
       const secs = Math.max(0, Math.floor((expiresAt - new Date()) / 1000))
       setTimeLeft(secs)
     }
-
     calc()
     const id = setInterval(calc, 1000)
     return () => clearInterval(id)
@@ -127,19 +161,24 @@ function BookingCard({ booking, onClick, mounted }) {
         animation: 'bk-in .2s ease',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div>
-          <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 2px' }}>
-            {booking.userName || 'Patient'}
-          </p>
-          <p style={{ fontSize: 11, fontFamily: 'monospace', color: '#94a3b8', margin: '0 0 2px' }}>
-            {booking.bookingId}
-          </p>
-          <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
-            {mounted
-              ? new Date(booking.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-              : '—'}
-          </p>
+      {/* Top row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+        {/* Left: type icon + info */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <TypeIconBox type={booking.type} />
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '0 0 2px' }}>
+              {booking.userName || 'Patient'}
+            </p>
+            <p style={{ fontSize: 11, fontFamily: 'monospace', color: '#94a3b8', margin: '0 0 2px' }}>
+              {booking.bookingId}
+            </p>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+              {mounted
+                ? new Date(booking.startTime).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                : '—'}
+            </p>
+          </div>
         </div>
 
         <Badge variant={getStatusVariant(booking.status)} size="sm" dot>
@@ -147,6 +186,7 @@ function BookingCard({ booking, onClick, mounted }) {
         </Badge>
       </div>
 
+      {/* Bottom row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{
           display: 'inline-flex',
@@ -159,65 +199,79 @@ function BookingCard({ booking, onClick, mounted }) {
           fontWeight: 500,
           color: '#64748b',
         }}>
-          {typeIcon(booking.type)} {typeLabel(booking.type)}
+          {typeLabel(booking.type)}
         </span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>
             ₹{Number(booking.totalAmount || 0).toLocaleString('en-IN')}
           </p>
-          <span style={{ fontSize: 14, color: '#94a3b8' }}>›</span>
+          <ChevronRight size={16} color="#94a3b8" />
         </div>
       </div>
 
+      {/* Pending expiry countdown */}
       {isPendingExpiring && timeLeft !== null && timeLeft > 0 && (
         <div style={{
-          marginTop: 12,
-          paddingTop: 12,
+          marginTop: 12, paddingTop: 12,
           borderTop: '1px solid #fef3c7',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span style={{ fontSize: 14 }}>⏳</span>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: '#fef3c7',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Clock size={15} color="#f59e0b" strokeWidth={2} />
+          </div>
           <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>
             Slot reserved · expires in {fmtCountdown(timeLeft)}
           </span>
         </div>
       )}
 
+      {/* Expired */}
       {isPendingExpiring && timeLeft === 0 && (
         <div style={{
-          marginTop: 12,
-          paddingTop: 12,
+          marginTop: 12, paddingTop: 12,
           borderTop: '1px solid #fee2e2',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <span style={{ fontSize: 14 }}>⚠️</span>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8,
+            background: '#fee2e2',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <AlertCircle size={15} color="#ef4444" strokeWidth={2} />
+          </div>
           <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>
             Payment time expired · slot released
           </span>
         </div>
       )}
 
+      {/* Online consult live */}
       {isAvailable && (
         <div style={{
-          marginTop: 12,
-          paddingTop: 12,
+          marginTop: 12, paddingTop: 12,
           borderTop: '1px solid #f1f5f9',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <div style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: '#10b981',
-            animation: 'bk-shimmer 1.5s ease-in-out infinite',
-          }} />
+          {/* Pulsing dot */}
+          <div style={{ position: 'relative', width: 28, height: 28, flexShrink: 0 }}>
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: 8,
+              background: 'rgba(16,185,129,0.15)',
+              animation: 'ping 1.5s ease-out infinite',
+            }} />
+            <div style={{
+              position: 'relative', width: 28, height: 28, borderRadius: 8,
+              background: '#dcfce7',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Wifi size={14} color="#10b981" strokeWidth={2.5} />
+            </div>
+          </div>
           <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>
             Consultation available now
           </span>
@@ -227,8 +281,10 @@ function BookingCard({ booking, onClick, mounted }) {
   )
 }
 
+/* ─── Tab Button ────────────────────────────────────────────────── */
 function TabBtn({ t, active, onClick, count }) {
   const [h, setH] = useState(false)
+  const { Icon, activeColor } = t
 
   return (
     <button
@@ -253,7 +309,11 @@ function TabBtn({ t, active, onClick, count }) {
         transition: 'all .15s ease',
       }}
     >
-      <span>{t.icon}</span>
+      <Icon
+        size={15}
+        strokeWidth={active ? 2.5 : 2}
+        color={active ? activeColor : h ? '#334155' : '#94a3b8'}
+      />
       <span>{t.label}</span>
       {count !== null && count > 0 && (
         <span style={{
@@ -265,8 +325,9 @@ function TabBtn({ t, active, onClick, count }) {
           justifyContent: 'center',
           fontSize: 10,
           fontWeight: 700,
-          background: active ? '#6366f1' : '#e2e8f0',
+          background: active ? activeColor : '#e2e8f0',
           color: active ? '#fff' : '#64748b',
+          transition: 'all .15s ease',
         }}>
           {count > 99 ? '99+' : count}
         </span>
@@ -275,6 +336,7 @@ function TabBtn({ t, active, onClick, count }) {
   )
 }
 
+/* ─── Page ──────────────────────────────────────────────────────── */
 export default function BookingsPage() {
   const [tab, setTab] = useState('upcoming')
   const router = useRouter()
@@ -295,14 +357,10 @@ export default function BookingsPage() {
   const allBookings = data?.bookings || []
   const now = mounted ? new Date() : null
 
-  useEffect(() => {
-    mutate()
-  }, [tab, mutate])
+  useEffect(() => { mutate() }, [tab, mutate])
 
   useEffect(() => {
-    if (searchParams.get('refresh') === '1') {
-      mutate()
-    }
+    if (searchParams.get('refresh') === '1') mutate()
   }, [searchParams, mutate])
 
   const bookings = (() => {
@@ -343,6 +401,13 @@ export default function BookingsPage() {
     cancelled: { title: 'No cancelled bookings', message: "You haven't cancelled any bookings" },
   }
 
+  /* Empty state icons */
+  const EMPTY_ICONS = {
+    upcoming:  <div style={{ width:56,height:56,borderRadius:16,background:'#ede9fe',display:'flex',alignItems:'center',justifyContent:'center' }}><Calendar size={28} color="#7c3aed" strokeWidth={2} /></div>,
+    completed: <div style={{ width:56,height:56,borderRadius:16,background:'#dcfce7',display:'flex',alignItems:'center',justifyContent:'center' }}><CheckCircle2 size={28} color="#16a34a" strokeWidth={2} /></div>,
+    cancelled: <div style={{ width:56,height:56,borderRadius:16,background:'#fee2e2',display:'flex',alignItems:'center',justifyContent:'center' }}><XCircle size={28} color="#ef4444" strokeWidth={2} /></div>,
+  }
+
   return (
     <>
       <style>{KF}</style>
@@ -354,6 +419,7 @@ export default function BookingsPage() {
           margin: '0 auto',
           padding: 'clamp(88px,12vw,104px) clamp(16px,3vw,32px) 64px',
         }}>
+          {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
             <h1 style={{ fontSize: 'clamp(20px,3vw,26px)', fontWeight: 800, color: '#0f172a', margin: 0 }}>
               My Bookings
@@ -361,6 +427,7 @@ export default function BookingsPage() {
             <NewBookingLink />
           </div>
 
+          {/* Tabs */}
           <div style={{
             display: 'flex',
             gap: 3,
@@ -380,6 +447,7 @@ export default function BookingsPage() {
             ))}
           </div>
 
+          {/* Content */}
           {isLoading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[1, 2, 3].map((i) => <BookingCardSkeleton key={i} />)}
@@ -387,7 +455,7 @@ export default function BookingsPage() {
           ) : bookings.length === 0 ? (
             <div style={{ paddingTop: 32 }}>
               <EmptyState
-                icon={<span style={{ fontSize: 48 }}>📅</span>}
+                icon={EMPTY_ICONS[tab]}
                 title={EMPTY[tab].title}
                 message={EMPTY[tab].message}
                 action={tab === 'upcoming' ? (
@@ -432,6 +500,7 @@ export default function BookingsPage() {
   )
 }
 
+/* ─── New Booking Link ──────────────────────────────────────────── */
 function NewBookingLink() {
   const [h, setH] = useState(false)
 
@@ -441,6 +510,9 @@ function NewBookingLink() {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
         fontSize: 13,
         fontWeight: 600,
         color: h ? '#4f46e5' : '#6366f1',
@@ -448,7 +520,8 @@ function NewBookingLink() {
         transition: 'color .15s ease',
       }}
     >
-      + New Booking
+      <Plus size={15} strokeWidth={2.5} />
+      New Booking
     </a>
   )
 }
