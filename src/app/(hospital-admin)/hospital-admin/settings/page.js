@@ -1,9 +1,10 @@
-// C:\Users\ASUS\medli2\src\app\(hospital-admin)\hospital-admin\settings\page.js
+// src/app/(hospital-admin)/hospital-admin/settings/page.js
 'use client'
 
 import { useState, useEffect } from 'react'
-import useSWR from 'swr'
-import AdminHeader from '@/components/admin/AdminHeader'
+import useSWR       from 'swr'
+import AdminHeader  from '@/components/admin/AdminHeader'
+import FileUpload   from '@/components/ui/FileUpload'
 import { useToast } from '@/context/ToastContext'
 
 const fetcher = (url) =>
@@ -13,7 +14,6 @@ const fetcher = (url) =>
 
 const KF = `@keyframes st-spin{to{transform:rotate(360deg)}}`
 
-/* ─── Input ──────────────────────────────────────────────────────────── */
 function SInput({ label, hint, ...props }) {
   const [focused, setFocused] = useState(false)
   return (
@@ -46,7 +46,6 @@ function SInput({ label, hint, ...props }) {
   )
 }
 
-/* ─── Save button ────────────────────────────────────────────────────── */
 function SaveBtn({ onClick, loading: isLoading, disabled }) {
   const [h, setH] = useState(false)
   const isDisabled = isLoading || disabled
@@ -89,7 +88,6 @@ function SaveBtn({ onClick, loading: isLoading, disabled }) {
   )
 }
 
-/* ─── Section Card ───────────────────────────────────────────────────── */
 function SCard({ title, children }) {
   return (
     <div style={{
@@ -98,12 +96,8 @@ function SCard({ title, children }) {
       boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
       overflow: 'hidden',
     }}>
-      <div style={{
-        padding: '14px 20px', borderBottom: '1px solid #f8fafc',
-      }}>
-        <h3 style={{
-          fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0,
-        }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid #f8fafc' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>
           {title}
         </h3>
       </div>
@@ -112,7 +106,6 @@ function SCard({ title, children }) {
   )
 }
 
-/* ─── Loading Skeleton ───────────────────────────────────────────────── */
 function LoadingState() {
   return (
     <div style={{
@@ -136,9 +129,7 @@ function LoadingState() {
                 height: 10, width: '30%', borderRadius: 4,
                 background: '#f8fafc', marginBottom: 6,
               }} />
-              <div style={{
-                height: 38, borderRadius: 12, background: '#f1f5f9',
-              }} />
+              <div style={{ height: 38, borderRadius: 12, background: '#f1f5f9' }} />
             </div>
           ))}
         </div>
@@ -147,7 +138,6 @@ function LoadingState() {
   )
 }
 
-/* ─── No Hospital State ──────────────────────────────────────────────── */
 function NoHospitalState() {
   return (
     <div style={{
@@ -159,61 +149,40 @@ function NoHospitalState() {
         No Hospital Linked
       </h3>
       <p style={{ fontSize: 13, color: '#78350f', margin: 0, maxWidth: 360, marginInline: 'auto' }}>
-        Your account is not yet linked to a hospital. Please contact MEDLI super admin to assign you as the admin of a hospital.
+        Your account is not yet linked to a hospital. Please contact MEDLI super admin.
       </p>
     </div>
   )
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   MAIN
-═══════════════════════════════════════════════════════════════════════════ */
 export default function HospitalSettings() {
   const toast = useToast()
   const [saving, setSaving] = useState(false)
 
-  const {
-    data: hospitalData,
-    isLoading,
-    mutate,
-  } = useSWR('/api/hospitals?adminOnly=true', fetcher)
+  const { data: hospitalData, isLoading, mutate } = useSWR(
+    '/api/hospitals?adminOnly=true',
+    fetcher
+  )
 
   const hospital   = hospitalData?.hospitals?.[0]
   const hospitalId = hospital?.id
 
-  /* ─────────────────────────────────────────────────────────────
-     ✅ Initialize form with empty values
-  ───────────────────────────────────────────────────────────── */
   const [form, setForm] = useState({
-    name:         '',
-    contactPhone: '',
-    contactEmail: '',
-    departments:  '',
-    services:     '',
-    address: {
-      line1:   '',
-      city:    '',
-      state:   '',
-      pinCode: '',
-    },
+    name: '', contactPhone: '', contactEmail: '',
+    departments: '', services: '',
+    address: { line1: '', city: '', state: '', pinCode: '' },
   })
 
-  /* ─────────────────────────────────────────────────────────────
-     ✅ Populate form ONCE hospital data arrives
-  ───────────────────────────────────────────────────────────── */
   useEffect(() => {
     if (!hospital) return
-
     setForm({
       name:         hospital.name         || '',
       contactPhone: hospital.contactPhone || '',
       contactEmail: hospital.contactEmail || '',
       departments:  Array.isArray(hospital.departments)
-                      ? hospital.departments.join(', ')
-                      : '',
+                      ? hospital.departments.join(', ') : '',
       services:     Array.isArray(hospital.services)
-                      ? hospital.services.join(', ')
-                      : '',
+                      ? hospital.services.join(', ')     : '',
       address: {
         line1:   hospital.address?.line1   || '',
         city:    hospital.address?.city    || '',
@@ -223,25 +192,14 @@ export default function HospitalSettings() {
     })
   }, [hospital])
 
-  /* ─── Save handler ─── */
   const save = async () => {
-    if (!hospitalId) {
-      toast.error('Hospital not found')
-      return
-    }
-
-    /* ── Validate ── */
-    if (!form.name.trim()) {
-      toast.error('Hospital name is required')
-      return
-    }
+    if (!hospitalId) { toast.error('Hospital not found'); return }
+    if (!form.name.trim()) { toast.error('Hospital name is required'); return }
     if (form.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactEmail)) {
-      toast.error('Invalid email address')
-      return
+      toast.error('Invalid email address'); return
     }
     if (form.address.pinCode && !/^\d{6}$/.test(form.address.pinCode)) {
-      toast.error('PIN code must be 6 digits')
-      return
+      toast.error('PIN code must be 6 digits'); return
     }
 
     setSaving(true)
@@ -250,14 +208,8 @@ export default function HospitalSettings() {
         name:         form.name.trim(),
         contactPhone: form.contactPhone.trim() || undefined,
         contactEmail: form.contactEmail.trim() || undefined,
-        departments:  form.departments
-                        .split(',')
-                        .map((d) => d.trim())
-                        .filter(Boolean),
-        services:     form.services
-                        .split(',')
-                        .map((s) => s.trim())
-                        .filter(Boolean),
+        departments:  form.departments.split(',').map((d) => d.trim()).filter(Boolean),
+        services:     form.services.split(',').map((s) => s.trim()).filter(Boolean),
         address: {
           line1:   form.address.line1.trim()   || undefined,
           city:    form.address.city.trim()    || undefined,
@@ -267,10 +219,8 @@ export default function HospitalSettings() {
       }
 
       const res  = await fetch(`/api/hospitals/${hospitalId}`, {
-        method:      'PUT',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body:        JSON.stringify(payload),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify(payload),
       })
       const json = await res.json()
 
@@ -288,51 +238,33 @@ export default function HospitalSettings() {
     }
   }
 
-  /* ─── Render ─── */
   return (
     <>
       <style>{KF}</style>
 
       <AdminHeader
         title="Settings"
-        subtitle={
-          hospital
-            ? `Manage ${hospital.name}`
-            : 'Hospital configuration'
-        }
-        breadcrumbs={[
-          { label: 'Hospital Admin' },
-          { label: 'Settings' },
-        ]}
+        subtitle={hospital ? `Manage ${hospital.name}` : 'Hospital configuration'}
+        breadcrumbs={[{ label: 'Hospital Admin' }, { label: 'Settings' }]}
         actions={
           hospital && (
-            <SaveBtn
-              onClick={save}
-              loading={saving}
-              disabled={!hospitalId}
-            />
+            <SaveBtn onClick={save} loading={saving} disabled={!hospitalId} />
           )
         }
       />
 
-      {/* Loading state */}
       {isLoading && <LoadingState />}
-
-      {/* No hospital linked */}
       {!isLoading && !hospital && <NoHospitalState />}
 
-      {/* Settings forms */}
       {!isLoading && hospital && (
         <>
           {/* Status banner */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             background: hospital.isApproved
-              ? 'rgba(16,185,129,0.06)'
-              : 'rgba(245,158,11,0.06)',
+              ? 'rgba(16,185,129,0.06)' : 'rgba(245,158,11,0.06)',
             border: `1px solid ${hospital.isApproved
-              ? 'rgba(16,185,129,0.2)'
-              : 'rgba(245,158,11,0.2)'}`,
+              ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}`,
             borderRadius: 14, padding: '10px 16px',
             marginBottom: 20, fontSize: 13,
           }}>
@@ -355,108 +287,161 @@ export default function HospitalSettings() {
             gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
             gap: 20,
           }}>
-
-            {/* Basic Info Card */}
+            {/* Basic Info */}
             <SCard title="🏥 Basic Information">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <SInput
                   label="Hospital Name *"
                   value={form.name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="e.g., Apollo Hospitals"
                 />
                 <SInput
                   label="Contact Phone"
                   type="tel"
                   value={form.contactPhone}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, contactPhone: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, contactPhone: e.target.value }))}
                   placeholder="+91 9876543210"
                 />
                 <SInput
                   label="Contact Email"
                   type="email"
                   value={form.contactEmail}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, contactEmail: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))}
                   placeholder="info@hospital.com"
                 />
                 <SInput
                   label="Departments"
                   value={form.departments}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, departments: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, departments: e.target.value }))}
                   placeholder="Cardiology, Orthopedics, Pediatrics"
-                  hint="Comma-separated list of departments"
+                  hint="Comma-separated list"
                 />
                 <SInput
                   label="Services"
                   value={form.services}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, services: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, services: e.target.value }))}
                   placeholder="24/7 Emergency, ICU, Pharmacy"
-                  hint="Comma-separated list of services offered"
+                  hint="Comma-separated list"
                 />
               </div>
             </SCard>
 
-            {/* Address Card */}
+            {/* Address */}
             <SCard title="📍 Address">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <SInput
                   label="Street Address"
                   value={form.address.line1}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      address: { ...f.address, line1: e.target.value },
-                    }))
-                  }
+                  onChange={(e) => setForm((f) => ({
+                    ...f, address: { ...f.address, line1: e.target.value },
+                  }))}
                   placeholder="123, Main Road"
                 />
                 <SInput
                   label="City"
                   value={form.address.city}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      address: { ...f.address, city: e.target.value },
-                    }))
-                  }
+                  onChange={(e) => setForm((f) => ({
+                    ...f, address: { ...f.address, city: e.target.value },
+                  }))}
                   placeholder="Guntur"
                 />
                 <SInput
                   label="State"
                   value={form.address.state}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      address: { ...f.address, state: e.target.value },
-                    }))
-                  }
+                  onChange={(e) => setForm((f) => ({
+                    ...f, address: { ...f.address, state: e.target.value },
+                  }))}
                   placeholder="Andhra Pradesh"
                 />
                 <SInput
                   label="PIN Code"
                   value={form.address.pinCode}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      address: {
-                        ...f.address,
-                        pinCode: e.target.value.replace(/\D/g, '').slice(0, 6),
-                      },
-                    }))
-                  }
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    address: {
+                      ...f.address,
+                      pinCode: e.target.value.replace(/\D/g, '').slice(0, 6),
+                    },
+                  }))}
                   placeholder="522001"
                   maxLength={6}
                 />
+              </div>
+            </SCard>
+
+            {/* ── Images ── */}
+            <SCard title="🖼️ Hospital Images">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                {/* Cover */}
+                <FileUpload
+                  purpose="hospital_cover"
+                  entityId={hospitalId}
+                  accept="image/jpeg,image/png,image/webp"
+                  label="Cover Image (1200×400 recommended)"
+                  maxSizeMB={5}
+                  currentUrl={hospital?.images?.cover || null}
+                  showPreview
+                  onSuccess={() => { toast.success('Cover image updated'); mutate() }}
+                />
+
+                {/* Logo */}
+                <FileUpload
+                  purpose="hospital_logo"
+                  entityId={hospitalId}
+                  accept="image/jpeg,image/png,image/webp"
+                  label="Logo (400×400 recommended)"
+                  maxSizeMB={2}
+                  currentUrl={hospital?.images?.logo || null}
+                  showPreview
+                  onSuccess={() => { toast.success('Logo updated'); mutate() }}
+                />
+
+                {/* Gallery */}
+                <div>
+                  <p style={{
+                    fontSize: 12, fontWeight: 600,
+                    color: '#475569', marginBottom: 8,
+                  }}>
+                    Gallery Images
+                  </p>
+
+                  {/* Existing gallery thumbnails */}
+                  {hospital?.images?.gallery?.length > 0 && (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                      gap: 8, marginBottom: 10,
+                    }}>
+                      {hospital.images.gallery.map((url, idx) => (
+                        <img
+                          key={idx}
+                          src={url}
+                          alt={`Gallery ${idx + 1}`}
+                          style={{
+                            width: '100%', aspectRatio: '1',
+                            objectFit: 'cover', borderRadius: 10,
+                            border: '1px solid #e2e8f0',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  <FileUpload
+                    purpose="hospital_gallery"
+                    entityId={hospitalId}
+                    accept="image/jpeg,image/png,image/webp"
+                    label=""
+                    maxSizeMB={5}
+                    showPreview={false}
+                    onSuccess={() => { toast.success('Gallery image added'); mutate() }}
+                  />
+                  <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
+                    Each upload adds one image to the gallery
+                  </p>
+                </div>
               </div>
             </SCard>
           </div>
@@ -485,17 +470,15 @@ export default function HospitalSettings() {
                     <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 4px' }}>
                       {item.l}
                     </p>
-                    <p style={{
-                      fontSize: 12, fontWeight: 600, color: '#1e293b', margin: 0,
-                    }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', margin: 0 }}>
                       {item.v}
                     </p>
                   </div>
                 ))}
               </div>
               <p style={{
-                fontSize: 11, color: '#94a3b8', margin: '12px 0 0',
-                textAlign: 'center',
+                fontSize: 11, color: '#94a3b8',
+                margin: '12px 0 0', textAlign: 'center',
               }}>
                 These fields can only be modified by MEDLI super admin
               </p>

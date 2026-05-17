@@ -467,26 +467,44 @@ export default function DoctorProfilePage() {
           gap: 20,
         }}>
           {/* Profile Photo */}
-          <PCard title="Profile Photo">
-            <div style={{
-              width: 100, height: 100, borderRadius: '50%',
-              background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontWeight: 700, fontSize: 32,
-              margin: '0 auto 16px', overflow: 'hidden',
-              boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
-            }}>
-              {user?.avatar
-                ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : (fullDoctor?.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || 'D')}
-            </div>
-            <FileUpload
-              purpose="doctor_avatar"
-              accept="image/*"
-              label="Upload Profile Photo"
-              onSuccess={() => { toast.success('Photo uploaded'); refreshUser?.(); mutateFull() }}
-            />
-          </PCard>
+        {/* Profile Photo */}
+<PCard title="Profile Photo">
+  <div style={{
+    width: 100, height: 100, borderRadius: '50%',
+    background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#fff', fontWeight: 700, fontSize: 32,
+    margin: '0 auto 16px', overflow: 'hidden',
+    boxShadow: '0 8px 24px rgba(99,102,241,0.3)',
+  }}>
+    {(fullDoctor?.avatar || user?.avatar) ? (
+      <img
+        src={`${fullDoctor?.avatar || user?.avatar}?t=${fullDoctor?.updatedAt || Date.now()}`}
+        alt=""
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+    ) : (
+      fullDoctor?.name?.charAt(0)?.toUpperCase() ||
+      user?.name?.charAt(0)?.toUpperCase() ||
+      'D'
+    )}
+  </div>
+
+  <FileUpload
+    purpose="doctor_avatar"
+    entityId={doctorId}
+    accept="image/*"
+    label="Upload Profile Photo"
+    currentUrl={fullDoctor?.avatar || null}
+    showPreview
+    onSuccess={() => {
+      toast.success('Photo uploaded')
+      refreshUser?.()
+      mutateFull()
+      mutateDoctor()
+    }}
+  />
+</PCard>
 
           {/* User Account Info */}
           <PCard
