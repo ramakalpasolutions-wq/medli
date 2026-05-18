@@ -1,5 +1,226 @@
 // C:\Users\ASUS\medli2\src\lib\emailTemplates.js
+export function supportTicketAdminTemplate({
+  ticketId,
+  name,
+  email,
+  phone,
+  role,
+  subject,
+  category,
+  message,
+  createdAt,
+}) {
+  return {
+    subject: `New Support Ticket - ${subject}`,
+    text: `
+A new support ticket was submitted.
 
+Ticket ID: ${ticketId}
+Name: ${name || 'N/A'}
+Email: ${email || 'N/A'}
+Phone: ${phone || 'N/A'}
+Role: ${role || 'N/A'}
+Category: ${category || 'other'}
+Subject: ${subject}
+Created At: ${createdAt}
+
+Message:
+${message}
+    `.trim(),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;">
+            <tr>
+              <td style="background:linear-gradient(135deg,#0f172a,#334155);padding:28px 24px;text-align:center;">
+                <h1 style="margin:0;font-size:24px;line-height:30px;color:#ffffff;">New Support Ticket</h1>
+                <p style="margin:8px 0 0 0;font-size:14px;line-height:22px;color:#cbd5e1;">A user submitted a new request</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Ticket ID:</strong> ${ticketId}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Name:</strong> ${name || 'N/A'}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Email:</strong> ${email || 'N/A'}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Phone:</strong> ${phone || 'N/A'}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Role:</strong> ${role || 'N/A'}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Category:</strong> ${category || 'other'}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Subject:</strong> ${subject}</p>
+                      <p style="margin:0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Created At:</strong> ${createdAt}</p>
+                    </td>
+                  </tr>
+                </table>
+
+                <div style="margin-top:18px;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px 18px;">
+                  <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;color:#9a3412;">User Message</p>
+                  <p style="margin:0;font-size:14px;line-height:22px;color:#7c2d12;white-space:pre-wrap;">${message}</p>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+    `,
+  }
+}
+
+export function supportTicketUserTemplate({
+  name,
+  ticketId,
+  subject,
+  category,
+  status,
+}) {
+  return {
+    subject: `Support Request Received - ${subject}`,
+    text: `
+Hello ${name || 'User'},
+
+We received your support request successfully.
+
+Ticket ID: ${ticketId}
+Category: ${category || 'other'}
+Subject: ${subject}
+Status: ${status || 'new'}
+
+Our support team will review it shortly.
+
+Thanks,
+MEDLI Team
+    `.trim(),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;">
+            <tr>
+              <td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:30px 24px;text-align:center;">
+                <h1 style="margin:0;font-size:24px;line-height:30px;color:#ffffff;">Support Request Received</h1>
+                <p style="margin:8px 0 0 0;font-size:14px;line-height:22px;color:#e0e7ff;">Our team will review your request shortly</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;">
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:24px;color:#334155;">Hello ${name || 'User'},</p>
+                <p style="margin:0 0 18px 0;font-size:15px;line-height:24px;color:#334155;">
+                  We received your support request successfully. Our support team will review it and get back to you if needed.
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Ticket ID:</strong> ${ticketId}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Category:</strong> ${category || 'other'}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Subject:</strong> ${subject}</p>
+                      <p style="margin:0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Status:</strong> ${status || 'new'}</p>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:18px 0 0 0;font-size:14px;line-height:22px;color:#64748b;">
+                  Thank you,<br />
+                  <strong style="color:#0f172a;">MEDLI Support Team</strong>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+    `,
+  }
+}
+
+export function supportTicketStatusTemplate({
+  name,
+  ticketId,
+  subject,
+  status,
+  adminNotes,
+}) {
+  return {
+    subject: `Support Ticket Update - ${subject}`,
+    text: `
+Hello ${name || 'User'},
+
+Your support ticket has been updated.
+
+Ticket ID: ${ticketId}
+Subject: ${subject}
+Status: ${status}
+
+${adminNotes ? `Admin Notes: ${adminNotes}` : ''}
+
+Thanks,
+MEDLI Team
+    `.trim(),
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td align="center" style="padding:24px 12px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;">
+            <tr>
+              <td style="background:linear-gradient(135deg,#10b981,#059669);padding:30px 24px;text-align:center;">
+                <h1 style="margin:0;font-size:24px;line-height:30px;color:#ffffff;">Support Ticket Updated</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;">
+                <p style="margin:0 0 14px 0;font-size:15px;line-height:24px;color:#334155;">Hello ${name || 'User'},</p>
+                <p style="margin:0 0 18px 0;font-size:15px;line-height:24px;color:#334155;">
+                  Your support ticket status has been updated.
+                </p>
+
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Ticket ID:</strong> ${ticketId}</p>
+                      <p style="margin:0 0 8px 0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Subject:</strong> ${subject}</p>
+                      <p style="margin:0;font-size:14px;color:#334155;"><strong style="color:#0f172a;">Status:</strong> ${status}</p>
+                    </td>
+                  </tr>
+                </table>
+
+                ${adminNotes ? `
+                <div style="margin-top:18px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 18px;">
+                  <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;color:#1d4ed8;">Admin Notes</p>
+                  <p style="margin:0;font-size:14px;line-height:22px;color:#1e3a8a;white-space:pre-wrap;">${adminNotes}</p>
+                </div>
+                ` : ''}
+
+                <p style="margin:18px 0 0 0;font-size:14px;line-height:22px;color:#64748b;">
+                  Thank you,<br />
+                  <strong style="color:#0f172a;">MEDLI Support Team</strong>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+    `,
+  }
+}
 /* ═══════════════════════════════════════════════════════════════════════
    ✅ BOOKING CONFIRMED TEMPLATE
    Used for: in-person hospital visits & lab test bookings

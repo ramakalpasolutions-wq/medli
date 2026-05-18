@@ -17,14 +17,46 @@ const KF = `
   @keyframes inv-spin { to{transform:rotate(360deg)} }
 `
 
-function DownloadBtn({ href }) {
+function DownloadBtn({ invoiceId }) {
+  const [loading, setLoading] = useState(false)
   const [h, setH] = useState(false)
 
+  const handleDownload = async () => {
+    try {
+      setLoading(true)
+
+      const res = await fetch(`/api/invoices/${invoiceId}/download`, {
+        credentials: 'include',
+      })
+
+      if (!res.ok) {
+        const j = await res.json().catch(() => null)
+        alert(j?.error || 'Failed to download invoice')
+        return
+      }
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `invoice-${invoiceId}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      alert('Failed to download invoice')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <a
-      href={href}
+    <button
+      onClick={handleDownload}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
+      disabled={loading}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -36,13 +68,14 @@ function DownloadBtn({ href }) {
         color: h ? '#6366f1' : '#64748b',
         fontSize: 12,
         fontWeight: 600,
-        textDecoration: 'none',
         transition: 'all .15s ease',
+        cursor: loading ? 'not-allowed' : 'pointer',
       }}
+      type="button"
     >
       <Download size={14} strokeWidth={2.4} />
-      PDF
-    </a>
+      {loading ? 'Downloading...' : 'PDF'}
+    </button>
   )
 }
 
@@ -69,6 +102,7 @@ function PageBtn({ label, disabled, onClick, icon: Icon, iconSide = 'left' }) {
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all .15s ease',
       }}
+      type="button"
     >
       {Icon && iconSide === 'left' && <Icon size={14} strokeWidth={2.4} />}
       {label}
@@ -294,7 +328,7 @@ function InvoiceRow({ inv, isLast }) {
       </td>
 
       <td style={{ padding: '12px 16px' }}>
-        <DownloadBtn href={`/api/invoices/${inv.id}/download`} />
+        <DownloadBtn invoiceId={inv.id} />
       </td>
     </tr>
   )

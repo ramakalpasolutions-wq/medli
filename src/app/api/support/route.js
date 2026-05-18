@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware/auth.middleware'
 import { prisma } from '@/lib/prisma'
+import { sendEmail } from '@/lib/email'
+import {
+  supportTicketAdminTemplate,
+  supportTicketUserTemplate,
+} from '@/lib/emailTemplates'
 
 export async function POST(request) {
   return withAuth(request, async (req, decoded) => {
@@ -72,12 +77,64 @@ export async function POST(request) {
         },
       })
 
+      const createdAt = new Date(ticket.createdAt).toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Asia/Kolkata',
+      })
+
+      const adminMail = supportTicketAdminTemplate({
+        ticketId: ticket.id,
+        name: ticket.name,
+        email: ticket.email,
+        phone: ticket.phone,
+        role: ticket.role,
+        subject: ticket.subject,
+        category: ticket.category,
+        message: ticket.message,
+        createdAt,
+      })
+
+      const tasks = [
+        process.env.SUPER_ADMIN_SUPPORT_EMAIL
+          ? sendEmail({
+              to: process.env.SUPER_ADMIN_SUPPORT_EMAIL,
+              subject: adminMail.subject,
+              html: adminMail.html,
+              text: adminMail.text,
+            })
+          : Promise.resolve(),
+      ]
+
+      if (ticket.email) {
+        const userMail = supportTicketUserTemplate({
+          name: ticket.name,
+          ticketId: ticket.id,
+          subject: ticket.subject,
+          category: ticket.category,
+          status: ticket.status,
+        })
+
+        tasks.push(
+          sendEmail({
+            to: ticket.email,
+            subject: userMail.subject,
+            html: userMail.html,
+            text: userMail.text,
+          })
+        )
+      }
+
+      const mailResults = await Promise.allSettled(tasks)
+      console.log('[SUPPORT_MAIL_RESULTS]', mailResults)
+
       return NextResponse.json({
         success: true,
         message: 'Support request submitted successfully',
         data: ticket,
       })
     } catch (error) {
+      console.error('[POST /api/support]', error)
       return NextResponse.json(
         { success: false, error: error?.message || 'Failed to submit support request' },
         { status: 500 }
@@ -149,6 +206,7 @@ export async function GET(request) {
         data: tickets,
       })
     } catch (error) {
+      console.error('[GET /api/support]', error)
       return NextResponse.json(
         { success: false, error: error?.message || 'Failed to fetch tickets' },
         { status: 500 }

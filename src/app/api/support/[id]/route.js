@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { withAuth } from '@/lib/middleware/auth.middleware'
 import { prisma } from '@/lib/prisma'
+import { sendEmail } from '@/lib/email'
+import { supportTicketStatusTemplate } from '@/lib/emailTemplates'
 
 export async function PATCH(request, { params }) {
   return withAuth(request, async (req, decoded) => {
@@ -49,6 +51,17 @@ export async function PATCH(request, { params }) {
         )
       }
 
+      const existing = await prisma.supportTicket.findUnique({
+        where: { id },
+      })
+
+      if (!existing) {
+        return NextResponse.json(
+          { success: false, error: 'Support ticket not found' },
+          { status: 404 }
+        )
+      }
+
       const ticket = await prisma.supportTicket.update({
         where: { id },
         data: {
@@ -57,12 +70,34 @@ export async function PATCH(request, { params }) {
         },
       })
 
+      if (ticket.email) {
+        try {
+          const mail = supportTicketStatusTemplate({
+            name: ticket.name,
+            ticketId: ticket.id,
+            subject: ticket.subject,
+            status: ticket.status,
+            adminNotes: ticket.adminNotes,
+          })
+
+          await sendEmail({
+            to: ticket.email,
+            subject: mail.subject,
+            html: mail.html,
+            text: mail.text,
+          })
+        } catch (mailError) {
+          console.error('[SUPPORT_STATUS_EMAIL_ERROR]', mailError)
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Support ticket updated',
         data: ticket,
       })
     } catch (error) {
+      console.error('[PATCH /api/support/[id]]', error)
       return NextResponse.json(
         { success: false, error: error?.message || 'Failed to update ticket' },
         { status: 500 }
