@@ -19,6 +19,7 @@ import {
   Phone,
   ArrowRight,
   Check,
+  LifeBuoy,
 } from 'lucide-react'
 
 const LINKS = {
@@ -30,9 +31,10 @@ const LINKS = {
   ],
   Company: [
     { label: 'About', href: '/about', Icon: Lightbulb },
-    { label: 'Careers', href: '/careers', Icon: Briefcase },
-    { label: 'Blog', href: '/blog', Icon: FileText },
-    { label: 'Contact', href: '/contact', Icon: Mail },
+    // { label: 'Careers', href: '/careers', Icon: Briefcase },
+    // { label: 'Blog', href: '/blog', Icon: FileText },
+    // { label: 'Contact', href: '/contact', Icon: Mail },
+    { label: 'Support', href: '/user/support', Icon: LifeBuoy },
   ],
   Legal: [
     { label: 'Privacy Policy', href: '/privacy', Icon: Lock },
@@ -41,7 +43,6 @@ const LINKS = {
     { label: 'Admin Dashboard Policy', href: '/admin-policy', Icon: Shield },
   ],
 }
-
 const STATS = [
   { value: '50K+', label: 'Patients Served' },
   { value: '1,200+', label: 'Hospitals' },

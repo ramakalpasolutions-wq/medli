@@ -35,7 +35,6 @@ export async function GET(request, { params }) {
         ['Entity Name',        settlement.entityName          || ''                                 ],
         ['Status',             settlement.status                                                    ],
         ['Total Bookings',     String(settlement.totalBookings || 0)                               ],
-        ['Gross Amount',       `Rs. ${(settlement.grossAmount         || 0).toLocaleString('en-IN')}`],
         ['Platform Fee',       `Rs. ${(settlement.platformFee         || 0).toLocaleString('en-IN')}`],
         ['GST',                `Rs. ${(settlement.gst                 || 0).toLocaleString('en-IN')}`],
         ['Coupon Absorbed',    `Rs. ${(settlement.couponAbsorbed      || 0).toLocaleString('en-IN')}`],

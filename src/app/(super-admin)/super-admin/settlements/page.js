@@ -383,7 +383,6 @@ function PendingEntityCard({ entity, onInitiate, initiated, initiating }) {
         gap: 10, marginBottom: 16,
       }}>
         {[
-          { label: 'Gross',       value: fmtRs(entity.grossAmount)                                                      },
           { label: 'Refunds',     value: Number(entity.refundsDeducted) > 0 ? `- ${fmtRs(entity.refundsDeducted)}` : 'None', red: Number(entity.refundsDeducted) > 0 },
           { label: 'You Receive', value: fmtRs(entity.netSettlementAmount), green: true                                  },
         ].map((s) => (

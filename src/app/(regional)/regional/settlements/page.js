@@ -121,7 +121,7 @@ function PendingEntityCard({ entity, idx, onView }) {
       }}>
         {[
           { label: 'Bookings',   value: entity.totalBookings,               highlight: false },
-          { label: 'Gross',      value: fmtRs(entity.grossAmount),          highlight: false },
+          // { label: 'Gross',      value: fmtRs(entity.grossAmount),          highlight: false },
           { label: 'Net Amount', value: fmtRs(entity.netSettlementAmount),  highlight: true  },
         ].map(({ label, value, highlight }) => (
           <div key={label} style={{
@@ -209,7 +209,7 @@ function SettlementDetail({ s, isPending, mounted }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
           {[
             { label: 'Total Bookings',  value: String(s.totalBookings || 0)                },
-            { label: 'Gross Amount',    value: fmtRs(s.grossAmount)                        },
+            // { label: 'Gross Amount',    value: fmtRs(s.grossAmount)                        },
             { label: 'Refunds',         value: fmtRs(s.refundsDeducted)                    },
             { label: 'Coupon Absorbed', value: fmtRs(s.couponAbsorbed)                     },
             { label: 'Platform Fee',    value: fmtRs(s.platformFee)                        },
@@ -287,7 +287,7 @@ function SettlementDetail({ s, isPending, mounted }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
         {[
-          { label: 'Gross',      value: fmtRs(s.grossAmount)          },
+          // { label: 'Gross',      value: fmtRs(s.grossAmount)          },
           { label: 'Platform Fee',value: fmtRs(s.platformFee)         },
           { label: 'Refunds',    value: fmtRs(s.refundsDeducted)      },
           { label: 'Net Payout', value: fmtRs(s.netSettlementAmount), bold: true },

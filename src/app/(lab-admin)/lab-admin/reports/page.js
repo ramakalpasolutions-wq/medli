@@ -1,4 +1,3 @@
-// C:\Users\ASUS\medli2\src\app\(lab-admin)\lab-admin\reports\page.js
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
@@ -8,6 +7,17 @@ import StatsCard from '@/components/ui/StatsCard'
 import Badge, { getStatusVariant } from '@/components/ui/Badge'
 import { SkeletonStats } from '@/components/ui/Skeleton'
 import RevenueChart from '@/components/admin/RevenueChart'
+import {
+  RefreshCw,
+  IndianRupee,
+  CalendarDays,
+  CheckCircle2,
+  TrendingUp,
+  BarChart3,
+  ClipboardList,
+  Activity,
+  FlaskConical,
+} from 'lucide-react'
 
 const fetcher = async (url) => {
   const res = await fetch(url, { credentials: 'include' })
@@ -17,29 +27,30 @@ const fetcher = async (url) => {
 }
 
 const PRESETS = [
-  { key: 'today',      label: 'Today'       },
-  { key: 'last7',      label: 'Last 7 Days' },
-  { key: 'last30',     label: 'Last 30 Days'},
-  { key: 'thisMonth',  label: 'This Month'  },
-  { key: 'last3Months',label: '3 Months'    },
+  { key: 'today', label: 'Today' },
+  { key: 'last7', label: 'Last 7 Days' },
+  { key: 'last30', label: 'Last 30 Days' },
+  { key: 'thisMonth', label: 'This Month' },
+  { key: 'last3Months', label: '3 Months' },
 ]
 
-/* ── useBreakpoint ───────────────────────────────────────────────── */
 function useBreakpoint() {
   const [bp, setBp] = useState('desktop')
+
   useEffect(() => {
     const update = () => {
       const w = window.innerWidth
       setBp(w < 640 ? 'mobile' : w < 1024 ? 'tablet' : 'desktop')
     }
+
     update()
     window.addEventListener('resize', update)
     return () => window.removeEventListener('resize', update)
   }, [])
+
   return bp
 }
 
-/* ── PresetPill ──────────────────────────────────────────────────── */
 function PresetPill({ label, active, onClick }) {
   return (
     <button
@@ -66,33 +77,41 @@ function PresetPill({ label, active, onClick }) {
   )
 }
 
-/* ── SCard ───────────────────────────────────────────────────────── */
 function SCard({ title, action, children }) {
   return (
-    <div style={{
-      background: '#fff',
-      borderRadius: 20,
-      border: '1px solid #e2e8f0',
-      boxShadow: '0 4px 20px rgba(15,23,42,0.04)',
-      overflow: 'hidden',
-    }}>
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 20,
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 20px rgba(15,23,42,0.04)',
+        overflow: 'hidden',
+      }}
+    >
       {(title || action) && (
-        <div style={{
-          padding: '14px 16px',
-          borderBottom: '1px solid #f1f5f9',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}>
+        <div
+          style={{
+            padding: '14px 16px',
+            borderBottom: '1px solid #f1f5f9',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
           {title && (
-            <h3 style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#0f172a',
-              margin: 0,
-            }}>
+            <h3
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: '#0f172a',
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
               {title}
             </h3>
           )}
@@ -104,21 +123,21 @@ function SCard({ title, action, children }) {
   )
 }
 
-/* ── EmptyState ──────────────────────────────────────────────────── */
 function EmptyState({ text = 'No data available' }) {
   return (
-    <div style={{
-      textAlign: 'center',
-      padding: '32px 16px',
-      color: '#94a3b8',
-      fontSize: 14,
-    }}>
+    <div
+      style={{
+        textAlign: 'center',
+        padding: '32px 16px',
+        color: '#94a3b8',
+        fontSize: 14,
+      }}
+    >
       {text}
     </div>
   )
 }
 
-/* ── Inline responsive styles ────────────────────────────────────── */
 const CSS = `
   .rp-preset-bar {
     display: flex;
@@ -206,7 +225,6 @@ const CSS = `
   }
 `
 
-/* ── Main Page ───────────────────────────────────────────────────── */
 export default function LabReportsPage() {
   const [preset, setPreset] = useState('last30')
   const bp = useBreakpoint()
@@ -226,20 +244,21 @@ export default function LabReportsPage() {
     mutate: mutateBookings,
   } = useSWR(`/api/analytics/bookings?preset=${preset}`, fetcher)
 
-  const { data: labData }  = useSWR('/api/labs?adminOnly=true', fetcher)
+  const { data: labData } = useSWR('/api/labs?adminOnly=true', fetcher)
   const labId = labData?.labs?.[0]?.id || labData?.[0]?.id || null
+
   const { data: testsData } = useSWR(
     labId ? `/api/labs/${labId}/tests` : null,
     fetcher
   )
 
   const isLoading = rLoad || bLoad
-  const error     = rError || bError
+  const error = rError || bError
 
   const revenueSummary = revenueData?.summary || {}
-  const bookingSummary = bookingData?.summary  || {}
+  const bookingSummary = bookingData?.summary || {}
 
-  const totalRevenue  = Number(revenueSummary.totalRevenue  || 0)
+  const totalRevenue = Number(revenueSummary.totalRevenue || 0)
   const totalBookings = Number(
     revenueSummary.totalBookings || bookingSummary.totalBookings || 0
   )
@@ -247,9 +266,9 @@ export default function LabReportsPage() {
     ? Math.round(totalRevenue / totalBookings)
     : 0
 
-  const byStatus    = bookingData?.byStatus    || []
+  const byStatus = bookingData?.byStatus || []
   const byLabStatus = bookingData?.byLabStatus || []
-  const tests       = testsData?.tests || testsData || []
+  const tests = testsData?.tests || testsData || []
 
   const confirmedCount = byStatus.find((s) => s.status === 'confirmed')?.count || 0
   const completedCount = byStatus.find((s) => s.status === 'completed')?.count || 0
@@ -287,7 +306,6 @@ export default function LabReportsPage() {
         breadcrumbs={[{ label: 'Lab Admin' }, { label: 'Analytics' }]}
       />
 
-      {/* ── Toolbar ── */}
       <div className="rp-toolbar">
         <div className="rp-preset-bar" style={{ flex: 1 }}>
           {PRESETS.map((p) => (
@@ -299,6 +317,7 @@ export default function LabReportsPage() {
             />
           ))}
         </div>
+
         <button
           onClick={refreshAll}
           style={{
@@ -311,60 +330,63 @@ export default function LabReportsPage() {
             cursor: 'pointer',
             fontSize: 13,
             flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
-          🔄 Refresh
+          <RefreshCw size={14} strokeWidth={2.3} />
+          Refresh
         </button>
       </div>
 
-      {/* ── Error ── */}
       {error && (
-        <div style={{
-          marginBottom: 16,
-          padding: '12px 16px',
-          borderRadius: 14,
-          background: '#fef2f2',
-          border: '1px solid #fecaca',
-          color: '#b91c1c',
-          fontSize: 14,
-        }}>
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '12px 16px',
+            borderRadius: 14,
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#b91c1c',
+            fontSize: 14,
+          }}
+        >
           Failed to load report data.
         </div>
       )}
 
-      {/* ── Stats ── */}
       {isLoading ? (
         <SkeletonStats count={4} style={{ marginBottom: 20 }} />
       ) : (
         <div className="rp-stats-grid">
           <StatsCard
-            title="Gross Revenue"
+            title="Revenue"
             value={`₹${totalRevenue.toLocaleString('en-IN')}`}
-            icon="💰"
+            icon={<IndianRupee size={18} strokeWidth={2.2} />}
             color="green"
           />
           <StatsCard
             title="Total Bookings"
             value={totalBookings}
-            icon="📅"
+            icon={<CalendarDays size={18} strokeWidth={2.2} />}
             color="blue"
           />
           <StatsCard
             title="Completed"
             value={completedCount}
-            icon="✅"
+            icon={<CheckCircle2 size={18} strokeWidth={2.2} />}
             color="purple"
           />
           <StatsCard
             title="Avg Booking Value"
             value={`₹${avgOrderValue.toLocaleString('en-IN')}`}
-            icon="📈"
+            icon={<TrendingUp size={18} strokeWidth={2.2} />}
             color="yellow"
           />
         </div>
       )}
 
-      {/* ── Revenue Chart + Booking Summary ── */}
       <div className="rp-main-grid">
         <div style={{ minWidth: 0 }}>
           <RevenueChart
@@ -378,12 +400,19 @@ export default function LabReportsPage() {
         </div>
 
         <div style={{ minWidth: 0 }}>
-          <SCard title="Booking Summary">
+          <SCard
+            title={
+              <>
+                <ClipboardList size={16} strokeWidth={2.3} />
+                Booking Summary
+              </>
+            }
+          >
             <div style={{ display: 'grid', gap: 10 }}>
               {[
-                { label: 'Confirmed',  value: confirmedCount },
-                { label: 'Completed',  value: completedCount },
-                { label: 'Cancelled',  value: cancelledCount },
+                { label: 'Confirmed', value: confirmedCount },
+                { label: 'Completed', value: completedCount },
+                { label: 'Cancelled', value: cancelledCount },
               ].map(({ label, value }) => (
                 <div
                   key={label}
@@ -405,7 +434,6 @@ export default function LabReportsPage() {
         </div>
       </div>
 
-      {/* ── Bookings Per Day Chart ── */}
       <div style={{ marginBottom: 20 }}>
         <RevenueChart
           data={bookingChartData}
@@ -417,9 +445,15 @@ export default function LabReportsPage() {
         />
       </div>
 
-      {/* ── Status Cards ── */}
       <div className="rp-status-grid">
-        <SCard title="Booking by Status">
+        <SCard
+          title={
+            <>
+              <BarChart3 size={16} strokeWidth={2.3} />
+              Booking by Status
+            </>
+          }
+        >
           {!byStatus.length ? (
             <EmptyState text="No booking status data" />
           ) : (
@@ -438,12 +472,14 @@ export default function LabReportsPage() {
                 <Badge variant={getStatusVariant(item.status)} size="sm">
                   {item.status?.replace(/_/g, ' ')}
                 </Badge>
-                <span style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: '#0f172a',
-                  flexShrink: 0,
-                }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    flexShrink: 0,
+                  }}
+                >
                   {item.count}
                 </span>
               </div>
@@ -451,7 +487,14 @@ export default function LabReportsPage() {
           )}
         </SCard>
 
-        <SCard title="Lab Workflow Status">
+        <SCard
+          title={
+            <>
+              <Activity size={16} strokeWidth={2.3} />
+              Lab Workflow Status
+            </>
+          }
+        >
           {!byLabStatus.length ? (
             <EmptyState text="No lab workflow data" />
           ) : (
@@ -467,19 +510,23 @@ export default function LabReportsPage() {
                   gap: 8,
                 }}
               >
-                <span style={{
-                  fontSize: 13,
-                  color: '#64748b',
-                  textTransform: 'capitalize',
-                }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: '#64748b',
+                    textTransform: 'capitalize',
+                  }}
+                >
                   {item.status.replace(/_/g, ' ')}
                 </span>
-                <span style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: '#0f172a',
-                  flexShrink: 0,
-                }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    flexShrink: 0,
+                  }}
+                >
                   {item.count}
                 </span>
               </div>
@@ -488,9 +535,13 @@ export default function LabReportsPage() {
         </SCard>
       </div>
 
-      {/* ── Test Catalogue ── */}
       <SCard
-        title="Test Catalogue"
+        title={
+          <>
+            <FlaskConical size={16} strokeWidth={2.3} />
+            Test Catalogue
+          </>
+        }
         action={
           <span style={{ fontSize: 12, color: '#94a3b8' }}>
             {tests.length} tests
@@ -503,15 +554,16 @@ export default function LabReportsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {tests.map((t) => (
               <div key={t.id} className="rp-test-row">
-                {/* Test Info */}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: '#0f172a',
-                    margin: '0 0 4px',
-                    wordBreak: 'break-word',
-                  }}>
+                  <p
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      margin: '0 0 4px',
+                      wordBreak: 'break-word',
+                    }}
+                  >
                     {t.name}
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -528,41 +580,43 @@ export default function LabReportsPage() {
                   </div>
                 </div>
 
-                {/* Price + Badge */}
                 <div className="rp-test-price">
                   {t.discountedPrice ? (
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: '#0f172a',
-                        margin: 0,
-                      }}>
+                      <p
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          margin: 0,
+                        }}
+                      >
                         ₹{Number(t.discountedPrice).toLocaleString('en-IN')}
                       </p>
-                      <p style={{
-                        fontSize: 11,
-                        color: '#94a3b8',
-                        textDecoration: 'line-through',
-                        margin: 0,
-                      }}>
+                      <p
+                        style={{
+                          fontSize: 11,
+                          color: '#94a3b8',
+                          textDecoration: 'line-through',
+                          margin: 0,
+                        }}
+                      >
                         ₹{Number(t.price).toLocaleString('en-IN')}
                       </p>
                     </div>
                   ) : (
-                    <p style={{
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: '#0f172a',
-                      margin: 0,
-                    }}>
+                    <p
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        margin: 0,
+                      }}
+                    >
                       ₹{Number(t.price || 0).toLocaleString('en-IN')}
                     </p>
                   )}
-                  <Badge
-                    variant={t.isActive ? 'success' : 'danger'}
-                    size="sm"
-                  >
+                  <Badge variant={t.isActive ? 'success' : 'danger'} size="sm">
                     {t.isActive ? 'Active' : 'Off'}
                   </Badge>
                 </div>

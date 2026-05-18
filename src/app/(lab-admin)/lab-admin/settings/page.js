@@ -1,11 +1,21 @@
-// src/app/(lab-admin)/lab-admin/settings/page.js
 'use client'
 
 import { useState, useEffect } from 'react'
-import useSWR       from 'swr'
-import AdminHeader  from '@/components/admin/AdminHeader'
-import FileUpload   from '@/components/ui/FileUpload'
+import useSWR from 'swr'
+import AdminHeader from '@/components/admin/AdminHeader'
+import FileUpload from '@/components/ui/FileUpload'
 import { useToast } from '@/context/ToastContext'
+import {
+  Save,
+  Loader2,
+  FlaskConical,
+  MapPin,
+  ImageIcon,
+  Award,
+  House,
+  X,
+  Plus,
+} from 'lucide-react'
 
 const fetcher = (url) =>
   fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
@@ -16,6 +26,7 @@ const CERTIFICATIONS = ['NABL', 'ISO 15189', 'ISO 9001', 'CAP', 'JCI']
 
 function LSInput({ label, ...props }) {
   const [focused, setFocused] = useState(false)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       {label && (
@@ -25,17 +36,29 @@ function LSInput({ label, ...props }) {
       )}
       <input
         {...props}
-        onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
-        onBlur={(e)  => { setFocused(false); props.onBlur?.(e) }}
+        onFocus={(e) => {
+          setFocused(true)
+          props.onFocus?.(e)
+        }}
+        onBlur={(e) => {
+          setFocused(false)
+          props.onBlur?.(e)
+        }}
         style={{
-          padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
-          borderRadius: 12, boxSizing: 'border-box',
+          padding: '10px 12px',
+          fontSize: 13,
+          fontFamily: 'inherit',
+          borderRadius: 12,
+          boxSizing: 'border-box',
           border: `1.5px solid ${focused ? '#10b981' : '#e2e8f0'}`,
-          background: '#fff', color: '#0f172a', outline: 'none',
+          background: '#fff',
+          color: '#0f172a',
+          outline: 'none',
           boxShadow: focused
             ? '0 0 0 3px rgba(16,185,129,0.12)'
             : '0 1px 3px rgba(0,0,0,0.06)',
-          transition: 'all .15s ease', width: '100%',
+          transition: 'all .15s ease',
+          width: '100%',
         }}
       />
     </div>
@@ -44,21 +67,28 @@ function LSInput({ label, ...props }) {
 
 function SaveBtn({ onClick, loading: isLoading }) {
   const [h, setH] = useState(false)
+
   return (
     <button
-      onClick={onClick} disabled={isLoading}
+      onClick={onClick}
+      disabled={isLoading}
       onMouseEnter={() => !isLoading && setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '9px 18px', borderRadius: 12, border: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '9px 18px',
+        borderRadius: 12,
+        border: 'none',
         background: isLoading
           ? '#e2e8f0'
           : h
             ? 'linear-gradient(135deg,#059669,#047857)'
             : 'linear-gradient(135deg,#10b981,#059669)',
         color: isLoading ? '#94a3b8' : '#fff',
-        fontSize: 13, fontWeight: 600,
+        fontSize: 13,
+        fontWeight: 600,
         cursor: isLoading ? 'not-allowed' : 'pointer',
         boxShadow: isLoading
           ? 'none'
@@ -68,30 +98,43 @@ function SaveBtn({ onClick, loading: isLoading }) {
         transition: 'all .18s ease',
       }}
     >
-      {isLoading && (
-        <span style={{
-          width: 14, height: 14, borderRadius: '50%',
-          border: '2px solid rgba(255,255,255,0.4)',
-          borderTopColor: '#fff',
-          animation: 'ls2-spin .7s linear infinite',
-          display: 'inline-block',
-        }} />
+      {isLoading ? (
+        <Loader2
+          size={14}
+          strokeWidth={2.4}
+          style={{ animation: 'ls2-spin .7s linear infinite' }}
+        />
+      ) : (
+        <Save size={14} strokeWidth={2.4} />
       )}
-      💾 Save Changes
+      Save Changes
     </button>
   )
 }
 
 function LSCard({ title, children }) {
   return (
-    <div style={{
-      background: '#fff', borderRadius: 20,
-      border: '1px solid #f1f5f9',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-      overflow: 'hidden',
-    }}>
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 20,
+        border: '1px solid #f1f5f9',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        overflow: 'hidden',
+      }}
+    >
       <div style={{ padding: '14px 20px', borderBottom: '1px solid #f8fafc' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>
+        <h3
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: '#1e293b',
+            margin: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
           {title}
         </h3>
       </div>
@@ -105,9 +148,13 @@ function Toggle({ checked, onChange }) {
     <button
       onClick={() => onChange(!checked)}
       style={{
-        width: 44, height: 24, borderRadius: 12,
-        position: 'relative', border: 'none',
-        cursor: 'pointer', flexShrink: 0,
+        width: 44,
+        height: 24,
+        borderRadius: 12,
+        position: 'relative',
+        border: 'none',
+        cursor: 'pointer',
+        flexShrink: 0,
         background: checked
           ? 'linear-gradient(135deg,#10b981,#059669)'
           : '#e2e8f0',
@@ -115,97 +162,137 @@ function Toggle({ checked, onChange }) {
         transition: 'all .2s ease',
       }}
     >
-      <div style={{
-        width: 20, height: 20, borderRadius: '50%', background: '#fff',
-        position: 'absolute', top: 2, left: checked ? 22 : 2,
-        transition: 'left .2s ease',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-      }} />
+      <div
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          background: '#fff',
+          position: 'absolute',
+          top: 2,
+          left: checked ? 22 : 2,
+          transition: 'left .2s ease',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+        }}
+      />
     </button>
   )
 }
 
 function CertPill({ cert, selected, onClick }) {
   const [h, setH] = useState(false)
+
   return (
     <button
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        padding: '8px 14px', borderRadius: 10, border: 'none',
-        fontSize: 13, fontWeight: selected ? 600 : 500,
+        padding: '8px 14px',
+        borderRadius: 10,
+        border: 'none',
+        fontSize: 13,
+        fontWeight: selected ? 600 : 500,
         cursor: 'pointer',
         background: selected
           ? 'linear-gradient(135deg,#10b981,#059669)'
-          : h ? '#e2e8f0' : '#f1f5f9',
+          : h
+            ? '#e2e8f0'
+            : '#f1f5f9',
         color: selected ? '#fff' : '#64748b',
         transition: 'all .12s ease',
       }}
     >
-      {selected ? '✓ ' : ''}{cert}
+      {selected ? '✓ ' : ''}
+      {cert}
     </button>
   )
 }
 
 function PinBadge({ pin, onRemove }) {
   const [h, setH] = useState(false)
+
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '4px 10px', borderRadius: 8,
-      background: 'rgba(16,185,129,0.08)',
-      border: '1px solid rgba(16,185,129,0.2)',
-      color: '#059669', fontSize: 12,
-      fontFamily: 'monospace', fontWeight: 600,
-    }}>
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '4px 10px',
+        borderRadius: 8,
+        background: 'rgba(16,185,129,0.08)',
+        border: '1px solid rgba(16,185,129,0.2)',
+        color: '#059669',
+        fontSize: 12,
+        fontFamily: 'monospace',
+        fontWeight: 600,
+      }}
+    >
       {pin}
       <button
         onClick={onRemove}
         onMouseEnter={() => setH(true)}
         onMouseLeave={() => setH(false)}
         style={{
-          background: 'none', border: 'none', cursor: 'pointer',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
           color: h ? '#ef4444' : '#94a3b8',
-          fontSize: 14, lineHeight: 1, padding: 0,
-          display: 'flex', alignItems: 'center',
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
         }}
-      >✕</button>
+      >
+        <X size={14} strokeWidth={2.5} />
+      </button>
     </span>
   )
 }
 
 function AddPinBtn({ onClick }) {
   const [h, setH] = useState(false)
+
   return (
     <button
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        padding: '10px 14px', borderRadius: 12,
+        padding: '10px 14px',
+        borderRadius: 12,
         border: `1.5px solid ${h ? '#10b981' : '#e2e8f0'}`,
         background: h ? 'rgba(16,185,129,0.06)' : '#fff',
         color: h ? '#10b981' : '#475569',
-        fontSize: 13, fontWeight: 600,
-        cursor: 'pointer', transition: 'all .15s ease', flexShrink: 0,
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
+        transition: 'all .15s ease',
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
       }}
-    >+ Add</button>
+    >
+      <Plus size={14} strokeWidth={2.5} />
+      Add
+    </button>
   )
 }
 
 export default function LabSettings() {
   const toast = useToast()
-  const [saving,     setSaving]     = useState(false)
+  const [saving, setSaving] = useState(false)
   const [newPinCode, setNewPinCode] = useState('')
   const [pinFocused, setPinFocused] = useState(false)
 
   const { data: labData, mutate } = useSWR('/api/labs?adminOnly=true', fetcher)
-  const lab   = labData?.labs?.[0]
+  const lab = labData?.labs?.[0]
   const labId = lab?.id
 
   const [form, setForm] = useState({
-    name: '', contactPhone: '', contactEmail: '',
+    name: '',
+    contactPhone: '',
+    contactEmail: '',
     certifications: [],
     address: { line1: '', city: '', state: '', pinCode: '' },
     homeCollection: { enabled: false, areaCoverage: [] },
@@ -214,18 +301,18 @@ export default function LabSettings() {
   useEffect(() => {
     if (lab) {
       setForm({
-        name:           lab.name           || '',
-        contactPhone:   lab.contactPhone   || '',
-        contactEmail:   lab.contactEmail   || '',
+        name: lab.name || '',
+        contactPhone: lab.contactPhone || '',
+        contactEmail: lab.contactEmail || '',
         certifications: lab.certifications || [],
         address: {
-          line1:   lab.address?.line1   || '',
-          city:    lab.address?.city    || '',
-          state:   lab.address?.state   || '',
+          line1: lab.address?.line1 || '',
+          city: lab.address?.city || '',
+          state: lab.address?.state || '',
           pinCode: lab.address?.pinCode || '',
         },
         homeCollection: {
-          enabled:      lab.homeCollection?.enabled      || false,
+          enabled: lab.homeCollection?.enabled || false,
           areaCoverage: lab.homeCollection?.areaCoverage || [],
         },
       })
@@ -242,8 +329,14 @@ export default function LabSettings() {
 
   const addPinCode = () => {
     const pin = newPinCode.trim()
-    if (!pin || pin.length !== 6) { toast.error('Enter a valid 6-digit PIN code'); return }
-    if (form.homeCollection.areaCoverage.includes(pin)) { toast.error('PIN code already added'); return }
+    if (!pin || pin.length !== 6) {
+      toast.error('Enter a valid 6-digit PIN code')
+      return
+    }
+    if (form.homeCollection.areaCoverage.includes(pin)) {
+      toast.error('PIN code already added')
+      return
+    }
     setForm((f) => ({
       ...f,
       homeCollection: {
@@ -264,28 +357,38 @@ export default function LabSettings() {
     }))
 
   const save = async () => {
-    if (!labId) { toast.error('Lab not found'); return }
+    if (!labId) {
+      toast.error('Lab not found')
+      return
+    }
+
     setSaving(true)
     try {
-      const res  = await fetch(`/api/labs/${labId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`/api/labs/${labId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          name:           form.name,
-          contactPhone:   form.contactPhone,
-          contactEmail:   form.contactEmail,
+          name: form.name,
+          contactPhone: form.contactPhone,
+          contactEmail: form.contactEmail,
           certifications: form.certifications,
-          address:        form.address,
+          address: form.address,
           homeCollection: {
-            enabled:      form.homeCollection.enabled,
+            enabled: form.homeCollection.enabled,
             areaCoverage: form.homeCollection.areaCoverage,
-            slots:        lab?.homeCollection?.slots || [],
+            slots: lab?.homeCollection?.slots || [],
           },
         }),
       })
       const json = await res.json()
-      if (json.success) { toast.success('Settings saved'); mutate() }
-      else toast.error(json.error || 'Failed to save settings')
+
+      if (json.success) {
+        toast.success('Settings saved')
+        mutate()
+      } else {
+        toast.error(json.error || 'Failed to save settings')
+      }
     } catch {
       toast.error('Network error')
     } finally {
@@ -296,6 +399,7 @@ export default function LabSettings() {
   return (
     <>
       <style>{KF}</style>
+
       <AdminHeader
         title="Settings"
         subtitle="Lab configuration and profile"
@@ -303,14 +407,21 @@ export default function LabSettings() {
         actions={<SaveBtn onClick={save} loading={saving} />}
       />
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
-        gap: 20,
-      }}>
-
-        {/* Basic info */}
-        <LSCard title="🧪 Basic Information">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
+          gap: 20,
+        }}
+      >
+        <LSCard
+          title={
+            <>
+              <FlaskConical size={16} strokeWidth={2.3} />
+              Basic Information
+            </>
+          }
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <LSInput
               label="Lab Name"
@@ -320,63 +431,89 @@ export default function LabSettings() {
             <LSInput
               label="Contact Phone"
               value={form.contactPhone}
-              onChange={(e) => setForm((f) => ({ ...f, contactPhone: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, contactPhone: e.target.value }))
+              }
               placeholder="+91 XXXXX XXXXX"
             />
             <LSInput
               label="Contact Email"
               type="email"
               value={form.contactEmail}
-              onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, contactEmail: e.target.value }))
+              }
               placeholder="lab@example.com"
             />
           </div>
         </LSCard>
 
-        {/* Address */}
-        <LSCard title="📍 Address">
+        <LSCard
+          title={
+            <>
+              <MapPin size={16} strokeWidth={2.3} />
+              Address
+            </>
+          }
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <LSInput
               label="Street Address"
               value={form.address.line1}
-              onChange={(e) => setForm((f) => ({
-                ...f, address: { ...f.address, line1: e.target.value },
-              }))}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  address: { ...f.address, line1: e.target.value },
+                }))
+              }
               placeholder="Building, Street"
             />
             <LSInput
               label="City"
               value={form.address.city}
-              onChange={(e) => setForm((f) => ({
-                ...f, address: { ...f.address, city: e.target.value },
-              }))}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  address: { ...f.address, city: e.target.value },
+                }))
+              }
             />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <LSInput
                 label="State"
                 value={form.address.state}
-                onChange={(e) => setForm((f) => ({
-                  ...f, address: { ...f.address, state: e.target.value },
-                }))}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    address: { ...f.address, state: e.target.value },
+                  }))
+                }
               />
               <LSInput
                 label="PIN Code"
                 value={form.address.pinCode}
-                onChange={(e) => setForm((f) => ({
-                  ...f, address: { ...f.address, pinCode: e.target.value },
-                }))}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    address: { ...f.address, pinCode: e.target.value },
+                  }))
+                }
                 maxLength={6}
               />
             </div>
           </div>
         </LSCard>
 
-        {/* ── Images ── */}
         {labId && (
-          <LSCard title="🖼️ Lab Images">
+          <LSCard
+            title={
+              <>
+                <ImageIcon size={16} strokeWidth={2.3} />
+                Lab Images
+              </>
+            }
+          >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-              {/* Cover */}
               <FileUpload
                 purpose="lab_cover"
                 entityId={labId}
@@ -385,10 +522,12 @@ export default function LabSettings() {
                 maxSizeMB={5}
                 currentUrl={lab?.images?.cover || null}
                 showPreview
-                onSuccess={() => { toast.success('Cover image updated'); mutate() }}
+                onSuccess={() => {
+                  toast.success('Cover image updated')
+                  mutate()
+                }}
               />
 
-              {/* Logo */}
               <FileUpload
                 purpose="lab_logo"
                 entityId={labId}
@@ -397,32 +536,43 @@ export default function LabSettings() {
                 maxSizeMB={2}
                 currentUrl={lab?.images?.logo || null}
                 showPreview
-                onSuccess={() => { toast.success('Logo updated'); mutate() }}
+                onSuccess={() => {
+                  toast.success('Logo updated')
+                  mutate()
+                }}
               />
 
-              {/* Gallery */}
               <div>
-                <p style={{
-                  fontSize: 12, fontWeight: 600,
-                  color: '#475569', marginBottom: 8,
-                }}>
+                <p
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#475569',
+                    marginBottom: 8,
+                  }}
+                >
                   Gallery Images
                 </p>
 
                 {lab?.images?.gallery?.length > 0 && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-                    gap: 8, marginBottom: 10,
-                  }}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                      gap: 8,
+                      marginBottom: 10,
+                    }}
+                  >
                     {lab.images.gallery.map((url, idx) => (
                       <img
                         key={idx}
                         src={url}
                         alt={`Gallery ${idx + 1}`}
                         style={{
-                          width: '100%', aspectRatio: '1',
-                          objectFit: 'cover', borderRadius: 10,
+                          width: '100%',
+                          aspectRatio: '1',
+                          objectFit: 'cover',
+                          borderRadius: 10,
                           border: '1px solid #e2e8f0',
                         }}
                       />
@@ -437,7 +587,10 @@ export default function LabSettings() {
                   label=""
                   maxSizeMB={5}
                   showPreview={false}
-                  onSuccess={() => { toast.success('Gallery image added'); mutate() }}
+                  onSuccess={() => {
+                    toast.success('Gallery image added')
+                    mutate()
+                  }}
                 />
                 <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>
                   Each upload adds one image to the gallery
@@ -447,8 +600,14 @@ export default function LabSettings() {
           </LSCard>
         )}
 
-        {/* Certifications */}
-        <LSCard title="🏅 Certifications">
+        <LSCard
+          title={
+            <>
+              <Award size={16} strokeWidth={2.3} />
+              Certifications
+            </>
+          }
+        >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {CERTIFICATIONS.map((cert) => (
               <CertPill
@@ -466,15 +625,25 @@ export default function LabSettings() {
           )}
         </LSCard>
 
-        {/* Home Collection */}
-        <LSCard title="🏠 Home Collection">
+        <LSCard
+          title={
+            <>
+              <House size={16} strokeWidth={2.3} />
+              Home Collection
+            </>
+          }
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 14px',
-              background: '#f8fafc', borderRadius: 12,
-            }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 14px',
+                background: '#f8fafc',
+                borderRadius: 12,
+              }}
+            >
               <div>
                 <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>
                   Enable Home Collection
@@ -485,9 +654,12 @@ export default function LabSettings() {
               </div>
               <Toggle
                 checked={form.homeCollection.enabled}
-                onChange={(v) => setForm((f) => ({
-                  ...f, homeCollection: { ...f.homeCollection, enabled: v },
-                }))}
+                onChange={(v) =>
+                  setForm((f) => ({
+                    ...f,
+                    homeCollection: { ...f.homeCollection, enabled: v },
+                  }))
+                }
               />
             </div>
 
@@ -508,11 +680,16 @@ export default function LabSettings() {
                       placeholder="6-digit PIN"
                       maxLength={6}
                       style={{
-                        width: '100%', padding: '10px 12px',
-                        fontSize: 13, fontFamily: 'inherit',
-                        borderRadius: 12, boxSizing: 'border-box',
+                        width: '100%',
+                        padding: '10px 12px',
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                        borderRadius: 12,
+                        boxSizing: 'border-box',
                         border: `1.5px solid ${pinFocused ? '#10b981' : '#e2e8f0'}`,
-                        background: '#fff', color: '#0f172a', outline: 'none',
+                        background: '#fff',
+                        color: '#0f172a',
+                        outline: 'none',
                         boxShadow: pinFocused
                           ? '0 0 0 3px rgba(16,185,129,0.12)'
                           : '0 1px 3px rgba(0,0,0,0.06)',
@@ -522,6 +699,7 @@ export default function LabSettings() {
                   </div>
                   <AddPinBtn onClick={addPinCode} />
                 </div>
+
                 {form.homeCollection.areaCoverage.length > 0 ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {form.homeCollection.areaCoverage.map((pin) => (

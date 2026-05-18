@@ -4,6 +4,17 @@ import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import AdminHeader from '@/components/admin/AdminHeader'
 import { useToast } from '@/context/ToastContext'
+import {
+  Save,
+  Ban,
+  Clock3,
+  X,
+  CalendarDays,
+  FileText,
+  UserRound,
+  Loader2,
+  Plus,
+} from 'lucide-react'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -15,7 +26,7 @@ const KF = `
 const fetcher = async (url) => {
   const r = await fetch(url, { credentials: 'include' })
   const j = await r.json()
-  if (!j.success) throw new Error(j.error || 'Failed to load')
+  if (!r.ok || j.success === false) throw new Error(j.error || 'Failed to load settings')
   return j.data
 }
 
@@ -166,20 +177,12 @@ function SaveBtn({ onClick, saving, disabled }) {
         transition: 'all .18s ease',
       }}
     >
-      {saving && (
-        <span
-          style={{
-            width: 12,
-            height: 12,
-            borderRadius: '50%',
-            border: '2px solid rgba(255,255,255,0.45)',
-            borderTopColor: '#fff',
-            display: 'inline-block',
-            animation: 'hu-spin .7s linear infinite',
-          }}
-        />
+      {saving ? (
+        <Loader2 size={14} strokeWidth={2.4} style={{ animation: 'hu-spin .7s linear infinite' }} />
+      ) : (
+        <Save size={14} strokeWidth={2.4} />
       )}
-      💾 {saving ? 'Saving...' : 'Save Unavailability'}
+      {saving ? 'Saving...' : 'Save Unavailability'}
     </button>
   )
 }
@@ -216,11 +219,11 @@ function ExceptionItem({ ex, onRemove }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 18,
           flexShrink: 0,
+          color: isFullDay ? '#dc2626' : '#b45309',
         }}
       >
-        {isFullDay ? '🚫' : '⏱'}
+        {isFullDay ? <Ban size={18} strokeWidth={2.2} /> : <Clock3 size={18} strokeWidth={2.2} />}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -255,8 +258,9 @@ function ExceptionItem({ ex, onRemove }) {
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ fontWeight: 600 }}>
-            🕐 {isFullDay ? 'Unavailable all day' : formatTimeRange(ex.startTime, ex.endTime)}
+          <span style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <Clock3 size={13} strokeWidth={2.2} />
+            {isFullDay ? 'Unavailable all day' : formatTimeRange(ex.startTime, ex.endTime)}
           </span>
           {ex.reason && (
             <>
@@ -280,12 +284,11 @@ function ExceptionItem({ ex, onRemove }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 14,
           color: '#ef4444',
           flexShrink: 0,
         }}
       >
-        ✕
+        <X size={14} strokeWidth={2.4} />
       </button>
     </div>
   )
@@ -350,8 +353,18 @@ function ExceptionForm({ onAdd }) {
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
-        <label style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
-          📅 Select Date <span style={{ color: '#ef4444' }}>*</span>
+        <label
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#475569',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <CalendarDays size={13} strokeWidth={2.2} />
+          Select Date <span style={{ color: '#ef4444' }}>*</span>
         </label>
         <input
           type="date"
@@ -386,8 +399,19 @@ function ExceptionForm({ onAdd }) {
         }}
       >
         <div>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-            {isFullDay ? '🚫 Unavailable Full Day' : '⏱ Partial Day Off'}
+          <p
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#1e293b',
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            {isFullDay ? <Ban size={14} strokeWidth={2.2} /> : <Clock3 size={14} strokeWidth={2.2} />}
+            {isFullDay ? 'Unavailable Full Day' : 'Partial Day Off'}
           </p>
           <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
             {isFullDay ? 'Toggle off to specify hours' : 'Toggle on to block the entire day'}
@@ -416,8 +440,18 @@ function ExceptionForm({ onAdd }) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 14 }}>
-        <label style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
-          📝 Reason (optional)
+        <label
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#475569',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <FileText size={13} strokeWidth={2.2} />
+          Reason (optional)
         </label>
         <input
           type="text"
@@ -453,9 +487,14 @@ function ExceptionForm({ onAdd }) {
           fontSize: 13,
           fontWeight: 600,
           cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
         }}
       >
-        + Add Exception
+        <Plus size={15} strokeWidth={2.4} />
+        Add Exception
       </button>
     </div>
   )
@@ -643,7 +682,21 @@ export default function HospitalDoctorUnavailabilityPage() {
                 border: '1px dashed #e2e8f0',
               }}
             >
-              <div style={{ fontSize: 36, marginBottom: 10 }}>👨‍⚕️</div>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  background: '#eef2ff',
+                  color: '#6366f1',
+                  margin: '0 auto 10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <UserRound size={28} strokeWidth={2.2} />
+              </div>
               <p style={{ fontSize: 14, fontWeight: 600, color: '#64748b', margin: 0 }}>
                 Select a doctor to manage unavailability
               </p>
@@ -658,15 +711,13 @@ export default function HospitalDoctorUnavailabilityPage() {
                 border: '1px solid #f1f5f9',
               }}
             >
-              <div
+              <Loader2
+                size={28}
+                strokeWidth={2.4}
                 style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  border: '3px solid #cbd5e1',
-                  borderTopColor: '#6366f1',
                   animation: 'hu-spin .7s linear infinite',
                   margin: '0 auto 12px',
+                  color: '#6366f1',
                 }}
               />
               <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>Loading doctor schedule...</p>
@@ -685,7 +736,21 @@ export default function HospitalDoctorUnavailabilityPage() {
                     border: '1px dashed #e2e8f0',
                   }}
                 >
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📅</div>
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 16,
+                      background: '#eef2ff',
+                      color: '#6366f1',
+                      margin: '0 auto 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CalendarDays size={26} strokeWidth={2.2} />
+                  </div>
                   <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
                     No exceptions added yet
                   </p>

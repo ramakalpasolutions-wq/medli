@@ -751,3 +751,39 @@ model PlatformSetting {
 
   @@map("platform_settings")
 }
+enum SupportCategory {
+  technical
+  billing
+  account
+  appointment
+  report
+  other
+}
+
+enum SupportStatus {
+  new
+  in_progress
+  resolved
+}
+
+model SupportTicket {
+  id         String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String          @db.ObjectId
+  name       String
+  email      String?
+  phone      String?
+  role       Role
+  subject    String
+  category   SupportCategory @default(other)
+  message    String
+  status     SupportStatus   @default(new)
+  adminNotes String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+  @@map("support_tickets")
+}

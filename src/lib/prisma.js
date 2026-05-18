@@ -15,8 +15,5 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
 }
 
-// ✅ Named export — allows:  import { prisma } from '@/lib/prisma'
 export { prisma }
-
-// ✅ Default export — allows: import { prisma } from '@/lib/prisma'
 export default prisma

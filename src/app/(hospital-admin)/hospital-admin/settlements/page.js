@@ -155,7 +155,6 @@ function SettlementDetail({ s, mounted }) {
         display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10,
       }}>
         {[
-          { label: 'Gross Revenue', value: fmtRs(s.grossAmount)                },
           { label: 'Refunds',       value: fmtRs(s.refundsDeducted), red: Number(s.refundsDeducted) > 0 },
           { label: 'Net Transfer',  value: fmtRs(s.netSettlementAmount), green: true },
         ].map((r) => (

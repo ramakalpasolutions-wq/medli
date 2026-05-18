@@ -223,7 +223,7 @@ export default function UsersPage() {
             {viewItem.familyMembers?.length > 0 && (
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-                  👨‍👩‍👧‍👦 Family Members ({viewItem.familyMembers.length})
+                   Family Members ({viewItem.familyMembers.length})
                 </p>
                 <div style={{
                   display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8,

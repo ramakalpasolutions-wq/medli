@@ -459,19 +459,24 @@ export default function HospitalCoupons() {
     }
   }
 
-  const toggleCoupon = async (id) => {
-    try {
-      const res = await fetch(`/api/coupons/${id}/toggle`, {
-        method: 'PATCH',
-        credentials: 'include',
-      })
-      const json = await res.json()
-      json.success ? toast.success('Coupon updated') : toast.error(json.error)
-      await mutate()
-    } catch {
-      toast.error('Failed')
-    }
+ const toggleCoupon = async (id) => {
+  if (!id) {
+    toast.error('Coupon id missing')
+    return
   }
+
+  try {
+    const res = await fetch(`/api/coupons/${id}/toggle`, {
+      method: 'PATCH',
+      credentials: 'include',
+    })
+    const json = await res.json()
+    json.success ? toast.success('Coupon updated') : toast.error(json.error || 'Failed')
+    await mutate()
+  } catch {
+    toast.error('Failed')
+  }
+}
 
   const columns = [
     {
