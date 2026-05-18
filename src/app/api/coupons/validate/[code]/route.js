@@ -20,7 +20,7 @@ export async function GET(request, { params }) {
       bookingType,
       amount,
       entityId,
-      userId: user.id,
+      userId: user.userId,
     })
 
     const discountAmount = calculateDiscount(coupon, amount)
