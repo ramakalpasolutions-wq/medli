@@ -3,17 +3,20 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import AdminHeader from '@/components/admin/AdminHeader'
-import DataTable   from '@/components/ui/DataTable'
-import Badge       from '@/components/ui/Badge'
-import Modal       from '@/components/ui/Modal'
+import DataTable from '@/components/ui/DataTable'
+import Badge from '@/components/ui/Badge'
+import Modal from '@/components/ui/Modal'
 import { useToast } from '@/context/ToastContext'
 
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
+const fetcher = async (url) => {
+  const r = await fetch(url, { credentials: 'include' })
+  const j = await r.json()
+  if (!j.success) throw new Error(j.error || 'Failed to load coupons')
+  return j.data
+}
 
 const KF = `@keyframes cp-spin { to { transform: rotate(360deg) } }`
 
-/* ─── Form Input ─────────────────────────────────────────────────────── */
 function CInput({ label, ...props }) {
   const [focused, setFocused] = useState(false)
   return (
@@ -25,21 +28,26 @@ function CInput({ label, ...props }) {
         {...props}
         value={props.value ?? ''}
         onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
-        onBlur={(e)  => { setFocused(false); props.onBlur?.(e) }}
+        onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
         style={{
-          padding: '10px 12px', fontSize: 13, fontFamily: 'inherit',
-          borderRadius: 12, boxSizing: 'border-box',
+          padding: '10px 12px',
+          fontSize: 13,
+          fontFamily: 'inherit',
+          borderRadius: 12,
+          boxSizing: 'border-box',
           border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
-          background: '#fff', color: '#0f172a', outline: 'none',
+          background: '#fff',
+          color: '#0f172a',
+          outline: 'none',
           boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.12)' : '0 1px 3px rgba(0,0,0,0.06)',
-          transition: 'all .15s ease', width: '100%',
+          transition: 'all .15s ease',
+          width: '100%',
         }}
       />
     </div>
   )
 }
 
-/* ─── Create Button ──────────────────────────────────────────────────── */
 function CreateBtn({ onClick }) {
   const [h, setH] = useState(false)
   return (
@@ -48,12 +56,19 @@ function CreateBtn({ onClick }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '9px 16px', borderRadius: 12, border: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '9px 16px',
+        borderRadius: 12,
+        border: 'none',
         background: h
           ? 'linear-gradient(135deg,#7c3aed,#6d28d9)'
           : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-        color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
         boxShadow: h ? '0 6px 20px rgba(99,102,241,0.45)' : '0 4px 14px rgba(99,102,241,0.3)',
         transition: 'all .18s ease',
       }}
@@ -63,7 +78,6 @@ function CreateBtn({ onClick }) {
   )
 }
 
-/* ─── View Button ────────────────────────────────────────────────────── */
 function ViewBtn({ onClick }) {
   const [h, setH] = useState(false)
   return (
@@ -72,10 +86,15 @@ function ViewBtn({ onClick }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        padding: '4px 9px', borderRadius: 7, border: 'none',
+        padding: '4px 9px',
+        borderRadius: 7,
+        border: 'none',
         background: h ? 'rgba(99,102,241,0.1)' : 'transparent',
-        color: '#6366f1', fontSize: 11, fontWeight: 600,
-        cursor: 'pointer', transition: 'background .13s ease',
+        color: '#6366f1',
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: 'pointer',
+        transition: 'background .13s ease',
       }}
     >
       👁 View
@@ -83,7 +102,6 @@ function ViewBtn({ onClick }) {
   )
 }
 
-/* ─── Type Toggle ────────────────────────────────────────────────────── */
 function TypeToggle({ value, onChange }) {
   return (
     <div>
@@ -107,12 +125,17 @@ function TypeBtn({ label, active, onClick }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        flex: 1, padding: '9px', borderRadius: 10, border: 'none',
+        flex: 1,
+        padding: '9px',
+        borderRadius: 10,
+        border: 'none',
         background: active
           ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
           : h ? '#e2e8f0' : '#f1f5f9',
         color: active ? '#fff' : '#64748b',
-        fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer',
+        fontSize: 13,
+        fontWeight: active ? 600 : 500,
+        cursor: 'pointer',
         transition: 'all .12s ease',
       }}
     >
@@ -121,7 +144,6 @@ function TypeBtn({ label, active, onClick }) {
   )
 }
 
-/* ─── Modal Buttons ──────────────────────────────────────────────────── */
 function ModalBtns({ onCancel, onSave, saving }) {
   const [sh, setSh] = useState(false)
   return (
@@ -129,9 +151,15 @@ function ModalBtns({ onCancel, onSave, saving }) {
       <button
         onClick={onCancel}
         style={{
-          flex: 1, padding: '11px', borderRadius: 12,
-          border: '1.5px solid #e2e8f0', background: '#fff',
-          color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          flex: 1,
+          padding: '11px',
+          borderRadius: 12,
+          border: '1.5px solid #e2e8f0',
+          background: '#fff',
+          color: '#475569',
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: 'pointer',
         }}
       >
         Cancel
@@ -142,23 +170,36 @@ function ModalBtns({ onCancel, onSave, saving }) {
         onMouseEnter={() => setSh(true)}
         onMouseLeave={() => setSh(false)}
         style={{
-          flex: 1, padding: '11px', borderRadius: 12, border: 'none',
+          flex: 1,
+          padding: '11px',
+          borderRadius: 12,
+          border: 'none',
           background: saving
             ? '#e2e8f0'
             : sh ? 'linear-gradient(135deg,#7c3aed,#6d28d9)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
           color: saving ? '#94a3b8' : '#fff',
-          fontSize: 13, fontWeight: 600,
+          fontSize: 13,
+          fontWeight: 600,
           cursor: saving ? 'not-allowed' : 'pointer',
           transition: 'all .15s ease',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
         }}
       >
         {saving && (
-          <span style={{
-            width: 14, height: 14, borderRadius: '50%',
-            border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
-            animation: 'cp-spin .7s linear infinite', display: 'inline-block',
-          }} />
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              border: '2px solid rgba(255,255,255,0.4)',
+              borderTopColor: '#fff',
+              animation: 'cp-spin .7s linear infinite',
+              display: 'inline-block',
+            }}
+          />
         )}
         Create Coupon
       </button>
@@ -166,7 +207,6 @@ function ModalBtns({ onCancel, onSave, saving }) {
   )
 }
 
-/* ─── Toggle Coupon Button ───────────────────────────────────────────── */
 function ToggleBtn({ isActive, onClick }) {
   const [h, setH] = useState(false)
   return (
@@ -175,8 +215,12 @@ function ToggleBtn({ isActive, onClick }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 7,
-        border: 'none', cursor: 'pointer',
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '4px 9px',
+        borderRadius: 7,
+        border: 'none',
+        cursor: 'pointer',
         background: h
           ? (isActive ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)')
           : 'transparent',
@@ -189,22 +233,36 @@ function ToggleBtn({ isActive, onClick }) {
   )
 }
 
-/* ─── Coupon Detail ──────────────────────────────────────────────────── */
 function CouponDetail({ coupon: c }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {/* Header */}
-      <div style={{
-        padding: '16px 20px', background: 'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.06))',
-        borderRadius: 16, border: '1px solid rgba(99,102,241,0.15)',
-        display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
-      }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: 14,
-          background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 24, flexShrink: 0,
-        }}>🏷️</div>
+      <div
+        style={{
+          padding: '16px 20px',
+          background: 'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.06))',
+          borderRadius: 16,
+          border: '1px solid rgba(99,102,241,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 24,
+            flexShrink: 0,
+          }}
+        >
+          🏷️
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 22, fontWeight: 900, color: '#6366f1', margin: 0, fontFamily: 'monospace' }}>
             {c.code}
@@ -221,10 +279,7 @@ function CouponDetail({ coupon: c }) {
         </div>
       </div>
 
-      {/* Discount info */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12,
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
         <div style={{ padding: '12px 14px', background: '#f0fdf4', borderRadius: 12, border: '1px solid #bbf7d0', textAlign: 'center' }}>
           <p style={{ fontSize: 11, color: '#16a34a', margin: '0 0 4px', fontWeight: 600 }}>Discount</p>
           <p style={{ fontSize: 20, fontWeight: 800, color: '#15803d', margin: 0 }}>
@@ -247,25 +302,28 @@ function CouponDetail({ coupon: c }) {
         </div>
       </div>
 
-      {/* Usage */}
-      <div style={{
-        background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden',
-      }}>
+      <div style={{ background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         <div style={{ padding: '10px 16px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0' }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', margin: 0 }}>Usage</p>
         </div>
         <div style={{ padding: '4px 0' }}>
           {[
-            { l: 'Used',             v: `${c.currentUsageCount || 0} times` },
-            { l: 'Total Limit',      v: c.totalUsageLimit ? String(c.totalUsageLimit) : 'Unlimited' },
-            { l: 'Per User Limit',   v: String(c.perUserLimit || 1) },
-            { l: 'Valid From',       v: c.validFrom  ? new Date(c.validFrom).toLocaleDateString('en-IN', { dateStyle: 'medium' })  : 'No limit' },
-            { l: 'Valid Until',      v: c.validUntil ? new Date(c.validUntil).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : 'No expiry' },
+            { l: 'Used', v: `${c.currentUsageCount || 0} times` },
+            { l: 'Total Limit', v: c.totalUsageLimit ? String(c.totalUsageLimit) : 'Unlimited' },
+            { l: 'Per User Limit', v: String(c.perUserLimit || 1) },
+            { l: 'Valid From', v: c.validFrom ? new Date(c.validFrom).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : 'No limit' },
+            { l: 'Valid Until', v: c.validUntil ? new Date(c.validUntil).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : 'No expiry' },
           ].map((row) => (
-            <div key={row.l} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '9px 16px', borderBottom: '1px solid #f8fafc',
-            }}>
+            <div
+              key={row.l}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '9px 16px',
+                borderBottom: '1px solid #f8fafc',
+              }}
+            >
               <span style={{ fontSize: 12, color: '#64748b' }}>{row.l}</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>{row.v}</span>
             </div>
@@ -273,7 +331,6 @@ function CouponDetail({ coupon: c }) {
         </div>
       </div>
 
-      {/* Progress bar */}
       {c.totalUsageLimit && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -283,17 +340,19 @@ function CouponDetail({ coupon: c }) {
             </span>
           </div>
           <div style={{ height: 8, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', borderRadius: 4,
-              background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-              width: `${Math.min(100, ((c.currentUsageCount || 0) / c.totalUsageLimit) * 100)}%`,
-              transition: 'width .5s ease',
-            }} />
+            <div
+              style={{
+                height: '100%',
+                borderRadius: 4,
+                background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                width: `${Math.min(100, ((c.currentUsageCount || 0) / c.totalUsageLimit) * 100)}%`,
+                transition: 'width .5s ease',
+              }}
+            />
           </div>
         </div>
       )}
 
-      {/* Description */}
       {c.description && (
         <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px', border: '1px solid #f1f5f9' }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', margin: '0 0 4px' }}>Description</p>
@@ -301,11 +360,17 @@ function CouponDetail({ coupon: c }) {
         </div>
       )}
 
-      {/* ID */}
-      <div style={{
-        padding: '8px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
+      <div
+        style={{
+          padding: '8px 14px',
+          background: '#f8fafc',
+          borderRadius: 10,
+          border: '1px solid #e2e8f0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <span style={{ fontSize: 11, color: '#94a3b8' }}>Coupon ID</span>
         <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#64748b' }}>{c.id}</span>
       </div>
@@ -315,21 +380,29 @@ function CouponDetail({ coupon: c }) {
 
 export default function HospitalCoupons() {
   const toast = useToast()
-  const [page,     setPage]     = useState(1)
-  const [open,     setOpen]     = useState(false)
-  const [saving,   setSaving]   = useState(false)
+  const [page, setPage] = useState(1)
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [viewItem, setViewItem] = useState(null)
-  const [form,     setForm]     = useState({
-    code: '', name: '', discountType: 'percent', discountValue: '',
-    maxDiscountAmount: '', minOrderAmount: '', validFrom: '', validUntil: '',
-    totalUsageLimit: '', perUserLimit: '1',
+  const [form, setForm] = useState({
+    code: '',
+    name: '',
+    discountType: 'percent',
+    discountValue: '',
+    maxDiscountAmount: '',
+    minOrderAmount: '',
+    validFrom: '',
+    validUntil: '',
+    totalUsageLimit: '',
+    perUserLimit: '1',
   })
 
   const { data, isLoading, mutate } = useSWR(
-    `/api/coupons?page=${page}&limit=20&type=hospital`,
+    `/api/coupons?page=${page}&limit=20&couponType=hospital`,
     fetcher
   )
-  const coupons    = data?.coupons    || []
+
+  const coupons = data?.coupons || []
   const totalPages = data?.pagination?.totalPages || 1
 
   const handleSave = async () => {
@@ -337,51 +410,73 @@ export default function HospitalCoupons() {
       toast.error('Code and discount value are required')
       return
     }
+
     setSaving(true)
+
     try {
-      const res  = await fetch('/api/coupons', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          ...form, couponType: 'hospital',
-          discountValue:     Number(form.discountValue),
+          ...form,
+          couponType: 'hospital',
+          discountValue: Number(form.discountValue),
           maxDiscountAmount: form.maxDiscountAmount ? Number(form.maxDiscountAmount) : null,
-          minOrderAmount:    form.minOrderAmount    ? Number(form.minOrderAmount)    : 0,
-          totalUsageLimit:   form.totalUsageLimit   ? Number(form.totalUsageLimit)   : null,
-          perUserLimit:      Number(form.perUserLimit) || 1,
-          validFrom:         form.validFrom  || null,
-          validUntil:        form.validUntil || null,
+          minOrderAmount: form.minOrderAmount ? Number(form.minOrderAmount) : 0,
+          totalUsageLimit: form.totalUsageLimit ? Number(form.totalUsageLimit) : null,
+          perUserLimit: Number(form.perUserLimit) || 1,
+          validFrom: form.validFrom || null,
+          validUntil: form.validUntil || null,
         }),
       })
+
       const json = await res.json()
+
       if (json.success) {
         toast.success('Coupon created')
         setOpen(false)
-        mutate()
+        await mutate()
         setForm({
-          code: '', name: '', discountType: 'percent', discountValue: '',
-          maxDiscountAmount: '', minOrderAmount: '', validFrom: '', validUntil: '',
-          totalUsageLimit: '', perUserLimit: '1',
+          code: '',
+          name: '',
+          discountType: 'percent',
+          discountValue: '',
+          maxDiscountAmount: '',
+          minOrderAmount: '',
+          validFrom: '',
+          validUntil: '',
+          totalUsageLimit: '',
+          perUserLimit: '1',
         })
       } else {
-        toast.error(json.error)
+        toast.error(json.error || 'Failed to create coupon')
       }
-    } catch { toast.error('Failed to create coupon') }
-    finally { setSaving(false) }
+    } catch {
+      toast.error('Failed to create coupon')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toggleCoupon = async (id) => {
     try {
-      const res  = await fetch(`/api/coupons/${id}/toggle`, { method: 'PATCH', credentials: 'include' })
+      const res = await fetch(`/api/coupons/${id}/toggle`, {
+        method: 'PATCH',
+        credentials: 'include',
+      })
       const json = await res.json()
       json.success ? toast.success('Coupon updated') : toast.error(json.error)
-      mutate()
-    } catch { toast.error('Failed') }
+      await mutate()
+    } catch {
+      toast.error('Failed')
+    }
   }
 
   const columns = [
     {
-      key: 'code', header: 'Code',
+      key: 'code',
+      header: 'Code',
       render: (v) => (
         <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#6366f1' }}>
           {v}
@@ -389,11 +484,13 @@ export default function HospitalCoupons() {
       ),
     },
     {
-      key: 'name', header: 'Name',
+      key: 'name',
+      header: 'Name',
       render: (v) => <span style={{ fontSize: 13, color: '#475569' }}>{v || '—'}</span>,
     },
     {
-      key: 'discountType', header: 'Discount',
+      key: 'discountType',
+      header: 'Discount',
       render: (v, row) => (
         <span style={{ fontSize: 12, fontWeight: 600, color: '#1e293b' }}>
           {row.discountValue}{v === 'percent' ? '%' : ' ₹'} off
@@ -401,7 +498,8 @@ export default function HospitalCoupons() {
       ),
     },
     {
-      key: 'currentUsageCount', header: 'Used',
+      key: 'currentUsageCount',
+      header: 'Used',
       render: (v, row) => (
         <span style={{ fontSize: 12, color: '#64748b' }}>
           {v || 0}{row.totalUsageLimit ? `/${row.totalUsageLimit}` : ''}
@@ -409,13 +507,17 @@ export default function HospitalCoupons() {
       ),
     },
     {
-      key: 'isActive', header: 'Status',
+      key: 'isActive',
+      header: 'Status',
       render: (v) => (
-        <Badge variant={v ? 'success' : 'danger'} size="sm">{v ? 'Active' : 'Inactive'}</Badge>
+        <Badge variant={v ? 'success' : 'danger'} size="sm">
+          {v ? 'Active' : 'Inactive'}
+        </Badge>
       ),
     },
     {
-      key: 'actions', header: '',
+      key: 'actions',
+      header: '',
       render: (_, row) => (
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <ViewBtn onClick={() => setViewItem(row)} />
@@ -436,12 +538,18 @@ export default function HospitalCoupons() {
         actions={<CreateBtn onClick={() => setOpen(true)} />}
       />
 
-      {/* Info banner */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', gap: 10,
-        background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)',
-        borderRadius: 14, padding: '12px 16px', marginBottom: 20,
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 10,
+          background: 'rgba(99,102,241,0.06)',
+          border: '1px solid rgba(99,102,241,0.15)',
+          borderRadius: 14,
+          padding: '12px 16px',
+          marginBottom: 20,
+        }}
+      >
         <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>ℹ️</span>
         <p style={{ fontSize: 13, color: '#6366f1', margin: 0, lineHeight: 1.6 }}>
           Hospital coupons discount the consultation fee. Platform fee is applied on the discounted amount.
@@ -459,7 +567,6 @@ export default function HospitalCoupons() {
         emptyMessage="Create your first coupon using the button above"
       />
 
-      {/* View Detail Modal */}
       <Modal
         open={!!viewItem}
         onClose={() => setViewItem(null)}
@@ -469,7 +576,6 @@ export default function HospitalCoupons() {
         {viewItem && <CouponDetail coupon={viewItem} />}
       </Modal>
 
-      {/* Create Coupon Modal */}
       <Modal open={open} onClose={() => setOpen(false)} title="Create Hospital Coupon" size="md">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>

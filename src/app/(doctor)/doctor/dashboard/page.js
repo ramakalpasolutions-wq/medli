@@ -284,8 +284,8 @@ export default function DoctorDashboard() {
       }}>
         {[
           { label: '📅 All Appointments',  href: '/doctor/appointments' },
-          { label: '🗓️ My Availability',   href: '/doctor/availability' },
-          { label: '👤 My Profile',        href: '/doctor/profile'      },
+          { label: '🗓️ Availability',   href: '/doctor/availability' },
+          { label: '👤 Profile',        href: '/doctor/profile'      },
         ].map((item) => (
           <button
             key={item.href}

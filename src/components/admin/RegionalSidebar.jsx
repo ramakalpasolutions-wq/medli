@@ -21,7 +21,7 @@ const NAV_ITEMS = [
   { label: 'Bookings',    href: '/regional/bookings',    icon: '📅' },
   { label: 'Settlements', href: '/regional/settlements', icon: '💰' },
   { label: 'Analytics',   href: '/regional/analytics',   icon: '📈' },
-  { label: 'Reports',     href: '/regional/reports',     icon: '📋' },
+  { label: 'Analytics',     href: '/regional/reports',     icon: '📋' },
 ]
 
 const KF = `

@@ -18,7 +18,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard',   href: '/lab-admin/dashboard',   icon: '📊' },
   { label: 'Bookings',    href: '/lab-admin/bookings',    icon: '📅' },
   { label: 'Tests',       href: '/lab-admin/tests',       icon: '🧪' },
-  { label: 'Reports',     href: '/lab-admin/reports',     icon: '📈' },
+  { label: 'Analytics',     href: '/lab-admin/reports',     icon: '📈' },
   { label: 'Settlements', href: '/lab-admin/settlements', icon: '💰' },
   { label: 'Settings',    href: '/lab-admin/settings',    icon: '⚙️' },
 ]

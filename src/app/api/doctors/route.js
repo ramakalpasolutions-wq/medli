@@ -23,14 +23,12 @@ export function OPTIONS() { return handleOptions() }
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
-    const search         = sanitizeInput(searchParams.get('search')         || '')
-    const specialization = sanitizeInput(searchParams.get('specialization') || '')  // ✅ NEW
-    const hospitalId     = searchParams.get('hospitalId') || ''
-    const isVerified     = searchParams.get('isVerified')
-    const isActive       = searchParams.get('isActive')
-
-    // 🐛 DEBUG (remove after confirming it works)
-    console.log('🔍 [DOCTORS API] query:', { search, specialization, hospitalId })
+    const search = sanitizeInput(searchParams.get('search') || '')
+    const specialization = sanitizeInput(searchParams.get('specialization') || '')
+    const hospitalId = searchParams.get('hospitalId') || ''
+    const isVerified = searchParams.get('isVerified')
+    const isActive = searchParams.get('isActive')
+    const mine = searchParams.get('mine') === 'true'
 
     const { page, limit, skip, take } = getPaginationParams(
       searchParams.get('page'),
@@ -39,15 +37,13 @@ export async function GET(request) {
 
     const where = {}
 
-    // ✅ Filter by specialization pill (exact match in array)
     if (specialization) {
       where.specialization = { has: specialization }
     }
 
-    // ✅ Free-text search across multiple fields
     if (search) {
       where.OR = [
-        { name:           { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
         { specialization: { has: search } },
         { qualifications: { has: search } },
       ]
@@ -58,6 +54,7 @@ export async function GET(request) {
     if (isVerified !== null && isVerified !== '' && isVerified !== undefined) {
       where.isVerified = isVerified === 'true'
     }
+
     if (isActive !== null && isActive !== '' && isActive !== undefined) {
       where.isActive = isActive === 'true'
     }
@@ -66,40 +63,63 @@ export async function GET(request) {
       !!request.headers.get('authorization') ||
       !!request.cookies.get('accessToken')?.value
 
-    if (!hasToken) {
-      where.isVerified = true
-      where.isActive   = true
-    }
+    if (hasToken) {
+      const authUser = await verifyAuth(request)
 
-    // 🐛 DEBUG (remove after confirming it works)
-    console.log('🔍 [DOCTORS API] where:', JSON.stringify(where))
+      if (mine && authUser.role === 'hospital_admin') {
+        const hospital = await prisma.hospital.findFirst({
+          where: { adminUserId: authUser.id },
+          select: { id: true },
+        })
+
+        if (!hospital) {
+          return paginatedResponse([], buildPaginationMeta(0, page, limit), 'doctors')
+        }
+
+        where.hospitalId = hospital.id
+      }
+
+      if (mine && authUser.role === 'doctor') {
+        where.userId = authUser.id
+      }
+    } else {
+      where.isVerified = true
+      where.isActive = true
+    }
 
     const [doctors, total] = await Promise.all([
       prisma.doctor.findMany({
-        where, skip, take,
+        where,
+        skip,
+        take,
         orderBy: { createdAt: 'desc' },
         select: {
-          id: true, userId: true, hospitalId: true,
-          name: true, specialization: true, qualifications: true,
-          experience: true, avatar: true,
-          consultationFee: true, consultationTypes: true,
+          id: true,
+          userId: true,
+          hospitalId: true,
+          name: true,
+          specialization: true,
+          qualifications: true,
+          experience: true,
+          avatar: true,
+          consultationFee: true,
+          consultationTypes: true,
           availability: true,
-          isVerified: true, isActive: true,
+          isVerified: true,
+          isActive: true,
           rating: true,
-          createdAt: true, updatedAt: true,
+          createdAt: true,
+          updatedAt: true,
         },
       }),
       prisma.doctor.count({ where }),
     ])
-
-    console.log(`🔍 [DOCTORS API] returned ${doctors.length} / ${total} doctors`)
 
     return paginatedResponse(
       doctors,
       buildPaginationMeta(total, page, limit),
       'doctors',
     )
-
   } catch (error) {
     console.error('[GET /api/doctors]', error)
     return errorResponse('Internal server error', 500)

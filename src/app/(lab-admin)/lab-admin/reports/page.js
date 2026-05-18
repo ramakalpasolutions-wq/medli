@@ -282,9 +282,9 @@ export default function LabReportsPage() {
       <style>{CSS}</style>
 
       <AdminHeader
-        title="Reports"
+        title="Analytics"
         subtitle="Lab revenue, bookings, status tracking, and test catalogue"
-        breadcrumbs={[{ label: 'Lab Admin' }, { label: 'Reports' }]}
+        breadcrumbs={[{ label: 'Lab Admin' }, { label: 'Analytics' }]}
       />
 
       {/* ── Toolbar ── */}

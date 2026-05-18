@@ -456,6 +456,7 @@ export default function HospitalAdminDashboard() {
               { label: '💰 Settlements',         href: '/hospital-admin/settlements' },
               { label: '🧾 Invoices',            href: '/hospital-admin/invoices'    },
               { label: '📈 Analytics',             href: '/hospital-admin/reports'     },
+              { label: '⛔ Doctor Unavailability', href: '/hospital-admin/doctor-unavailability' },
               { label: '⚙️ Settings',            href: '/hospital-admin/settings'    },
             ].map((item) => (
               <button

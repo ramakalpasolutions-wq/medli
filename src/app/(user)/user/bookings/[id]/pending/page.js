@@ -86,7 +86,7 @@ export default function BookingPendingPage({ params }) {
         const b = bJson.data
 
         if (b.status === 'confirmed' || b.paymentStatus === 'paid') {
-          router.replace('/user/bookings?refresh=1')
+          router.replace(`/user/bookings/${id}/success`)
           return
         }
 
@@ -105,7 +105,7 @@ export default function BookingPendingPage({ params }) {
             const r = rJson.data
 
             if (r.status === 'confirmed' || r.paymentStatus === 'paid') {
-              router.replace('/user/bookings?refresh=1')
+              router.replace(`/user/bookings/${id}/success`)
               return
             }
 
@@ -141,7 +141,7 @@ export default function BookingPendingPage({ params }) {
       const b = bJson.data
 
       if (b.status === 'confirmed' || b.paymentStatus === 'paid') {
-        router.replace('/user/bookings?refresh=1')
+        router.replace(`/user/bookings/${id}/success`)
         return
       }
 
@@ -160,7 +160,7 @@ export default function BookingPendingPage({ params }) {
           const r = rJson.data
 
           if (r.status === 'confirmed' || r.paymentStatus === 'paid') {
-            router.replace('/user/bookings?refresh=1')
+            router.replace(`/user/bookings/${id}/success`)
             return
           }
 
@@ -292,7 +292,7 @@ export default function BookingPendingPage({ params }) {
             </ActionBtn>
 
             <ActionBtn onClick={() => router.push('/user/bookings?refresh=1')} variant="secondary">
-              My Bookings
+              📋 View Bookings
             </ActionBtn>
 
             <ActionBtn onClick={() => router.push('/')} variant="ghost">
@@ -301,7 +301,7 @@ export default function BookingPendingPage({ params }) {
           </div>
 
           <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 20 }}>
-            If money was deducted but booking not confirmed, contact{' '}
+            If money was deducted but booking is not confirmed, contact{' '}
             <a
               href="mailto:support@medli.in"
               style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}

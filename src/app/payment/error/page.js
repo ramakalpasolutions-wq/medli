@@ -96,7 +96,7 @@ export default function PaymentErrorPage() {
               🏠 Go to Home
             </ActionBtn>
             <ActionBtn onClick={() => router.push('/user/bookings')} variant="ghost">
-              View My Bookings
+              View  Bookings
             </ActionBtn>
           </div>
 

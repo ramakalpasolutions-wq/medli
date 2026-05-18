@@ -76,7 +76,7 @@ export default function BookingSuccessPage({ params }) {
     `/api/bookings/${id}`,
     fetcher,
     {
-      refreshInterval: (data) => (data?.paymentStatus === 'paid' ? 0 : 2000),
+      refreshInterval: (data) => (data?.paymentStatus === 'paid' || data?.status === 'confirmed' ? 0 : 2000),
       revalidateOnFocus: true,
     }
   )
@@ -91,16 +91,33 @@ export default function BookingSuccessPage({ params }) {
   }, [])
 
   useEffect(() => {
-    if (!booking?.onePayTxnId || booking.paymentStatus === 'paid') return
+    if (!booking) return
 
-    const verify = async () => {
-      try {
-        await fetch(`/api/payments/verify/${booking.onePayTxnId}`, { credentials: 'include' })
-      } catch {}
+    if (booking.paymentStatus === 'failed') {
+      router.replace(`/user/bookings/${id}/failed`)
+      return
     }
 
-    verify()
-  }, [booking?.onePayTxnId, booking?.paymentStatus])
+    if (
+      booking.paymentStatus !== 'paid' &&
+      booking.status !== 'confirmed'
+    ) {
+      if (booking.onePayTxnId) {
+        const verify = async () => {
+          try {
+            await fetch(`/api/payments/verify/${booking.onePayTxnId}`, { credentials: 'include' })
+          } catch {}
+        }
+        verify()
+      }
+
+      const t = setTimeout(() => {
+        router.replace(`/user/bookings/${id}/pending`)
+      }, 1500)
+
+      return () => clearTimeout(t)
+    }
+  }, [booking, id, router])
 
   return (
     <>
@@ -221,7 +238,7 @@ export default function BookingSuccessPage({ params }) {
             </ActionBtn>
 
             <ActionBtn variant="secondary" onClick={() => router.replace('/user/bookings?refresh=1')}>
-              My Bookings
+              📋 View Bookings
             </ActionBtn>
 
             <ActionBtn variant="ghost" onClick={() => router.push('/')}>

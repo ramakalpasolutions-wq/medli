@@ -15,15 +15,15 @@ function usePathname() {
 }
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',   href: '/hospital-admin/dashboard',   icon: '📊' },
-  { label: 'Bookings',    href: '/hospital-admin/bookings',    icon: '📅' },
-  { label: 'Doctors',     href: '/hospital-admin/doctors',     icon: '👨‍⚕️' },
-  { label: 'Coupons',     href: '/hospital-admin/coupons',     icon: '🏷️' },
-  { label: 'Settlements', href: '/hospital-admin/settlements', icon: '💰' },
-  { label: 'Reports',     href: '/hospital-admin/reports',     icon: '📈' },
-  { label: 'Settings',    href: '/hospital-admin/settings',    icon: '⚙️' },
+  { label: 'Dashboard',             href: '/hospital-admin/dashboard',             icon: '📊' },
+  { label: 'Bookings',              href: '/hospital-admin/bookings',              icon: '📅' },
+  { label: 'Doctors',               href: '/hospital-admin/doctors',               icon: '👨‍⚕️' },
+  { label: 'Doctor Unavailability', href: '/hospital-admin/doctor-unavailability', icon: '⛔' },
+  { label: 'Coupons',               href: '/hospital-admin/coupons',               icon: '🏷️' },
+  { label: 'Settlements',           href: '/hospital-admin/settlements',           icon: '💰' },
+  { label: 'Analytics',             href: '/hospital-admin/reports',               icon: '📈' },
+  { label: 'Settings',              href: '/hospital-admin/settings',              icon: '⚙️' },
 ]
-
 const KF = `
   @keyframes ha-slide { from{transform:translateX(-100%)} to{transform:translateX(0)} }
   @keyframes ha-fade  { from{opacity:0} to{opacity:1} }

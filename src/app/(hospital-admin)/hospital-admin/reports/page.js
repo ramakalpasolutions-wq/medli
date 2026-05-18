@@ -89,9 +89,9 @@ export default function HospitalReportsPage() {
   return (
     <>
       <AdminHeader
-        title="Reports"
+        title="Analytics"
         subtitle="Hospital booking and revenue analytics"
-        breadcrumbs={[{ label: 'Hospital Admin' }, { label: 'Reports' }]}
+        breadcrumbs={[{ label: 'Hospital Admin' }, { label: 'Analytics' }]}
       />
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>

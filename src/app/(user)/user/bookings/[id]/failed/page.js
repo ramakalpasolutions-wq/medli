@@ -173,7 +173,7 @@ export default function BookingFailedPage({ params }) {
           </p>
 
           <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 24 }}>
-            No money has been deducted from your account.
+            If money was deducted, it is usually reversed by the bank automatically within some time.
             You can try again or use a different payment method.
           </p>
 
@@ -217,7 +217,7 @@ export default function BookingFailedPage({ params }) {
             </ActionBtn>
 
             <ActionBtn onClick={() => router.push('/user/bookings?refresh=1')} variant="secondary">
-              My Bookings
+              📋 View Bookings
             </ActionBtn>
 
             <ActionBtn onClick={() => router.push('/')} variant="ghost">

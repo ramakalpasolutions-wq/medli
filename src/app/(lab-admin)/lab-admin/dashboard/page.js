@@ -524,7 +524,7 @@ export default function LabAdminDashboard() {
     { label: '📅 All Bookings',       href: '/lab-admin/bookings'    },
     { label: '🧪 Manage Tests',        href: '/lab-admin/tests'       },
     { label: '💰 Settlements',         href: '/lab-admin/settlements' },
-    { label: '📋 Reports & Analytics', href: '/lab-admin/reports'     },
+    { label: '📋 Analytics', href: '/lab-admin/reports'     },
     { label: '⚙️ Lab Settings',        href: '/lab-admin/settings'    },
   ]
 

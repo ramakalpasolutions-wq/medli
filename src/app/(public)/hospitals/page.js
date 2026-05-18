@@ -1,4 +1,3 @@
-// C:\Users\ASUS\medli2\src\app\(public)\hospitals\page.js
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
@@ -10,6 +9,10 @@ import Footer        from '@/components/public/Footer'
 import HospitalCard  from '@/components/public/HospitalCard'
 import EmptyState    from '@/components/ui/EmptyState'
 import { SkeletonCard } from '@/components/ui/Skeleton'
+import {
+  Search, List, LayoutGrid, Map,
+  Building2, AlertTriangle, X, MapPin,
+} from 'lucide-react'
 
 const LeafletMap = dynamic(() => import('@/components/maps/LeafletMap'), {
   ssr: false,
@@ -49,21 +52,26 @@ const fetcher = async (url) => {
 }
 
 const VIEWS = [
-  { key: 'list',  label: 'List',  icon: '▤' },
-  { key: 'split', label: 'Split', icon: '⊞' },
-  { key: 'map',   label: 'Map',   icon: '🗺' },
+  { key: 'list',  label: 'List',  Icon: List },
+  { key: 'split', label: 'Split', Icon: LayoutGrid },
+  { key: 'map',   label: 'Map',   Icon: Map },
 ]
 
 const VIEW_STORAGE_KEY = 'medli_hospitals_view'
 
-function SearchInput({ value, onChange, placeholder }) {
+function SearchInput({ value, onChange, placeholder, InputIcon = Search, focusColor = '#6366f1', focusRing = 'rgba(99,102,241,0.12)' }) {
   const [focused, setFocused] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
-      <span style={{
-        position: 'absolute', left: 12, top: '50%',
-        transform: 'translateY(-50%)', fontSize: 16, pointerEvents: 'none',
-      }}>🔍</span>
+      <InputIcon
+        size={16}
+        strokeWidth={2.2}
+        color="#94a3b8"
+        style={{
+          position: 'absolute', left: 12, top: '50%',
+          transform: 'translateY(-50%)', pointerEvents: 'none',
+        }}
+      />
       <input
         value={value}
         onChange={onChange}
@@ -73,10 +81,10 @@ function SearchInput({ value, onChange, placeholder }) {
         style={{
           width: '100%', padding: '10px 14px 10px 38px',
           fontSize: 13, fontFamily: 'inherit', borderRadius: 12,
-          border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
+          border: `1.5px solid ${focused ? focusColor : '#e2e8f0'}`,
           background: '#fff', color: '#0f172a', outline: 'none',
           boxShadow: focused
-            ? '0 0 0 3px rgba(99,102,241,0.12)'
+            ? `0 0 0 3px ${focusRing}`
             : '0 1px 3px rgba(0,0,0,0.06)',
           transition: 'all .15s ease', boxSizing: 'border-box',
         }}
@@ -108,7 +116,7 @@ function ViewToggle({ view, onChange }) {
               transition: 'all .15s ease',
             }}
           >
-            <span>{v.icon}</span>
+            <v.Icon size={14} strokeWidth={2.2} />
             <span>{v.label}</span>
           </button>
         )
@@ -139,36 +147,21 @@ export default function HospitalsPage() {
   const [city,     setCity]     = useState('')
   const [selected, setSelected] = useState(null)
 
-  /* ─────────────────────────────────────────────────────────────
-     ✅ Default view = 'list' (no flicker — SSR-safe)
-     ✅ Then read saved preference from localStorage on mount
-  ───────────────────────────────────────────────────────────── */
   const [view, setView] = useState('list')
 
-  /* Load saved view preference on mount */
   useEffect(() => {
     try {
       const saved = localStorage.getItem(VIEW_STORAGE_KEY)
-      if (saved && ['list', 'split', 'map'].includes(saved)) {
-        setView(saved)
-      }
-    } catch {
-      /* localStorage blocked — keep default 'list' */
-    }
+      if (saved && ['list', 'split', 'map'].includes(saved)) setView(saved)
+    } catch { /* localStorage blocked — keep default 'list' */ }
   }, [])
 
-  /* Persist view preference whenever it changes */
   useEffect(() => {
-    try {
-      localStorage.setItem(VIEW_STORAGE_KEY, view)
-    } catch {
-      /* silent fail */
-    }
+    try { localStorage.setItem(VIEW_STORAGE_KEY, view) }
+    catch { /* silent fail */ }
   }, [view])
 
-  /* ─────────────────────────────────────────────────────────────
-     Data fetching
-  ───────────────────────────────────────────────────────────── */
+  /* Data fetching */
   const qs = new URLSearchParams({ limit: 50 })
   if (search) qs.set('search', search)
   if (city)   qs.set('city',   city)
@@ -195,7 +188,6 @@ export default function HospitalsPage() {
                    ? `${h.rating.average.toFixed(1)} (${h.rating.count})`
                    : null,
         color:  '#6366f1',
-        emoji:  '🏥',
         href:   `/hospitals/${h.id}`,
         extra:  h.departments?.length > 0
                   ? `<p style="font-size:11px;color:#6b7280;margin:0 0 4px;">${h.departments.slice(0, 3).join(' · ')}</p>`
@@ -210,11 +202,13 @@ export default function HospitalsPage() {
 
   const ErrorBox = () => (
     <div style={{
-      padding: 32, textAlign: 'center', borderRadius: 20,
+      padding: 32, borderRadius: 20,
       background: '#fff1f2', border: '1px solid #fecaca',
       color: '#dc2626', fontSize: 14,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     }}>
-      ⚠️ Failed to load hospitals. Please refresh.
+      <AlertTriangle size={18} strokeWidth={2.2} />
+      Failed to load hospitals. Please refresh.
     </div>
   )
 
@@ -300,8 +294,19 @@ export default function HospitalsPage() {
             gap: 12, marginBottom: 20,
           }}>
             <div>
-              <h1 style={{ fontSize: 'clamp(20px,3vw,28px)', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                🏥 Hospitals
+              <h1 style={{
+                fontSize: 'clamp(20px,3vw,28px)', fontWeight: 800,
+                color: '#0f172a', margin: 0,
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span style={{
+                  width: 34, height: 34, borderRadius: 10,
+                  background: '#dbeafe', display: 'inline-flex',
+                  alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <Building2 size={18} strokeWidth={2.2} color="#2563eb" />
+                </span>
+                Hospitals
               </h1>
               <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
                 {isLoading
@@ -327,6 +332,7 @@ export default function HospitalsPage() {
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="Filter by city…"
+                InputIcon={MapPin}
               />
             </div>
             {(search || city) && (
@@ -337,9 +343,11 @@ export default function HospitalsPage() {
                   border: '1.5px solid #fca5a5',
                   background: '#fff1f2', color: '#ef4444',
                   fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6,
                 }}
               >
-                Clear ✕
+                <X size={14} strokeWidth={2.5} />
+                Clear
               </button>
             )}
           </div>

@@ -68,9 +68,9 @@ export default function RegionalReportsPage() {
   return (
     <>
       <AdminHeader
-        title="Regional Reports"
+        title="Regional Analytics"
         subtitle="Revenue and booking analytics for your region"
-        breadcrumbs={[{label:'Dashboard',href:'/regional/dashboard'},{label:'Reports'}]}
+        breadcrumbs={[{label:'Dashboard',href:'/regional/dashboard'},{label:'Analytics'}]}
       />
 
       <div style={{ marginBottom:24 }}>

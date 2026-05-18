@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'  // ✅ add useEffect
+import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
+import { Search, X } from 'lucide-react'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import DoctorCard from '@/components/public/DoctorCard'
@@ -12,25 +13,48 @@ import { SkeletonCard } from '@/components/ui/Skeleton'
 const fetcher = (url) => fetch(url).then((r) => r.json()).then((j) => j.data)
 
 const SPECIALIZATIONS = [
-  'Cardiologist','Neurologist','Gynecologist','Dermatologist',
-  'Orthopedic Surgeon','General Physician','Pediatrician','Diabetologist',
+  'Cardiologist',
+  'Neurologist',
+  'Gynecologist',
+  'Dermatologist',
+  'Orthopedic Surgeon',
+  'General Physician',
+  'Pediatrician',
+  'Diabetologist',
 ]
 
-// ✅ Debounce hook
 function useDebounce(value, delay = 300) {
   const [debounced, setDebounced] = useState(value)
+
   useEffect(() => {
     const t = setTimeout(() => setDebounced(value), delay)
     return () => clearTimeout(t)
   }, [value, delay])
+
   return debounced
 }
 
 function SearchInput({ value, onChange }) {
   const [focused, setFocused] = useState(false)
+
   return (
-    <div style={{ position:'relative' }}>
-      <span style={{ position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',fontSize:16,pointerEvents:'none' }}>🔍</span>
+    <div style={{ position: 'relative' }}>
+      <span
+        style={{
+          position: 'absolute',
+          left: 12,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          color: focused ? '#8b5cf6' : '#94a3b8',
+          pointerEvents: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Search size={16} strokeWidth={2.2} />
+      </span>
+
       <input
         value={value}
         onChange={onChange}
@@ -38,11 +62,18 @@ function SearchInput({ value, onChange }) {
         onBlur={() => setFocused(false)}
         placeholder="Search doctors…"
         style={{
-          width:'100%',padding:'11px 14px 11px 38px',fontSize:13,fontFamily:'inherit',
-          borderRadius:12,border:`1.5px solid ${focused?'#8b5cf6':'#e2e8f0'}`,
-          background:'#fff',color:'#0f172a',outline:'none',
-          boxShadow: focused?'0 0 0 3px rgba(139,92,246,0.12)':'0 1px 3px rgba(0,0,0,0.06)',
-          transition:'all .15s ease',boxSizing:'border-box',
+          width: '100%',
+          padding: '11px 14px 11px 38px',
+          fontSize: 13,
+          fontFamily: 'inherit',
+          borderRadius: 12,
+          border: `1.5px solid ${focused ? '#8b5cf6' : '#e2e8f0'}`,
+          background: '#fff',
+          color: '#0f172a',
+          outline: 'none',
+          boxShadow: focused ? '0 0 0 3px rgba(139,92,246,0.12)' : '0 1px 3px rgba(0,0,0,0.06)',
+          transition: 'all .15s ease',
+          boxSizing: 'border-box',
         }}
       />
     </div>
@@ -51,23 +82,30 @@ function SearchInput({ value, onChange }) {
 
 function SpecPill({ label, active, onClick }) {
   const [h, setH] = useState(false)
+
   return (
     <button
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        padding:'6px 14px',borderRadius:100,
-        fontSize:12,fontWeight:500,
+        padding: '6px 14px',
+        borderRadius: 100,
+        fontSize: 12,
+        fontWeight: 500,
         background: active
           ? 'linear-gradient(135deg,#8b5cf6,#7c3aed)'
-          : h ? '#e2e8f0' : '#f1f5f9',
+          : h
+            ? '#e2e8f0'
+            : '#f1f5f9',
         color: active ? '#fff' : '#64748b',
-        border:'none',cursor:'pointer',whiteSpace:'nowrap',
+        border: 'none',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
         boxShadow: active ? '0 2px 8px rgba(139,92,246,0.35)' : 'none',
-        transition:'all .15s ease',
+        transition: 'all .15s ease',
         transform: active ? 'scale(1.02)' : 'scale(1)',
-        flexShrink:0,
+        flexShrink: 0,
       }}
     >
       {label}
@@ -78,30 +116,32 @@ function SpecPill({ label, active, onClick }) {
 export default function DoctorsPage() {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [spec,   setSpec]   = useState('')
+  const [spec, setSpec] = useState('')
 
-  // ✅ Debounce search input (waits 300ms after user stops typing)
   const debouncedSearch = useDebounce(search, 300)
 
   const qs = new URLSearchParams({ limit: 20 })
   if (debouncedSearch) qs.set('search', debouncedSearch)
-  if (spec)            qs.set('specialization', spec)
+  if (spec) qs.set('specialization', spec)
 
   const { data, isLoading } = useSWR(`/api/doctors?${qs}`, fetcher, {
     revalidateOnFocus: false,
-    keepPreviousData: true,  // ✅ smoother UX while loading new filter
+    keepPreviousData: true,
   })
+
   const doctors = data?.doctors || data || []
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
       <Navbar />
 
-      <div style={{
-        maxWidth: 1280, margin: '0 auto',
-        padding: 'clamp(80px,10vw,96px) clamp(16px,3vw,32px) 64px',
-      }}>
-        {/* Header */}
+      <div
+        style={{
+          maxWidth: 1280,
+          margin: '0 auto',
+          padding: 'clamp(80px,10vw,96px) clamp(16px,3vw,32px) 64px',
+        }}
+      >
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontSize: 'clamp(22px,3vw,32px)', fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
             Find Doctors
@@ -111,12 +151,10 @@ export default function DoctorsPage() {
           </p>
         </div>
 
-        {/* Search */}
         <div style={{ maxWidth: 400, marginBottom: 20 }}>
           <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
-        {/* Specialization pills */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
           <SpecPill label="All" active={!spec} onClick={() => setSpec('')} />
           {SPECIALIZATIONS.map((s) => (
@@ -129,31 +167,47 @@ export default function DoctorsPage() {
           ))}
         </div>
 
-        {/* Count + active filter chip */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-          marginBottom: 16,
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap',
+            marginBottom: 16,
+          }}
+        >
           <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
             {isLoading
               ? 'Searching…'
               : `${doctors.length} doctor${doctors.length !== 1 ? 's' : ''} found`}
           </p>
+
           {(spec || debouncedSearch) && (
             <button
-              onClick={() => { setSearch(''); setSpec('') }}
+              onClick={() => {
+                setSearch('')
+                setSpec('')
+              }}
               style={{
-                fontSize: 12, color: '#6366f1', background: 'rgba(99,102,241,0.08)',
-                border: 'none', borderRadius: 100, padding: '4px 12px',
-                cursor: 'pointer', fontWeight: 600,
+                fontSize: 12,
+                color: '#6366f1',
+                background: 'rgba(99,102,241,0.08)',
+                border: 'none',
+                borderRadius: 100,
+                padding: '4px 12px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              ✕ Clear filters
+              <X size={14} strokeWidth={2.2} />
+              Clear filters
             </button>
           )}
         </div>
 
-        {/* Grid */}
         {isLoading ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 20 }}>
             {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}

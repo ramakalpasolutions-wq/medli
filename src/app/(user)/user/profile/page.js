@@ -8,6 +8,30 @@ import { useRouter } from 'next/navigation'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import Badge, { getStatusVariant } from '@/components/ui/Badge'
+import {
+  User,
+  CalendarDays,
+  Users,
+  Shield,
+  Phone,
+  Mail,
+  Pencil,
+  FileText,
+  ChevronRight,
+  ChevronLeft,
+  ChevronDown,
+  Plus,
+  Trash2,
+  LogOut,
+  X,
+  Heart,
+  Baby,
+  UserRound,
+  Users2,
+  CircleHelp,
+  BadgeCheck,
+  TriangleAlert,
+} from 'lucide-react'
 
 function useMounted() {
   const [m, setM] = useState(false)
@@ -33,15 +57,19 @@ const SHIMMER = {
 
 const fmtRs = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
 
+const iconProps = { size: 16, strokeWidth: 2 }
+const smIconProps = { size: 14, strokeWidth: 2 }
+const mdIconProps = { size: 18, strokeWidth: 2 }
+const lgIconProps = { size: 20, strokeWidth: 2 }
+
 const RELATIONS = [
-  { key: 'spouse', label: 'Spouse', icon: '❤️' },
-  { key: 'child',  label: 'Child',  icon: '👶' },
-  { key: 'parent', label: 'Parent', icon: '👨' },
-  { key: 'sibling',label: 'Sibling',icon: '👥' },
-  { key: 'other',  label: 'Other',  icon: '👤' },
+  { key: 'spouse', label: 'Spouse', icon: Heart },
+  { key: 'child',  label: 'Child',  icon: Baby },
+  { key: 'parent', label: 'Parent', icon: UserRound },
+  { key: 'sibling',label: 'Sibling',icon: Users2 },
+  { key: 'other',  label: 'Other',  icon: CircleHelp },
 ]
 
-/* ─── Input ──────────────────────────────────────────────────────────── */
 function PInput({ label, disabled, hint, ...props }) {
   const [focused, setFocused] = useState(false)
   return (
@@ -69,7 +97,6 @@ function PInput({ label, disabled, hint, ...props }) {
   )
 }
 
-/* ─── Select ─────────────────────────────────────────────────────────── */
 function PSelect({ label, children, ...props }) {
   const [focused, setFocused] = useState(false)
   return (
@@ -81,7 +108,7 @@ function PSelect({ label, children, ...props }) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={{
-            width: '100%', padding: '10px 30px 10px 13px',
+            width: '100%', padding: '10px 34px 10px 13px',
             fontSize: 13, fontFamily: 'inherit', borderRadius: 12,
             border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
             background: '#fff', color: '#0f172a', outline: 'none',
@@ -92,13 +119,14 @@ function PSelect({ label, children, ...props }) {
         >
           {children}
         </select>
-        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, pointerEvents: 'none', color: '#94a3b8' }}>▼</span>
+        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+          <ChevronDown {...smIconProps} />
+        </span>
       </div>
     </div>
   )
 }
 
-/* ─── Primary button ─────────────────────────────────────────────────── */
 function PBtn({ children, loading: isLoading, disabled, onClick, variant = 'primary', style: sx }) {
   const [h, setH] = useState(false)
   const isDisabled = disabled || isLoading
@@ -138,14 +166,15 @@ function PBtn({ children, loading: isLoading, disabled, onClick, variant = 'prim
   )
 }
 
-/* ─── Modal wrapper ──────────────────────────────────────────────────── */
 function Modal({ open, onClose, title, children, width = 420 }) {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden'
     else document.body.style.overflow = ''
     return () => { document.body.style.overflow = '' }
   }, [open])
+
   if (!open) return null
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
@@ -168,15 +197,23 @@ function Modal({ open, onClose, title, children, width = 420 }) {
 function CloseBtn({ onClick }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width:32, height:32, borderRadius:8, border:'none', background: h?'#f1f5f9':'transparent', color:'#64748b', cursor:'pointer', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      ✕
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        width:32, height:32, borderRadius:8, border:'none',
+        background: h ? '#f1f5f9' : 'transparent',
+        color:'#64748b', cursor:'pointer',
+        display:'flex', alignItems:'center', justifyContent:'center'
+      }}
+    >
+      <X {...mdIconProps} />
     </button>
   )
 }
 
-/* ─── Tab button ─────────────────────────────────────────────────────── */
-function TabBtn({ label, icon, active, onClick, count }) {
+function TabBtn({ label, icon: Icon, active, onClick, count }) {
   const [h, setH] = useState(false)
   return (
     <button
@@ -196,7 +233,9 @@ function TabBtn({ label, icon, active, onClick, count }) {
         border: active ? 'none' : '1px solid #f1f5f9',
       }}
     >
-      <span style={{ fontSize: 15 }}>{icon}</span>
+      <span style={{ display:'flex', alignItems:'center' }}>
+        <Icon size={15} strokeWidth={2} />
+      </span>
       {label}
       {count !== undefined && count > 0 && (
         <span style={{
@@ -211,7 +250,6 @@ function TabBtn({ label, icon, active, onClick, count }) {
   )
 }
 
-/* ─── Section Card ───────────────────────────────────────────────────── */
 function SectionCard({ title, action, children }) {
   return (
     <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #f1f5f9', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -226,7 +264,6 @@ function SectionCard({ title, action, children }) {
   )
 }
 
-/* ─── Edit Profile Modal ─────────────────────────────────────────────── */
 function EditProfileModal({ open, onClose, user, onSaved }) {
   const toast = useToast()
   const [form, setForm] = useState({ name: '', email: '' })
@@ -241,15 +278,24 @@ function EditProfileModal({ open, onClose, user, onSaved }) {
     setSaving(true)
     try {
       const res  = await fetch(`/api/users/${user.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ name: form.name.trim(), email: form.email.trim() || undefined }),
       })
       const json = await res.json()
-      if (json.success) { toast.success('Profile updated'); onSaved(); onClose() }
-      else toast.error(json.error || 'Failed to update')
-    } catch { toast.error('Network error') }
-    finally { setSaving(false) }
+      if (json.success) {
+        toast.success('Profile updated')
+        onSaved()
+        onClose()
+      } else {
+        toast.error(json.error || 'Failed to update')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -259,24 +305,27 @@ function EditProfileModal({ open, onClose, user, onSaved }) {
         <PInput label="Email Address" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@example.com" />
         <PInput label="Phone Number" value={user?.phone || ''} disabled hint="Phone number cannot be changed" />
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-          <PBtn variant="secondary" onClick={onClose} disabled={saving} sx={{ flex: 1 }}>Cancel</PBtn>
-          <PBtn onClick={handleSave} loading={saving} disabled={saving || !form.name.trim()} sx={{ flex: 1 }}>Save Changes</PBtn>
+          <PBtn variant="secondary" onClick={onClose} disabled={saving} style={{ flex: 1 }}>Cancel</PBtn>
+          <PBtn onClick={handleSave} loading={saving} disabled={saving || !form.name.trim()} style={{ flex: 1 }}>Save Changes</PBtn>
         </div>
       </div>
     </Modal>
   )
 }
 
-/* ─── Family Member Modal ────────────────────────────────────────────── */
 function FamilyModal({ open, onClose, member, onSave, saving }) {
   const [form, setForm] = useState({ name:'', relation:'spouse', age:'', gender:'male', bloodGroup:'', phone:'', notes:'' })
 
   useEffect(() => {
     if (open) {
       setForm(member ? {
-        name: member.name||'', relation: member.relation||'spouse',
-        age: member.age||'', gender: member.gender||'male',
-        bloodGroup: member.bloodGroup||'', phone: member.phone||'', notes: member.notes||'',
+        name: member.name||'',
+        relation: member.relation||'spouse',
+        age: member.age||'',
+        gender: member.gender||'male',
+        bloodGroup: member.bloodGroup||'',
+        phone: member.phone||'',
+        notes: member.notes||'',
       } : { name:'', relation:'spouse', age:'', gender:'male', bloodGroup:'', phone:'', notes:'' })
     }
   }, [open, member])
@@ -307,7 +356,7 @@ function FamilyModal({ open, onClose, member, onSave, saving }) {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
           <PSelect label="Blood Group" value={form.bloodGroup} onChange={(e) => setForm({...form, bloodGroup:e.target.value})}>
             <option value="">Select</option>
-            {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(bg => <option key={bg} value={bg}>{bg}</option>)}
+            {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((bg) => <option key={bg} value={bg}>{bg}</option>)}
           </PSelect>
           <PInput label="Phone (optional)" type="tel" value={form.phone} onChange={(e) => setForm({...form, phone:e.target.value.replace(/\D/g,'').slice(0,10)})} placeholder="10-digit" />
         </div>
@@ -324,8 +373,8 @@ function FamilyModal({ open, onClose, member, onSave, saving }) {
         </div>
 
         <div style={{ display:'flex', gap:10 }}>
-          <PBtn variant="secondary" onClick={onClose} disabled={saving} sx={{ flex:1 }}>Cancel</PBtn>
-          <PBtn onClick={() => onSave(form)} loading={saving} disabled={!form.name.trim()||saving} sx={{ flex:1 }}>
+          <PBtn variant="secondary" onClick={onClose} disabled={saving} style={{ flex:1 }}>Cancel</PBtn>
+          <PBtn onClick={() => onSave(form)} loading={saving} disabled={!form.name.trim() || saving} style={{ flex:1 }}>
             {member ? 'Save Changes' : 'Add Member'}
           </PBtn>
         </div>
@@ -336,27 +385,40 @@ function FamilyModal({ open, onClose, member, onSave, saving }) {
 
 function RelBtn({ r, active, onClick }) {
   const [h, setH] = useState(false)
+  const Icon = r.icon
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
       style={{
-        display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+        display:'flex', flexDirection:'column', alignItems:'center', gap:5,
         padding:'8px 4px', borderRadius:10,
         border:`1.5px solid ${active?'#6366f1':h?'#c7d2fe':'#e2e8f0'}`,
         background: active?'rgba(99,102,241,0.08)':h?'rgba(99,102,241,0.04)':'#fff',
         color: active?'#6366f1':'#64748b', fontSize:11, fontWeight:500,
         cursor:'pointer', transition:'all .15s ease',
-      }}>
-      <span style={{ fontSize:16 }}>{r.icon}</span>
+      }}
+    >
+      <Icon {...mdIconProps} />
       {r.label}
     </button>
   )
 }
 
-/* ─── Booking Card (profile) ─────────────────────────────────────────── */
 function ProfileBookingCard({ booking, mounted, onClick }) {
   const [h, setH] = useState(false)
+
+  const BookingIcon =
+    booking.type === 'lab' ? FileText :
+    booking.type === 'online' ? CalendarDays :
+    Shield
+
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
       style={{
         width:'100%', background:'#fff', borderRadius:16, padding:14,
         border:`1.5px solid ${h?'#c7d2fe':'#f1f5f9'}`,
@@ -364,13 +426,14 @@ function ProfileBookingCard({ booking, mounted, onClick }) {
         transform: h?'translateY(-1px)':'translateY(0)',
         transition:'all .18s ease', cursor:'pointer', textAlign:'left',
         display:'flex', alignItems:'center', justifyContent:'space-between', gap:10,
-      }}>
+      }}
+    >
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
         <div style={{
           width:36, height:36, borderRadius:10, background:'#f8fafc',
-          display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0,
+          display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:'#6366f1',
         }}>
-          {booking.type==='lab'?'🧪':booking.type==='online'?'🎥':'🏥'}
+          <BookingIcon {...mdIconProps} />
         </div>
         <div>
           <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{booking.bookingId}</p>
@@ -387,7 +450,6 @@ function ProfileBookingCard({ booking, mounted, onClick }) {
   )
 }
 
-/* ─── Main Profile Page ──────────────────────────────────────────────── */
 export default function ProfilePage() {
   const { user, logout, refreshUser } = useAuth()
   const router  = useRouter()
@@ -395,7 +457,7 @@ export default function ProfilePage() {
   const mounted = useMounted()
 
   const [tab,           setTab]           = useState('profile')
-  const [editModal,     setEditModal]      = useState(false)
+  const [editModal,     setEditModal]     = useState(false)
   const [familyModal,   setFamilyModal]   = useState(false)
   const [editingMember, setEditingMember] = useState(null)
   const [familySaving,  setFamilySaving]  = useState(false)
@@ -425,8 +487,11 @@ export default function ProfilePage() {
       const res  = await fetch(`/api/users/${user.id}/family`, { credentials: 'include' })
       const json = await res.json()
       setFamilyMembers(json.success ? (json.data || []) : [])
-    } catch { setFamilyMembers([]) }
-    finally { setFamilyLoading(false) }
+    } catch {
+      setFamilyMembers([])
+    } finally {
+      setFamilyLoading(false)
+    }
   }
 
   const handleSaveFamily = async (form) => {
@@ -434,12 +499,26 @@ export default function ProfilePage() {
     try {
       const isEdit = !!editingMember
       const url    = isEdit ? `/api/users/${user.id}/family/${editingMember.id}` : `/api/users/${user.id}/family`
-      const res    = await fetch(url, { method: isEdit?'PUT':'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(form) })
+      const res    = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body:JSON.stringify(form)
+      })
       const json   = await res.json()
-      if (json.success) { toast.success(isEdit?'Member updated':'Member added'); setFamilyModal(false); setEditingMember(null); loadFamily() }
-      else toast.error(json.error || 'Failed to save')
-    } catch { toast.error('Network error') }
-    finally { setFamilySaving(false) }
+      if (json.success) {
+        toast.success(isEdit ? 'Member updated' : 'Member added')
+        setFamilyModal(false)
+        setEditingMember(null)
+        loadFamily()
+      } else {
+        toast.error(json.error || 'Failed to save')
+      }
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setFamilySaving(false)
+    }
   }
 
   const handleDeleteMember = async (id) => {
@@ -447,12 +526,21 @@ export default function ProfilePage() {
     try {
       const res  = await fetch(`/api/users/${user.id}/family/${id}`, { method:'DELETE', credentials:'include' })
       const json = await res.json()
-      if (json.success) { toast.success('Member removed'); loadFamily() }
-      else toast.error(json.error || 'Failed to remove')
-    } catch { toast.error('Network error') }
+      if (json.success) {
+        toast.success('Member removed')
+        loadFamily()
+      } else {
+        toast.error(json.error || 'Failed to remove')
+      }
+    } catch {
+      toast.error('Network error')
+    }
   }
 
-  const handleLogout = async () => { await logout(); router.push('/') }
+  const handleLogout = async () => {
+    await logout()
+    router.push('/')
+  }
 
   if (!user) {
     return (
@@ -472,7 +560,6 @@ export default function ProfilePage() {
         <Navbar />
         <div style={{ maxWidth:720, margin:'0 auto', padding:'clamp(88px,12vw,104px) clamp(16px,3vw,32px) 80px' }}>
 
-          {/* ── Profile Header ── */}
           <div style={{
             backgroundImage: 'linear-gradient(135deg,#4f46e5,#2563eb)',
             borderRadius: 20, padding: 'clamp(18px,4vw,24px)',
@@ -496,16 +583,25 @@ export default function ProfilePage() {
                   {user.name}
                 </h1>
                 <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 14px' }}>
-                  {user.phone && <span style={{ fontSize:13, color:'rgba(255,255,255,0.75)' }}>📱 +91 {user.phone}</span>}
-                  {user.email && <span style={{ fontSize:13, color:'rgba(255,255,255,0.75)' }}>✉️ {user.email}</span>}
+                  {user.phone && (
+                    <span style={{ fontSize:13, color:'rgba(255,255,255,0.75)', display:'flex', alignItems:'center', gap:6 }}>
+                      <Phone {...smIconProps} /> +91 {user.phone}
+                    </span>
+                  )}
+                  {user.email && (
+                    <span style={{ fontSize:13, color:'rgba(255,255,255,0.75)', display:'flex', alignItems:'center', gap:6 }}>
+                      <Mail {...smIconProps} /> {user.email}
+                    </span>
+                  )}
                 </div>
                 <div style={{ marginTop:8, display:'flex', gap:6, flexWrap:'wrap' }}>
                   <span style={{ fontSize:11, fontWeight:600, background:'rgba(255,255,255,0.2)', padding:'2px 10px', borderRadius:100 }}>
                     {user.role?.replace(/_/g,' ')}
                   </span>
                   {user.isVerified && (
-                    <span style={{ fontSize:11, fontWeight:600, background:'rgba(16,185,129,0.3)', padding:'2px 10px', borderRadius:100 }}>
-                      ✓ Verified
+                    <span style={{ fontSize:11, fontWeight:600, background:'rgba(16,185,129,0.3)', padding:'2px 10px', borderRadius:100, display:'flex', alignItems:'center', gap:4 }}>
+                      <BadgeCheck size={12} strokeWidth={2.2} />
+                      Verified
                     </span>
                   )}
                 </div>
@@ -514,33 +610,37 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* ── Tabs ── */}
           <div style={{ display:'flex', gap:8, marginBottom:20, overflowX:'auto', paddingBottom:4 }}>
             {[
-              { key:'profile',  label:'Profile',  icon:'👤' },
-              { key:'bookings', label:'Bookings', icon:'📅', count:pagination.total },
-              { key:'family',   label:'Family',   icon:'👨‍👩‍👧', count:familyMembers.length },
-              { key:'account',  label:'Account',  icon:'🛡️' },
+              { key:'profile',  label:'Profile',  icon:User },
+              { key:'bookings', label:'Bookings', icon:CalendarDays, count:pagination.total },
+              { key:'family',   label:'Family',   icon:Users, count:familyMembers.length },
+              { key:'account',  label:'Account',  icon:Shield },
             ].map((t) => (
               <TabBtn key={t.key} label={t.label} icon={t.icon} count={t.count} active={tab===t.key} onClick={() => setTab(t.key)} />
             ))}
           </div>
 
-          {/* ══ PROFILE TAB ══ */}
           {tab === 'profile' && (
             <div style={{ display:'flex', flexDirection:'column', gap:16, animation:'prof-in .2s ease' }}>
-              <SectionCard title="Personal Information" action={
-                <button onClick={() => setEditModal(true)} style={{ fontSize:12, fontWeight:600, color:'#6366f1', background:'none', border:'none', cursor:'pointer' }}>✏️ Edit</button>
-              }>
+              <SectionCard
+                title="Personal Information"
+                action={
+                  <button onClick={() => setEditModal(true)} style={{ fontSize:12, fontWeight:600, color:'#6366f1', background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                    <Pencil size={13} strokeWidth={2} />
+                    Edit
+                  </button>
+                }
+              >
                 {[
-                  { icon:'👤', label:'Full Name',    value:user.name },
-                  { icon:'📱', label:'Phone',        value:user.phone?`+91 ${user.phone}`:'—' },
-                  { icon:'✉️', label:'Email',        value:user.email||'—' },
-                  { icon:'📅', label:'Member Since', value:mounted&&user.createdAt?new Date(user.createdAt).toLocaleDateString('en-IN',{dateStyle:'medium'}):'—' },
-                ].map(({ icon, label, value }) => (
+                  { icon:User, label:'Full Name',    value:user.name },
+                  { icon:Phone, label:'Phone',       value:user.phone?`+91 ${user.phone}`:'—' },
+                  { icon:Mail, label:'Email',        value:user.email||'—' },
+                  { icon:CalendarDays, label:'Member Since', value:mounted&&user.createdAt?new Date(user.createdAt).toLocaleDateString('en-IN',{dateStyle:'medium'}):'—' },
+                ].map(({ icon: Icon, label, value }) => (
                   <div key={label} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
-                    <div style={{ width:34, height:34, borderRadius:10, background:'#f8fafc', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
-                      {icon}
+                    <div style={{ width:34, height:34, borderRadius:10, background:'#f8fafc', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:'#6366f1' }}>
+                      <Icon {...iconProps} />
                     </div>
                     <div>
                       <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>{label}</p>
@@ -552,9 +652,9 @@ export default function ProfilePage() {
 
               <SectionCard title="Quick Actions">
                 {[
-                  { icon:'📅', label:'My Bookings',    sub:'View all appointments', action:() => setTab('bookings') },
-                  { icon:'👨‍👩‍👧', label:'Family Members', sub:'Manage family profiles',  action:() => setTab('family')   },
-                  { icon:'🧾', label:'My Invoices',    sub:'Download receipts',         action:() => router.push('/user/invoices') },
+                  { icon:CalendarDays, label:'Bookings', sub:'View all appointments', action:() => setTab('bookings') },
+                  { icon:Users, label:'Family Members', sub:'Manage family profiles', action:() => setTab('family') },
+                  { icon:FileText, label:'Invoices', sub:'Download receipts', action:() => router.push('/user/invoices') },
                 ].map(({ icon, label, sub, action }) => (
                   <ActionRow key={label} icon={icon} label={label} sub={sub} onClick={action} />
                 ))}
@@ -562,10 +662,8 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* ══ BOOKINGS TAB ══ */}
           {tab === 'bookings' && (
             <div style={{ display:'flex', flexDirection:'column', gap:14, animation:'prof-in .2s ease' }}>
-              {/* Filters */}
               <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:4 }}>
                 {[
                   { key:'all', label:'All' },
@@ -573,7 +671,9 @@ export default function ProfilePage() {
                   { key:'completed', label:'Completed' },
                   { key:'cancelled', label:'Cancelled' },
                   { key:'pending_payment', label:'Pending' },
-                ].map((f) => <FilterPill key={f.key} f={f} active={bkFilter===f.key} onClick={() => { setBkFilter(f.key); setBkPage(1) }} />)}
+                ].map((f) => (
+                  <FilterPill key={f.key} f={f} active={bkFilter===f.key} onClick={() => { setBkFilter(f.key); setBkPage(1) }} />
+                ))}
               </div>
 
               {bkLoading ? (
@@ -582,10 +682,12 @@ export default function ProfilePage() {
                 </div>
               ) : !bookings.length ? (
                 <div style={{ background:'#fff', borderRadius:20, border:'1px solid #f1f5f9', padding:48, textAlign:'center' }}>
-                  <p style={{ fontSize:22, marginBottom:8 }}>📅</p>
+                  <div style={{ display:'flex', justifyContent:'center', marginBottom:8, color:'#6366f1' }}>
+                    <CalendarDays size={24} strokeWidth={2} />
+                  </div>
                   <p style={{ fontSize:14, fontWeight:600, color:'#64748b', margin:'0 0 6px' }}>No bookings found</p>
                   <p style={{ fontSize:12, color:'#94a3b8', margin:'0 0 16px' }}>Your appointments will appear here</p>
-                  <PBtn onClick={() => router.push('/hospitals')} sx={{ margin:'0 auto', width:'fit-content' }}>Book Appointment</PBtn>
+                  <PBtn onClick={() => router.push('/hospitals')} style={{ margin:'0 auto', width:'fit-content' }}>Book Appointment</PBtn>
                 </div>
               ) : (
                 <>
@@ -596,9 +698,15 @@ export default function ProfilePage() {
                   </div>
                   {pagination.pages > 1 && (
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:12 }}>
-                      <PBtn variant="secondary" onClick={() => setBkPage((p) => Math.max(1,p-1))} disabled={bkPage===1} sx={{ padding:'7px 16px', fontSize:12 }}>← Prev</PBtn>
+                      <PBtn variant="secondary" onClick={() => setBkPage((p) => Math.max(1,p-1))} disabled={bkPage===1} style={{ padding:'7px 16px', fontSize:12, display:'flex', alignItems:'center', gap:4 }}>
+                        <ChevronLeft size={14} strokeWidth={2} />
+                        Prev
+                      </PBtn>
                       <span style={{ fontSize:12, color:'#94a3b8' }}>{bkPage} / {pagination.pages}</span>
-                      <PBtn variant="secondary" onClick={() => setBkPage((p) => Math.min(pagination.pages,p+1))} disabled={bkPage===pagination.pages} sx={{ padding:'7px 16px', fontSize:12 }}>Next →</PBtn>
+                      <PBtn variant="secondary" onClick={() => setBkPage((p) => Math.min(pagination.pages,p+1))} disabled={bkPage===pagination.pages} style={{ padding:'7px 16px', fontSize:12, display:'flex', alignItems:'center', gap:4 }}>
+                        Next
+                        <ChevronRight size={14} strokeWidth={2} />
+                      </PBtn>
                     </div>
                   )}
                 </>
@@ -606,11 +714,12 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* ══ FAMILY TAB ══ */}
           {tab === 'family' && (
             <div style={{ display:'flex', flexDirection:'column', gap:14, animation:'prof-in .2s ease' }}>
               <div style={{ background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.15)', borderRadius:14, padding:14, display:'flex', alignItems:'flex-start', gap:10 }}>
-                <span style={{ fontSize:18, flexShrink:0 }}>👨‍👩‍👧</span>
+                <span style={{ fontSize:18, flexShrink:0, color:'#6366f1', display:'flex', alignItems:'center' }}>
+                  <Users {...mdIconProps} />
+                </span>
                 <div>
                   <p style={{ fontSize:13, fontWeight:600, color:'#4f46e5', margin:'0 0 2px' }}>Family Members</p>
                   <p style={{ fontSize:12, color:'#6366f1', margin:0 }}>Add family members to book appointments on their behalf.</p>
@@ -625,7 +734,9 @@ export default function ProfilePage() {
                 </div>
               ) : !familyMembers.length ? (
                 <div style={{ background:'#fff', borderRadius:20, border:'1px solid #f1f5f9', padding:40, textAlign:'center' }}>
-                  <p style={{ fontSize:22, marginBottom:8 }}>👥</p>
+                  <div style={{ display:'flex', justifyContent:'center', marginBottom:8, color:'#6366f1' }}>
+                    <Users size={22} strokeWidth={2} />
+                  </div>
                   <p style={{ fontSize:14, fontWeight:600, color:'#64748b', margin:0 }}>No family members added yet</p>
                   <p style={{ fontSize:12, color:'#94a3b8', marginTop:4 }}>Add your spouse, children, or parents</p>
                 </div>
@@ -638,19 +749,21 @@ export default function ProfilePage() {
             </div>
           )}
 
-          {/* ══ ACCOUNT TAB ══ */}
           {tab === 'account' && (
             <div style={{ display:'flex', flexDirection:'column', gap:14, animation:'prof-in .2s ease' }}>
               <SectionCard title="Account Status">
                 {[
-                  { label:'Account Verification', value: user.isVerified ? '✓ Verified' : '⚠ Not Verified', color: user.isVerified?'#10b981':'#f59e0b' },
-                  { label:'Account Status',        value: user.isBlocked  ? '✕ Blocked'  : '✓ Active',        color: user.isBlocked?'#ef4444':'#10b981'  },
-                  { label:'Role',                  value: user.role?.replace(/_/g,' '), color: '#6366f1' },
-                  ...(mounted&&user.createdAt ? [{ label:'Joined', value:new Date(user.createdAt).toLocaleDateString('en-IN',{dateStyle:'long'}), color:'#64748b' }] : []),
-                ].map(({ label, value, color }) => (
+                  { label:'Account Verification', value: user.isVerified ? 'Verified' : 'Not Verified', color: user.isVerified?'#10b981':'#f59e0b', icon: user.isVerified ? BadgeCheck : TriangleAlert },
+                  { label:'Account Status', value: user.isBlocked ? 'Blocked' : 'Active', color: user.isBlocked?'#ef4444':'#10b981', icon: user.isBlocked ? X : BadgeCheck },
+                  { label:'Role', value: user.role?.replace(/_/g,' '), color: '#6366f1', icon: Shield },
+                  ...(mounted&&user.createdAt ? [{ label:'Joined', value:new Date(user.createdAt).toLocaleDateString('en-IN',{dateStyle:'long'}), color:'#64748b', icon: CalendarDays }] : []),
+                ].map(({ label, value, color, icon: Icon }) => (
                   <div key={label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid #f8fafc' }}>
                     <span style={{ fontSize:13, color:'#64748b' }}>{label}</span>
-                    <span style={{ fontSize:12, fontWeight:600, color }}>{value}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color, display:'flex', alignItems:'center', gap:6 }}>
+                      <Icon size={13} strokeWidth={2.2} />
+                      {value}
+                    </span>
                   </div>
                 ))}
               </SectionCard>
@@ -669,7 +782,6 @@ export default function ProfilePage() {
 
         <Footer />
 
-        {/* Modals */}
         <EditProfileModal open={editModal} onClose={() => setEditModal(false)} user={user} onSaved={refreshUser} />
         <FamilyModal open={familyModal} onClose={() => { setFamilyModal(false); setEditingMember(null) }} member={editingMember} onSave={handleSaveFamily} saving={familySaving} />
       </div>
@@ -677,28 +789,44 @@ export default function ProfilePage() {
   )
 }
 
-/* ─── Small helper components ────────────────────────────────────────── */
 function EditProfileBtn({ onClick }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width:36, height:36, borderRadius:10, border:'none', background: h?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.2)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0, transition:'background .15s ease' }}>
-      ✏️
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        width:36, height:36, borderRadius:10, border:'none',
+        background: h?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.2)',
+        cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center',
+        flexShrink:0, transition:'background .15s ease', color:'#fff'
+      }}
+    >
+      <Pencil size={16} strokeWidth={2} />
     </button>
   )
 }
 
-function ActionRow({ icon, label, sub, onClick }) {
+function ActionRow({ icon: Icon, label, sub, onClick }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'10px', borderRadius:12, border:'none', background: h?'#f8fafc':'transparent', cursor:'pointer', textAlign:'left', transition:'background .12s ease' }}>
-      <div style={{ width:36, height:36, borderRadius:10, background:'rgba(99,102,241,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{icon}</div>
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'10px', borderRadius:12, border:'none', background: h?'#f8fafc':'transparent', cursor:'pointer', textAlign:'left', transition:'background .12s ease' }}
+    >
+      <div style={{ width:36, height:36, borderRadius:10, background:'rgba(99,102,241,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:'#6366f1' }}>
+        <Icon {...mdIconProps} />
+      </div>
       <div style={{ flex:1 }}>
         <p style={{ fontSize:13, fontWeight:600, color:'#1e293b', margin:0 }}>{label}</p>
         <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>{sub}</p>
       </div>
-      <span style={{ fontSize:14, color:'#94a3b8' }}>›</span>
+      <span style={{ color:'#94a3b8', display:'flex', alignItems:'center' }}>
+        <ChevronRight size={14} strokeWidth={2} />
+      </span>
     </button>
   )
 }
@@ -706,12 +834,17 @@ function ActionRow({ icon, label, sub, onClick }) {
 function FilterPill({ f, active, onClick }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ flexShrink:0, padding:'5px 12px', borderRadius:100, border:'none', fontSize:12, fontWeight:500, cursor:'pointer', transition:'all .15s ease',
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        flexShrink:0, padding:'5px 12px', borderRadius:100, border:'none', fontSize:12, fontWeight:500, cursor:'pointer', transition:'all .15s ease',
         background: active?'linear-gradient(135deg,#6366f1,#8b5cf6)':h?'#e2e8f0':'#f1f5f9',
         color: active?'#fff':'#64748b',
         boxShadow: active?'0 2px 8px rgba(99,102,241,0.3)':'none',
-      }}>
+      }}
+    >
       {f.label}
     </button>
   )
@@ -720,13 +853,19 @@ function FilterPill({ f, active, onClick }) {
 function AddMemberBtn({ onClick }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px', borderRadius:16, cursor:'pointer', transition:'all .15s ease',
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{
+        width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'12px', borderRadius:16, cursor:'pointer', transition:'all .15s ease',
         border:`2px dashed ${h?'#6366f1':'rgba(99,102,241,0.25)'}`,
         background: h?'rgba(99,102,241,0.05)':'transparent',
         color: h?'#6366f1':'#94a3b8', fontSize:13, fontWeight:600,
-      }}>
-      + Add Family Member
+      }}
+    >
+      <Plus size={16} strokeWidth={2.4} />
+      Add Family Member
     </button>
   )
 }
@@ -734,10 +873,12 @@ function AddMemberBtn({ onClick }) {
 function FamilyMemberCard({ m, rel, onEdit, onDelete }) {
   const [editH, setEditH] = useState(false)
   const [delH, setDelH]   = useState(false)
+  const RelIcon = rel.icon
+
   return (
     <div style={{ background:'#fff', borderRadius:16, border:'1px solid #f1f5f9', padding:14, display:'flex', alignItems:'center', gap:12, boxShadow:'0 1px 4px rgba(0,0,0,0.04)' }}>
-      <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(139,92,246,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
-        {rel.icon}
+      <div style={{ width:42, height:42, borderRadius:'50%', background:'rgba(139,92,246,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:'#8b5cf6' }}>
+        <RelIcon {...lgIconProps} />
       </div>
       <div style={{ flex:1, minWidth:0 }}>
         <p style={{ fontSize:14, fontWeight:700, color:'#1e293b', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.name}</p>
@@ -749,13 +890,21 @@ function FamilyMemberCard({ m, rel, onEdit, onDelete }) {
         </div>
       </div>
       <div style={{ display:'flex', gap:4 }}>
-        <button onMouseEnter={() => setEditH(true)} onMouseLeave={() => setEditH(false)} onClick={onEdit}
-          style={{ width:32, height:32, borderRadius:8, border:'none', background: editH?'#f1f5f9':'transparent', cursor:'pointer', fontSize:14, transition:'background .12s ease', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          ✏️
+        <button
+          onMouseEnter={() => setEditH(true)}
+          onMouseLeave={() => setEditH(false)}
+          onClick={onEdit}
+          style={{ width:32, height:32, borderRadius:8, border:'none', background: editH?'#f1f5f9':'transparent', cursor:'pointer', transition:'background .12s ease', display:'flex', alignItems:'center', justifyContent:'center', color:'#64748b' }}
+        >
+          <Pencil size={14} strokeWidth={2} />
         </button>
-        <button onMouseEnter={() => setDelH(true)} onMouseLeave={() => setDelH(false)} onClick={onDelete}
-          style={{ width:32, height:32, borderRadius:8, border:'none', background: delH?'rgba(239,68,68,0.08)':'transparent', cursor:'pointer', fontSize:14, transition:'background .12s ease', display:'flex', alignItems:'center', justifyContent:'center', color: delH?'#ef4444':'inherit' }}>
-          🗑️
+        <button
+          onMouseEnter={() => setDelH(true)}
+          onMouseLeave={() => setDelH(false)}
+          onClick={onDelete}
+          style={{ width:32, height:32, borderRadius:8, border:'none', background: delH?'rgba(239,68,68,0.08)':'transparent', cursor:'pointer', transition:'background .12s ease', display:'flex', alignItems:'center', justifyContent:'center', color: delH?'#ef4444':'#64748b' }}
+        >
+          <Trash2 size={14} strokeWidth={2} />
         </button>
       </div>
     </div>
@@ -765,9 +914,15 @@ function FamilyMemberCard({ m, rel, onEdit, onDelete }) {
 function LogoutBtn({ onLogout }) {
   const [h, setH] = useState(false)
   return (
-    <button onClick={onLogout} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'10px', borderRadius:12, border:'none', background: h?'rgba(239,68,68,0.06)':'transparent', cursor:'pointer', textAlign:'left', transition:'background .12s ease' }}>
-      <div style={{ width:36, height:36, borderRadius:10, background:'rgba(239,68,68,0.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>🚪</div>
+    <button
+      onClick={onLogout}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'10px', borderRadius:12, border:'none', background: h?'rgba(239,68,68,0.06)':'transparent', cursor:'pointer', textAlign:'left', transition:'background .12s ease' }}
+    >
+      <div style={{ width:36, height:36, borderRadius:10, background:'rgba(239,68,68,0.08)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, color:'#ef4444' }}>
+        <LogOut {...mdIconProps} />
+      </div>
       <div>
         <p style={{ fontSize:13, fontWeight:600, color:'#ef4444', margin:0 }}>Sign Out</p>
         <p style={{ fontSize:11, color:'#94a3b8', margin:0 }}>Sign out of your MEDLI account</p>
