@@ -478,9 +478,9 @@ function BookingDetail({ b, mounted }) {
       >
         {[
           { label: 'Base Fee', value: fmtRs(b.baseFee) },
-          { label: 'Platform Fee', value: fmtRs(b.platformFee) },
-          { label: 'GST', value: fmtRs(b.gst) },
-          { label: 'Total', value: fmtRs(b.totalAmount), bold: true },
+          // { label: 'Platform Fee', value: fmtRs(b.platformFee) },
+          // { label: 'GST', value: fmtRs(b.gst) },
+          // { label: 'Total', value: fmtRs(b.totalAmount), bold: true },
         ].map((r) => (
           <div
             key={r.label}
@@ -558,8 +558,8 @@ function BookingDetail({ b, mounted }) {
           { l: 'Doctor', v: b.doctorName ? `Dr. ${b.doctorName}` : '—' },
           { l: 'Coupon Code', v: b.couponCode || '—' },
           { l: 'Coupon Disc.', v: b.couponDiscount > 0 ? fmtRs(b.couponDiscount) : '—' },
-          { l: 'Platform Fee%', v: `${b.platformFeePercent || 0}%` },
-          { l: 'Is Settled', v: b.isSettled ? '✓ Yes' : 'No' },
+          // { l: 'Platform Fee%', v: `${b.platformFeePercent || 0}%` },
+          // { l: 'Is Settled', v: b.isSettled ? '✓ Yes' : 'No' },
           { l: 'Meet Link', v: b.meetLink ? 'Available' : '—' },
         ]
           .filter((r) => r.v && r.v !== '—')

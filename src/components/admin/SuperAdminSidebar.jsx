@@ -42,7 +42,7 @@ const NAV_GROUPS = [
     label: 'Overview',
     items: [
       { label: 'Dashboard', href: '/super-admin/dashboard', icon: LayoutDashboard },
-      { label: 'Analytics', href: '/super-admin/analytics', icon: BarChart3 },
+      // { label: 'Analytics', href: '/super-admin/analytics', icon: BarChart3 },
       { label: 'Revenue', href: '/super-admin/revenue', icon: IndianRupee },
     ],
   },
@@ -53,7 +53,7 @@ const NAV_GROUPS = [
       { label: 'Labs', href: '/super-admin/labs', icon: FlaskConical },
       { label: 'Doctors', href: '/super-admin/doctors', icon: Stethoscope },
       { label: 'Users', href: '/super-admin/users', icon: Users },
-      { label: 'Regions', href: '/super-admin/regions', icon: Map },
+      // { label: 'Regions', href: '/super-admin/regions', icon: Map },
     ],
   },
   {
@@ -61,9 +61,9 @@ const NAV_GROUPS = [
     items: [
       { label: 'Bookings', href: '/super-admin/bookings', icon: CalendarDays },
       { label: 'Payments', href: '/super-admin/payments', icon: CreditCard },
-      { label: 'Invoices', href: '/super-admin/invoices', icon: Receipt },
+      // { label: 'Invoices', href: '/super-admin/invoices', icon: Receipt },
       { label: 'Settlements', href: '/super-admin/settlements', icon: Landmark },
-      { label: 'Refunds', href: '/super-admin/refunds', icon: RotateCcw },
+      // { label: 'Refunds', href: '/super-admin/refunds', icon: RotateCcw },
     ],
   },
 {
@@ -71,7 +71,7 @@ const NAV_GROUPS = [
   items: [
     { label: 'Coupons', href: '/super-admin/coupons', icon: TicketPercent },
     { label: 'Bank Accounts', href: '/super-admin/bank-accounts', icon: WalletCards },
-    { label: 'Notifications', href: '/super-admin/notifications', icon: Bell },
+    // { label: 'Notifications', href: '/super-admin/notifications', icon: Bell },
     { label: 'Support', href: '/super-admin/support', icon: LifeBuoy },
     { label: 'Settings', href: '/super-admin/settings', icon: Settings },
   ],
