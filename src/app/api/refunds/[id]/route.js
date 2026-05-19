@@ -2,49 +2,83 @@ import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { checkRole } from '@/lib/middleware/rbac.middleware'
 import { processRefund } from '@/lib/services/refund.service'
-import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
+import {
+  successResponse,
+  errorResponse,
+  handleOptions,
+} from '@/lib/utils/apiResponse'
 
-export function OPTIONS() { return handleOptions() }
+export function OPTIONS() {
+  return handleOptions()
+}
 
 export async function GET(request, { params }) {
-  try {
-    const user = await verifyAuth(request)
-    const { id } = await params
+  return verifyAuth(request, async (req, user) => {
+    try {
+      const { id } = await params
 
-    const refund = await prisma.refund.findUnique({ where: { id } })
-    if (!refund) return errorResponse('Refund not found', 'NOT_FOUND', 404)
+      const refund = await prisma.refund.findUnique({
+        where: { id },
+      })
 
-    if (user.role === 'user' && refund.userId !== user.id)
-      return errorResponse('Access denied', 'FORBIDDEN', 403)
+      if (!refund) {
+        return errorResponse('Refund not found', 404)
+      }
 
-    return successResponse(refund)
-  } catch (err) {
-    return errorResponse('Failed to fetch refund', 'SERVER_ERROR', 500)
-  }
+      if (user.role === 'user') {
+        if (refund.userId !== user.userId) {
+          return errorResponse('Access denied', 403)
+        }
+      } else {
+        checkRole(user, 'super_admin', 'regional_manager')
+      }
+
+      return successResponse(refund)
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+
+      console.error('[GET /api/refunds/:id]', error)
+      return errorResponse('Failed to fetch refund', 500)
+    }
+  })
 }
 
 export async function POST(request, { params }) {
-  try {
-    const user = await verifyAuth(request)
-    checkRole(user, 'super_admin')
-    const { id } = await params
-    const body = await request.json()
+  return verifyAuth(request, async (req, user) => {
+    try {
+      checkRole(user, 'super_admin')
 
-    const refund = await prisma.refund.findUnique({ where: { id } })
-    if (!refund) return errorResponse('Refund not found', 'NOT_FOUND', 404)
+      const { id } = await params
+      const body = await request.json()
 
-    if (refund.status === 'completed')
-      return errorResponse('Refund already completed', 'INVALID_STATUS', 400)
+      const refund = await prisma.refund.findUnique({
+        where: { id },
+      })
 
-    const retried = await processRefund({
-      bookingId: refund.bookingId,
-      initiatedBy: user.id,
-      reason: body.reason || refund.reason,
-    })
+      if (!refund) {
+        return errorResponse('Refund not found', 404)
+      }
 
-    return successResponse(retried, 'Refund retried')
-  } catch (err) {
-    console.error('[Refund Retry]', err.message)
-    return errorResponse(err.message, 'REFUND_ERROR', 400)
-  }
+      if (refund.status === 'completed') {
+        return errorResponse('Refund already completed', 400)
+      }
+
+      const retried = await processRefund({
+        bookingId: refund.bookingId,
+        initiatedBy: user.userId,
+        reason: body.reason || refund.reason,
+      })
+
+      return successResponse(retried, 'Refund retried')
+    } catch (error) {
+      if (error.message?.includes('Access denied')) {
+        return errorResponse(error.message, 403)
+      }
+
+      console.error('[POST /api/refunds/:id]', error)
+      return errorResponse(error.message || 'Refund retry failed', 400)
+    }
+  })
 }

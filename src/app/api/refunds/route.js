@@ -1,61 +1,56 @@
-import { prisma }     from '@/lib/prisma'
-import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import { checkRole }  from '@/lib/middleware/rbac.middleware'
-import {
-  getPaginationParams,
-  buildPaginationMeta,
-} from '@/lib/utils/helpers'
-import {
-  successResponse,
-  errorResponse,
-  handleOptions,
-  paginatedResponse,
-} from '@/lib/utils/apiResponse'
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
-export function OPTIONS() { return handleOptions() }
+export async function GET(req) {
+  try {
+    const { searchParams } = new URL(req.url)
 
-export async function GET(request) {
-  return verifyAuth(request, async (req, user) => {
-    try {
-      const { searchParams } = new URL(request.url)
-      const status = searchParams.get('status') || ''
+    const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1)
+    const limit = Math.max(parseInt(searchParams.get('limit') || '20', 10), 1)
+    const status = (searchParams.get('status') || '').trim()
+    const dateFrom = (searchParams.get('dateFrom') || '').trim()
+    const dateTo = (searchParams.get('dateTo') || '').trim()
+    const skip = (page - 1) * limit
 
-      const { page, limit, skip, take } = getPaginationParams(
-        searchParams.get('page'),
-        searchParams.get('limit'),
-      )
+    const where = {}
 
-      const where = {}
-      if (status) where.status = status
-
-      if (user.role === 'user') {
-        where.userId = user.userId
-      } else {
-        checkRole(user, 'super_admin', 'regional_manager')
-      }
-
-      const [refunds, total] = await Promise.all([
-        prisma.refund.findMany({
-          where,
-          skip,
-          take,
-          orderBy: { createdAt: 'desc' },
-        }),
-        prisma.refund.count({ where }),
-      ])
-
-      return paginatedResponse(
-        refunds,
-        buildPaginationMeta(total, page, limit),
-        'refunds',
-      )
-
-    } catch (error) {
-      if (error.message?.includes('Access denied')) {
-        return errorResponse(error.message, 403)
-      }
-      console.error('[GET /api/refunds]', error)
-      return errorResponse('Internal server error', 500)
+    if (status && status !== 'all') {
+      where.status = status
     }
-  })
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {}
+      if (dateFrom) where.createdAt.gte = new Date(`${dateFrom}T00:00:00.000Z`)
+      if (dateTo) where.createdAt.lte = new Date(`${dateTo}T23:59:59.999Z`)
+    }
+
+    const [refunds, total] = await Promise.all([
+      prisma.refund.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.refund.count({ where }),
+    ])
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        refunds,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(Math.ceil(total / limit), 1),
+        },
+      },
+    })
+  } catch (error) {
+    console.error('[GET /api/refunds] error:', error)
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to fetch refunds' },
+      { status: 500 }
+    )
+  }
 }

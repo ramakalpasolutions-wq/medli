@@ -63,7 +63,7 @@ const NAV_GROUPS = [
       { label: 'Payments', href: '/super-admin/payments', icon: CreditCard },
       // { label: 'Invoices', href: '/super-admin/invoices', icon: Receipt },
       { label: 'Settlements', href: '/super-admin/settlements', icon: Landmark },
-      // { label: 'Refunds', href: '/super-admin/refunds', icon: RotateCcw },
+      { label: 'Refunds', href: '/super-admin/refunds', icon: RotateCcw },
     ],
   },
 {

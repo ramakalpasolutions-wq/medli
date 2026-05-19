@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect } from 'react'
 import useSWR from 'swr'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import Badge, { getStatusVariant } from '@/components/ui/Badge'
@@ -28,6 +28,7 @@ import {
   MapPin,
   Check,
   ScanLine,
+  RotateCcw,
 } from 'lucide-react'
 
 function useMounted() {
@@ -363,8 +364,8 @@ function TestsBooked({ booking, testsData, testsLoading }) {
   )
 }
 
-export default function BookingDetailPage({ params }) {
-  const { id } = use(params)
+export default function BookingDetailPage() {
+  const { id } = useParams()
   const router = useRouter()
   const mounted = useMounted()
   const toast = useToast()
@@ -377,10 +378,18 @@ export default function BookingDetailPage({ params }) {
 
   const { data: booking, isLoading, mutate } = useSWR(`/api/bookings/${id}`, fetcher)
 
+    const { data: refundsData } = useSWR(
+    id ? `/api/refunds?bookingId=${id}&page=1&limit=1` : null,
+    fetcher
+  )
+
+  const refund = refundsData?.refunds?.[0] || null
+
   const { data: doctor } = useSWR(
     booking?.doctorId ? `/api/doctors/${booking.doctorId}` : null,
     fetcher
   )
+
   const { data: lab } = useSWR(
     booking?.labId ? `/api/labs/${booking.labId}` : null,
     fetcher
@@ -406,6 +415,12 @@ export default function BookingDetailPage({ params }) {
   const showJoin = booking?.type === 'online' && booking?.meetLink && diffMins !== null && diffMins <= 15 && diffMins >= -30
   const canCancel = booking ? ['created', 'pending_payment', 'confirmed'].includes(booking.status) : false
   const isFinished = ['completed', 'cancelled', 'refunded', 'no_show'].includes(booking?.status)
+  const displayRefundAmount =
+  refund?.refundAmount != null
+    ? refund.refundAmount
+    : booking?.refundAmount != null
+    ? booking.refundAmount
+    : null
 
   const handleInvoiceDownload = async () => {
     setDlInvoice(true)
@@ -710,6 +725,71 @@ export default function BookingDetailPage({ params }) {
               </div>
             </div>
           )}
+          {(booking?.status === 'cancelled' || booking?.status === 'refunded' || refund) && (
+  <Card>
+    <SectionTitle
+      icon={<RotateCcw size={16} strokeWidth={2.3} />}
+      title="Refund Status"
+    />
+
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <InfoRow
+        label="Refund Amount"
+        value={
+          displayRefundAmount != null
+            ? `₹${Number(displayRefundAmount).toLocaleString('en-IN')}`
+            : 'Pending'
+        }
+        color="#16a34a"
+      />  
+
+      <InfoRow
+        label="Refund Status"
+        value={refund?.status ? refund.status.replace(/_/g, ' ') : 'initiated'}
+      />
+
+      <InfoRow
+        label="Refund Number"
+        value={refund?.refundNumber}
+        mono
+      />
+
+      <InfoRow
+        label="Refund Percent"
+        value={refund?.refundPercent != null ? `${refund.refundPercent}%` : null}
+      />
+
+      <InfoRow
+        label="Refund Method"
+        value={refund?.refundMethod}
+      />
+
+      <InfoRow
+        label="Initiated On"
+        value={
+          refund?.createdAt
+            ? new Date(refund.createdAt).toLocaleString('en-IN')
+            : null
+        }
+      />
+
+      <InfoRow
+        label="Processed At"
+        value={
+          refund?.processedAt
+            ? new Date(refund.processedAt).toLocaleString('en-IN')
+            : null
+        }
+      />
+
+      <InfoRow
+        label="Failure Reason"
+        value={refund?.failureReason}
+        color="#ef4444"
+      />
+    </div>
+  </Card>
+)}
 
           {/* Online consultation window */}
           {booking.type === 'online' && !isFinished && (

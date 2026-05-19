@@ -1,10 +1,10 @@
-import { verifyAuth }                                    from '@/lib/middleware/auth.middleware'
+import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { successResponse, errorResponse, handleOptions } from '@/lib/utils/apiResponse'
-import { prisma }                                        from '@/lib/prisma'
-import Razorpay                                          from 'razorpay'
+import { prisma } from '@/lib/prisma'
+import Razorpay from 'razorpay'
 
 const razorpay = new Razorpay({
-  key_id:     process.env.RAZORPAY_KEY_ID,
+  key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 })
 
@@ -22,75 +22,101 @@ export async function POST(request) {
       return errorResponse('bookingId is required', 'MISSING_BOOKING_ID', 400)
     }
 
-    console.log('[create-order] bookingId:', bookingId, 'userId:', user.id)
+    const authUserId = user.userId || user.id
 
-    const booking = await prisma.booking.findUnique({ where: { id: bookingId } })
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+    })
 
     if (!booking) {
       return errorResponse('Booking not found', 'BOOKING_NOT_FOUND', 404)
+    }
+
+    if (booking.userId !== authUserId) {
+      return errorResponse('Access denied', 'FORBIDDEN', 403)
     }
 
     if (booking.paymentStatus === 'paid') {
       return errorResponse('Booking is already paid', 'ALREADY_PAID', 409)
     }
 
-    const amountInPaise = Math.round(booking.totalAmount * 100)
+    const existingOpenPayment = await prisma.payment.findFirst({
+      where: {
+        bookingId: booking.id,
+        status: 'created',
+      },
+      orderBy: { createdAt: 'desc' },
+    })
 
-    // Create order on Razorpay
+    if (existingOpenPayment?.razorpayOrderId) {
+      return successResponse(
+        {
+          razorpayOrderId: existingOpenPayment.razorpayOrderId,
+          amount: Math.round((booking.totalAmount || 0) * 100),
+          currency: existingOpenPayment.currency || 'INR',
+          keyId: process.env.RAZORPAY_KEY_ID,
+          bookingId: booking.id,
+          bookingRef: booking.bookingId,
+        },
+        'Existing payment order fetched'
+      )
+    }
+
+    const amountInPaise = Math.round((booking.totalAmount || 0) * 100)
+
     const order = await razorpay.orders.create({
-      amount:   amountInPaise,
+      amount: amountInPaise,
       currency: 'INR',
-      receipt:  booking.bookingId,
+      receipt: booking.bookingId,
       notes: {
         bookingId: booking.id,
-        userId:    user.id,
+        userId: booking.userId,
       },
     })
 
-    console.log('[create-order] Razorpay order created:', order.id)
-
-    // Save razorpayOrderId + set status pending_payment
-    await prisma.payment.create({
-  data: {
-    bookingId: booking.id,
-    userId: booking.userId,
-    razorpayOrderId: order.id,
-    amount: booking.totalAmount,
-    currency: 'INR',
-    status: 'created',
-  },
-})
-
-    // Create Payment record
     await prisma.payment.create({
       data: {
-        bookingId:       booking.id,
-        userId:          booking.userId,
+        bookingId: booking.id,
+        userId: booking.userId,
         razorpayOrderId: order.id,
-        amount:          booking.totalAmount,
-        currency:        'INR',
-        status:          'created',
+        amount: booking.totalAmount,
+        currency: 'INR',
+        status: 'created',
+      },
+    })
+
+    await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        status: 'pending_payment',
+        razorpayOrderId: order.id,
       },
     })
 
     return successResponse(
       {
         razorpayOrderId: order.id,
-        amount:          amountInPaise,
-        currency:        'INR',
-        keyId:           process.env.RAZORPAY_KEY_ID,
-        bookingId:       booking.id,
-        bookingRef:      booking.bookingId,
+        amount: amountInPaise,
+        currency: 'INR',
+        keyId: process.env.RAZORPAY_KEY_ID,
+        bookingId: booking.id,
+        bookingRef: booking.bookingId,
       },
-      'Payment order created',
+      'Payment order created'
     )
-
   } catch (err) {
     console.error('[create-order] Error:', err.message)
+
     const statusMap = {
+      'Booking not found': 404,
       'Booking is already paid': 409,
-      'Booking not found':       404,
+      'Access denied': 403,
     }
-    return errorResponse(err.message, 'PAYMENT_ERROR', statusMap[err.message] || 400)
+
+    return errorResponse(
+      err.message || 'Failed to create payment order',
+      'PAYMENT_ERROR',
+      statusMap[err.message] || 400
+    )
   }
 }
