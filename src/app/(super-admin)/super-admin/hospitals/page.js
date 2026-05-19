@@ -11,7 +11,7 @@ import Modal        from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { useToast } from '@/context/ToastContext'
 import {
-  Search, CheckCircle, ToggleLeft, Eye, MapPin, Phone, Mail, Clock, Plus
+  Search, CheckCircle, ToggleLeft, Eye, MapPin, Phone, Mail, Clock, Plus, Pencil,
 } from 'lucide-react'
 
 const fetcher = (url) =>
@@ -38,6 +38,12 @@ const SERVICES = [
   'Outpatient', 'Inpatient', 'Telemedicine', 'Insurance Cashless',
 ]
 
+const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+const DAY_LABELS = {
+  mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
+  fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN PAGE
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -47,6 +53,7 @@ export default function HospitalsPage() {
   const [action,     setAction]     = useState(null)
   const [loading,    setLoading]    = useState(false)
   const [viewItem,   setViewItem]   = useState(null)
+  const [editItem,   setEditItem]   = useState(null)   // ← NEW
   const [panelOpen,  setPanelOpen]  = useState(false)
   const toast = useToast()
 
@@ -124,6 +131,12 @@ export default function HospitalsPage() {
           <Button size="xs" variant="ghost" leftIcon={<Eye className="w-3 h-3" />}
             onClick={() => setViewItem(row)}>
             View
+          </Button>
+          {/* ── NEW: Edit button ─────────────────────────────────── */}
+          <Button size="xs" variant="ghost" leftIcon={<Pencil className="w-3 h-3" />}
+            onClick={() => setEditItem(row)}
+            style={{ color: '#6366f1' }}>
+            Edit
           </Button>
           {!row.isApproved && (
             <Button size="xs" variant="primary" leftIcon={<CheckCircle className="w-3 h-3" />}
@@ -206,13 +219,460 @@ export default function HospitalsPage() {
             onSaved={() => { mutate(); setPanelOpen(false) }}
           />
         )}
+
+        {/* ── NEW: Edit Hospital Slide Panel ──────────────────────────── */}
+        {editItem && (
+          <EditHospitalPanel
+            hospital={editItem}
+            onClose={() => setEditItem(null)}
+            onSaved={() => { mutate(); setEditItem(null) }}
+          />
+        )}
       </div>
     </>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ADD HOSPITAL PANEL
+   EDIT HOSPITAL PANEL  ← NEW
+═══════════════════════════════════════════════════════════════════════════ */
+function EditHospitalPanel({ hospital, onClose, onSaved }) {
+  const toast   = useToast()
+  const [saving, setSaving] = useState(false)
+  const [tab,    setTab]    = useState('info') // 'info' | 'location' | 'services' | 'hours'
+
+  // Pre-fill form from existing hospital data
+  const [form, setForm] = useState({
+    name:               hospital.name              || '',
+    slug:               hospital.slug              || '',
+    contactPhone:       hospital.contactPhone      || '',
+    contactEmail:       hospital.contactEmail      || '',
+    address: {
+      line1:   hospital.address?.line1   || '',
+      city:    hospital.address?.city    || '',
+      state:   hospital.address?.state   || '',
+      pinCode: hospital.address?.pinCode || '',
+    },
+    location: {
+      lat: hospital.location?.coordinates?.[1] ?? '',
+      lng: hospital.location?.coordinates?.[0] ?? '',
+    },
+    departments:        hospital.departments || [],
+    services:           hospital.services    || [],
+    platformFeePercent: hospital.platformFeePercent ?? 10,
+    operatingHours:     hospital.operatingHours || {
+      mon: { open: '09:00', close: '18:00', isOpen: true },
+      tue: { open: '09:00', close: '18:00', isOpen: true },
+      wed: { open: '09:00', close: '18:00', isOpen: true },
+      thu: { open: '09:00', close: '18:00', isOpen: true },
+      fri: { open: '09:00', close: '18:00', isOpen: true },
+      sat: { open: '09:00', close: '14:00', isOpen: true },
+      sun: { open: '00:00', close: '00:00', isOpen: false },
+    },
+  })
+
+  // Track which fields were actually changed (for diff display)
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
+
+  const set = (key, val) => {
+    setForm((f) => ({ ...f, [key]: val }))
+    setDirty(true)
+  }
+  const setAddr = (key, val) => {
+    setForm((f) => ({ ...f, address: { ...f.address, [key]: val } }))
+    setDirty(true)
+  }
+  const setLoc = (key, val) => {
+    setForm((f) => ({ ...f, location: { ...f.location, [key]: val } }))
+    setDirty(true)
+  }
+  const setHour = (day, field, val) => {
+    setForm((f) => ({
+      ...f,
+      operatingHours: {
+        ...f.operatingHours,
+        [day]: { ...f.operatingHours[day], [field]: val },
+      },
+    }))
+    setDirty(true)
+  }
+  const toggleDept = (d) => {
+    set('departments', form.departments.includes(d)
+      ? form.departments.filter((x) => x !== d)
+      : [...form.departments, d])
+  }
+  const toggleService = (s) => {
+    set('services', form.services.includes(s)
+      ? form.services.filter((x) => x !== s)
+      : [...form.services, s])
+  }
+
+  const handleSave = async () => {
+    if (!form.name.trim())         { toast.error('Hospital name is required'); return }
+    if (!form.slug.trim())         { toast.error('Slug is required');           return }
+    if (!form.address.city.trim()) { toast.error('City is required');           return }
+
+    setSaving(true)
+    try {
+      const payload = {
+        name:               form.name.trim(),
+        slug:               form.slug.trim().toLowerCase(),
+        contactPhone:       form.contactPhone || undefined,
+        contactEmail:       form.contactEmail || undefined,
+        address:            form.address,
+        departments:        form.departments,
+        services:           form.services,
+        platformFeePercent: Number(form.platformFeePercent) || 10,
+        operatingHours:     form.operatingHours,
+        ...(form.location.lat && form.location.lng
+          ? { location: { lat: Number(form.location.lat), lng: Number(form.location.lng) } }
+          : {}),
+      }
+
+      const res  = await fetch(`/api/hospitals/${hospital.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+
+      if (json.success) {
+        toast.success(`✅ "${form.name}" updated successfully`)
+        onSaved()
+      } else {
+        toast.error(json.error || 'Update failed')
+      }
+    } catch {
+      toast.error('Network error. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const TABS = [
+    { id: 'info',     label: '🏥 Info' },
+    { id: 'location', label: '📍 Address' },
+    { id: 'services', label: '🛎️ Services' },
+    { id: 'hours',    label: '🕐 Hours' },
+  ]
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position: 'fixed', inset: 0, zIndex: 900,
+        background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+        animation: 'hosp-fade .2s ease',
+      }} />
+
+      {/* Panel */}
+      <div style={{
+        position: 'fixed', right: 0, top: 0, bottom: 0,
+        width: 'min(600px, 96vw)',
+        background: '#fff', zIndex: 910,
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '-8px 0 48px rgba(0,0,0,0.15)',
+        animation: 'hosp-slide .28s cubic-bezier(0.34,1.56,0.64,1)',
+      }}>
+
+        {/* ── Header ──────────────────────────────────────────────── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px', flexShrink: 0,
+          borderBottom: '1px solid #f1f5f9',
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.04), rgba(139,92,246,0.02))',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, flexShrink: 0,
+            }}>✏️</div>
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                Edit Hospital
+              </h3>
+              <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0' }}>
+                {hospital.name}
+                {dirty && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, fontWeight: 600,
+                    color: '#f59e0b', background: 'rgba(245,158,11,0.1)',
+                    padding: '1px 6px', borderRadius: 100,
+                  }}>Unsaved changes</span>
+                )}
+              </p>
+            </div>
+          </div>
+          <CloseBtn onClick={onClose} />
+        </div>
+
+        {/* ── Tab Bar ─────────────────────────────────────────────── */}
+        <div style={{
+          display: 'flex', borderBottom: '1px solid #f1f5f9',
+          background: '#fafafa', flexShrink: 0, overflowX: 'auto',
+        }}>
+          {TABS.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: '10px 18px', border: 'none', background: 'none',
+              fontSize: 12, fontWeight: tab === t.id ? 700 : 500,
+              color: tab === t.id ? '#6366f1' : '#64748b',
+              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+              borderBottom: `2px solid ${tab === t.id ? '#6366f1' : 'transparent'}`,
+              transition: 'all .13s ease',
+            }}>{t.label}</button>
+          ))}
+        </div>
+
+        {/* ── Scrollable Content ───────────────────────────────────── */}
+        <div style={{
+          flex: 1, overflowY: 'auto', padding: 20,
+          display: 'flex', flexDirection: 'column', gap: 16,
+        }}>
+
+          {/* ── Tab: Info ─────────────────────────────────────────── */}
+          {tab === 'info' && (
+            <>
+              <SectionTitle>Basic Information</SectionTitle>
+
+              <FormInput label="Hospital Name *" value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+                placeholder="e.g., Apollo Hospitals" />
+
+              <FormInput label="URL Slug *" value={form.slug}
+                onChange={(e) => set('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                placeholder="apollo-hospitals"
+                hint="Used in URLs — lowercase letters, numbers and hyphens only" />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormInput label="Contact Phone" type="tel" value={form.contactPhone}
+                  onChange={(e) => set('contactPhone', e.target.value)}
+                  placeholder="+91 98765 43210" />
+                <FormInput label="Contact Email" type="email" value={form.contactEmail}
+                  onChange={(e) => set('contactEmail', e.target.value)}
+                  placeholder="info@hospital.com" />
+              </div>
+
+              <SectionTitle>Platform Settings</SectionTitle>
+
+              <FormInput label="Platform Fee (%)" type="number" min="0" max="100"
+                value={form.platformFeePercent}
+                onChange={(e) => set('platformFeePercent', e.target.value)}
+                hint="Percentage commission charged by MEDLI" />
+
+              {/* Read-only info */}
+              <div style={{
+                padding: '12px 14px', borderRadius: 12,
+                background: '#f8fafc', border: '1px solid #e2e8f0',
+                display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Read-only
+                </p>
+                <IDRow label="Hospital ID" value={hospital.id} />
+                {hospital.adminUserId && <IDRow label="Admin User ID" value={hospital.adminUserId} />}
+                <IDRow label="Created" value={new Date(hospital.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' })} />
+              </div>
+            </>
+          )}
+
+          {/* ── Tab: Address & Location ──────────────────────────── */}
+          {tab === 'location' && (
+            <>
+              <SectionTitle>Address</SectionTitle>
+
+              <FormInput label="Address Line" value={form.address.line1}
+                onChange={(e) => setAddr('line1', e.target.value)}
+                placeholder="Street, area, landmark" />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormInput label="City *" value={form.address.city}
+                  onChange={(e) => setAddr('city', e.target.value)} />
+                <FormInput label="State" value={form.address.state}
+                  onChange={(e) => setAddr('state', e.target.value)} />
+              </div>
+
+              <FormInput label="PIN Code" value={form.address.pinCode}
+                onChange={(e) => setAddr('pinCode', e.target.value)}
+                placeholder="500001" />
+
+              <SectionTitle>GPS Coordinates (Optional)</SectionTitle>
+
+              <div style={{
+                padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.12)',
+                fontSize: 11, color: '#6366f1', marginBottom: 4,
+              }}>
+                💡 Used for "nearby hospitals" search. Leave blank if unknown.
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <FormInput label="Latitude" type="number" step="any" value={form.location.lat}
+                  onChange={(e) => setLoc('lat', e.target.value)}
+                  placeholder="17.385" />
+                <FormInput label="Longitude" type="number" step="any" value={form.location.lng}
+                  onChange={(e) => setLoc('lng', e.target.value)}
+                  placeholder="78.486" />
+              </div>
+            </>
+          )}
+
+          {/* ── Tab: Departments & Services ─────────────────────── */}
+          {tab === 'services' && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <SectionTitle>
+                  Departments
+                  <span style={{ color: '#6366f1', fontWeight: 700, marginLeft: 4 }}>
+                    ({form.departments.length})
+                  </span>
+                </SectionTitle>
+                <button onClick={() => set('departments', [])} style={{
+                  fontSize: 11, color: '#ef4444', background: 'none', border: 'none',
+                  cursor: 'pointer', fontWeight: 600,
+                }}>Clear all</button>
+              </div>
+              <PillGrid items={DEPARTMENTS} selected={form.departments} onToggle={toggleDept} />
+
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <SectionTitle>
+                  Services
+                  <span style={{ color: '#10b981', fontWeight: 700, marginLeft: 4 }}>
+                    ({form.services.length})
+                  </span>
+                </SectionTitle>
+                <button onClick={() => set('services', [])} style={{
+                  fontSize: 11, color: '#ef4444', background: 'none', border: 'none',
+                  cursor: 'pointer', fontWeight: 600,
+                }}>Clear all</button>
+              </div>
+              <PillGrid items={SERVICES} selected={form.services} onToggle={toggleService} color="green" />
+            </>
+          )}
+
+          {/* ── Tab: Operating Hours ────────────────────────────── */}
+          {tab === 'hours' && (
+            <>
+              <SectionTitle>Operating Hours</SectionTitle>
+
+              <div style={{
+                padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)',
+                fontSize: 11, color: '#92400e',
+              }}>
+                💡 Toggle each day open/closed and set opening times. Times use 24-hour format (e.g. 09:00, 18:30).
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {DAYS.map((day) => {
+                  const slot = form.operatingHours?.[day] || { open: '09:00', close: '18:00', isOpen: false }
+                  return (
+                    <div key={day} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '100px 1fr 1fr',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      background: slot.isOpen ? '#f0fdf4' : '#f8fafc',
+                      border: `1px solid ${slot.isOpen ? '#bbf7d0' : '#e2e8f0'}`,
+                      transition: 'all .15s ease',
+                    }}>
+                      {/* Day toggle */}
+                      <label style={{
+                        display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                      }}>
+                        <div
+                          onClick={() => setHour(day, 'isOpen', !slot.isOpen)}
+                          style={{
+                            width: 36, height: 20, borderRadius: 100,
+                            background: slot.isOpen ? '#10b981' : '#cbd5e1',
+                            position: 'relative', cursor: 'pointer', flexShrink: 0,
+                            transition: 'background .15s ease',
+                          }}>
+                          <div style={{
+                            position: 'absolute',
+                            top: 2, left: slot.isOpen ? 18 : 2,
+                            width: 16, height: 16,
+                            borderRadius: '50%', background: '#fff',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                            transition: 'left .15s ease',
+                          }} />
+                        </div>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700,
+                          color: slot.isOpen ? '#166534' : '#94a3b8',
+                        }}>{DAY_LABELS[day].slice(0, 3)}</span>
+                      </label>
+
+                      {/* Open time */}
+                      <div>
+                        <p style={{ fontSize: 10, color: '#94a3b8', margin: '0 0 3px', fontWeight: 600 }}>OPEN</p>
+                        <input type="time" value={slot.open || '09:00'}
+                          disabled={!slot.isOpen}
+                          onChange={(e) => setHour(day, 'open', e.target.value)}
+                          style={{
+                            width: '100%', padding: '6px 8px', fontSize: 12,
+                            borderRadius: 8, border: '1.5px solid #e2e8f0',
+                            background: slot.isOpen ? '#fff' : '#f1f5f9',
+                            color: slot.isOpen ? '#0f172a' : '#94a3b8',
+                            outline: 'none', fontFamily: 'inherit',
+                            cursor: slot.isOpen ? 'default' : 'not-allowed',
+                          }} />
+                      </div>
+
+                      {/* Close time */}
+                      <div>
+                        <p style={{ fontSize: 10, color: '#94a3b8', margin: '0 0 3px', fontWeight: 600 }}>CLOSE</p>
+                        <input type="time" value={slot.close || '18:00'}
+                          disabled={!slot.isOpen}
+                          onChange={(e) => setHour(day, 'close', e.target.value)}
+                          style={{
+                            width: '100%', padding: '6px 8px', fontSize: 12,
+                            borderRadius: 8, border: '1.5px solid #e2e8f0',
+                            background: slot.isOpen ? '#fff' : '#f1f5f9',
+                            color: slot.isOpen ? '#0f172a' : '#94a3b8',
+                            outline: 'none', fontFamily: 'inherit',
+                            cursor: slot.isOpen ? 'default' : 'not-allowed',
+                          }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Footer ──────────────────────────────────────────────── */}
+        <div style={{
+          padding: '14px 20px', borderTop: '1px solid #f1f5f9',
+          flexShrink: 0, display: 'flex', gap: 10,
+          background: '#fafafa',
+        }}>
+          <SecondaryBtn onClick={onClose}>Cancel</SecondaryBtn>
+          <SaveBtn
+            onClick={handleSave}
+            loading={saving}
+            label={saving ? 'Saving...' : '💾 Save Changes'}
+          />
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADD HOSPITAL PANEL  (unchanged)
 ═══════════════════════════════════════════════════════════════════════════ */
 function AddHospitalPanel({ onClose, onSaved }) {
   const toast = useToast()
@@ -296,7 +756,6 @@ function AddHospitalPanel({ onClose, onSaved }) {
     const result = { hospital: null, admin: null, errors: [] }
 
     try {
-      // Verify auth first
       const meRes = await fetch('/api/auth/me', { credentials: 'include' })
       if (!meRes.ok) {
         toast.error('Session expired. Please login again.')
@@ -309,15 +768,12 @@ function AddHospitalPanel({ onClose, onSaved }) {
         return
       }
 
-      // STEP 1: Create hospital with smart defaults
-      console.log('[AddHospital] Creating hospital...')
       const hospitalPayload = {
         name:         form.name.trim(),
         slug:         form.slug.trim().toLowerCase(),
         contactPhone: form.contactPhone || undefined,
         contactEmail: form.contactEmail || undefined,
         address:      form.address,
-        // Smart defaults if empty
         departments:  form.departments.length > 0 ? form.departments : ['General Medicine'],
         services:     form.services.length > 0 ? form.services : ['Outpatient', 'Inpatient'],
         platformFeePercent: Number(form.platformFeePercent) || 10,
@@ -351,12 +807,9 @@ function AddHospitalPanel({ onClose, onSaved }) {
       }
 
       result.hospital = hospJson.data
-      console.log('[AddHospital] ✅ Hospital created:', result.hospital.id)
       toast.success(`✅ Hospital "${result.hospital.name}" created`)
 
-      // STEP 2: Create admin
       if (form.createAdmin) {
-        console.log('[AddHospital] Creating admin...')
         const adminPayload = {
           name:       form.adminName.trim(),
           email:      form.adminEmail.trim().toLowerCase(),
@@ -374,7 +827,6 @@ function AddHospitalPanel({ onClose, onSaved }) {
         })
 
         const adminJson = await adminRes.json()
-        console.log('[AddHospital] Admin response:', adminJson)
 
         if (adminJson.success) {
           result.admin = adminJson.data
@@ -384,11 +836,6 @@ function AddHospitalPanel({ onClose, onSaved }) {
           toast.error(`⚠️ Hospital created but admin failed: ${adminJson.error}`)
         }
       }
-
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('[AddHospital] FINAL:')
-      console.log('  Hospital:', result.hospital ? '✅ ' + result.hospital.id : '❌')
-      console.log('  Admin:   ', result.admin ? '✅ ' + result.admin.email : (form.createAdmin ? '❌' : '⏭️ Skipped'))
 
       onSaved()
 
@@ -543,13 +990,10 @@ function AddHospitalPanel({ onClose, onSaved }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HOSPITAL DETAIL VIEW (with Set Admin button)
+   HOSPITAL DETAIL VIEW  (unchanged)
 ═══════════════════════════════════════════════════════════════════════════ */
 function HospitalDetail({ hospital: h, onUpdate }) {
   const [showAdminForm, setShowAdminForm] = useState(false)
-
-  const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-  const DAY_LABELS = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -585,9 +1029,7 @@ function HospitalDetail({ hospital: h, onUpdate }) {
       </div>
 
       {/* Info Grid */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12,
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <InfoCard icon={<MapPin style={{ width: 16, height: 16, color: '#6366f1' }} />} label="Address"
           value={[h.address?.line1, h.address?.city, h.address?.state, h.address?.pinCode].filter(Boolean).join(', ') || '—'} />
         <InfoCard icon={<Phone style={{ width: 16, height: 16, color: '#10b981' }} />} label="Phone"
@@ -598,7 +1040,6 @@ function HospitalDetail({ hospital: h, onUpdate }) {
           value={new Date(h.createdAt).toLocaleDateString('en-IN', { dateStyle: 'long' })} />
       </div>
 
-      {/* Rating */}
       {h.rating?.average > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#fffbeb', borderRadius: 12, border: '1px solid #fde68a' }}>
           <span style={{ fontSize: 24 }}>⭐</span>
@@ -609,7 +1050,6 @@ function HospitalDetail({ hospital: h, onUpdate }) {
         </div>
       )}
 
-      {/* Departments */}
       {h.departments?.length > 0 && (
         <div>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
@@ -626,7 +1066,6 @@ function HospitalDetail({ hospital: h, onUpdate }) {
         </div>
       )}
 
-      {/* Services */}
       {h.services?.length > 0 && (
         <div>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
@@ -643,7 +1082,6 @@ function HospitalDetail({ hospital: h, onUpdate }) {
         </div>
       )}
 
-      {/* Operating Hours */}
       {h.operatingHours && (
         <div>
           <p style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
@@ -671,7 +1109,6 @@ function HospitalDetail({ hospital: h, onUpdate }) {
         </div>
       )}
 
-      {/* IDs */}
       <div style={{
         padding: '10px 14px', background: '#f8fafc', borderRadius: 12,
         border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 6,
@@ -682,7 +1119,6 @@ function HospitalDetail({ hospital: h, onUpdate }) {
         {h.bankAccountId && <IDRow label="Bank Account ID" value={h.bankAccountId} />}
       </div>
 
-      {/* Set Admin Section */}
       {!h.adminUserId ? (
         <div style={{
           padding: 16,
@@ -701,8 +1137,7 @@ function HospitalDetail({ hospital: h, onUpdate }) {
               padding: '8px 16px', borderRadius: 10, border: 'none',
               background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
               color: '#fff', fontSize: 12, fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
+              cursor: 'pointer', boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
             }}>
               👤 Create Admin Account
             </button>
@@ -733,7 +1168,7 @@ function HospitalDetail({ hospital: h, onUpdate }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SET ADMIN FORM (Reusable for Hospital + Lab)
+   SET ADMIN FORM  (unchanged)
 ═══════════════════════════════════════════════════════════════════════════ */
 function SetEntityAdminForm({ entityType, entityId, entityName, defaultEmail, onCancel, onSuccess }) {
   const toast = useToast()
@@ -820,9 +1255,8 @@ function SetEntityAdminForm({ entityType, entityId, entityName, defaultEmail, on
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SHARED UI HELPERS
+   SHARED UI HELPERS  (unchanged)
 ═══════════════════════════════════════════════════════════════════════════ */
-
 function FormInput({ label, hint, ...props }) {
   const [focused, setFocused] = useState(false)
   return (
@@ -847,7 +1281,14 @@ function FormInput({ label, hint, ...props }) {
   )
 }
 
-function PillGrid({ items, selected, onToggle }) {
+function PillGrid({ items, selected, onToggle, color = 'indigo' }) {
+  const activeGrad = color === 'green'
+    ? 'linear-gradient(135deg,#059669,#10b981)'
+    : 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+  const activeShadow = color === 'green'
+    ? '0 2px 8px rgba(16,185,129,0.3)'
+    : '0 2px 8px rgba(99,102,241,0.3)'
+
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
       {items.map((item) => {
@@ -856,10 +1297,10 @@ function PillGrid({ items, selected, onToggle }) {
           <button key={item} onClick={() => onToggle(item)} style={{
             padding: '6px 12px', borderRadius: 100, border: 'none',
             fontSize: 12, fontWeight: 500, cursor: 'pointer',
-            background: isSel ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#f1f5f9',
+            background: isSel ? activeGrad : '#f1f5f9',
             color: isSel ? '#fff' : '#64748b',
             transition: 'all .12s ease',
-            boxShadow: isSel ? '0 2px 8px rgba(99,102,241,0.3)' : 'none',
+            boxShadow: isSel ? activeShadow : 'none',
           }}>{item}</button>
         )
       })}

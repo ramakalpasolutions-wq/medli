@@ -1,5 +1,3 @@
-// src/app/api/labs/[id]/route.js
-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -19,7 +17,8 @@ export async function GET(request, { params }) {
     const { id } = await params
 
     const cacheKey = `lab:${id}`
-    const cached   = await cache.get(cacheKey)
+    const cached = await cache.get(cacheKey)
+
     if (cached) {
       const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached
       return successResponse(parsed, 'From cache')
@@ -39,20 +38,20 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function PUT(request, { params }) {
+async function updateLab(request, { params }) {
   try {
     const { id } = await params
-    const user    = await verifyAuth(request)
+    const user = await verifyAuth(request)
+
+    const authUserId = user.userId || user.id
 
     const lab = await prisma.lab.findUnique({ where: { id } })
     if (!lab) {
       return errorResponse('Lab not found', 'NOT_FOUND', 404)
     }
 
-    // lab_admin: must own this lab
-    // super_admin: can edit any lab
     if (user.role === 'lab_admin') {
-      if (lab.adminUserId !== user.id) {
+      if (lab.adminUserId !== authUserId) {
         return errorResponse('Access denied', 'FORBIDDEN', 403)
       }
     } else {
@@ -60,7 +59,6 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json()
-
     const updateData = {}
 
     if (body.name !== undefined) {
@@ -73,39 +71,39 @@ export async function PUT(request, { params }) {
 
     if (body.address !== undefined) {
       updateData.address = {
-        line1:   body.address.line1   || null,
-        city:    body.address.city    || null,
-        state:   body.address.state   || null,
-        pinCode: body.address.pinCode || null,
+        line1: body.address?.line1 || null,
+        city: body.address?.city || null,
+        state: body.address?.state || null,
+        pinCode: body.address?.pinCode || null,
       }
     }
 
-    // ── Location update (for nearby search to work) ───────────────────────
-    // Accepts: { lat: 16.3189, lng: 80.4318 }
-    // OR:      { type: "Point", coordinates: [80.4318, 16.3189] }
     if (body.location !== undefined) {
-      if (body.location.lat !== undefined && body.location.lng !== undefined) {
-        // Convert from {lat, lng} to GeoJSON Point
+      if (
+        body.location?.lat !== undefined &&
+        body.location?.lng !== undefined
+      ) {
         updateData.location = {
-          type:        'Point',
+          type: 'Point',
           coordinates: [
-            parseFloat(body.location.lng),  // longitude FIRST
-            parseFloat(body.location.lat),  // latitude SECOND
+            parseFloat(body.location.lng),
+            parseFloat(body.location.lat),
           ],
         }
       } else if (
-        body.location.type === 'Point' &&
+        body.location?.type === 'Point' &&
         Array.isArray(body.location.coordinates) &&
         body.location.coordinates.length === 2
       ) {
-        // Already in GeoJSON format
         updateData.location = {
-          type:        'Point',
+          type: 'Point',
           coordinates: [
             parseFloat(body.location.coordinates[0]),
             parseFloat(body.location.coordinates[1]),
           ],
         }
+      } else if (body.location === null) {
+        updateData.location = null
       }
     }
 
@@ -130,52 +128,58 @@ export async function PUT(request, { params }) {
     }
 
     if (body.contactPhone !== undefined) {
-      updateData.contactPhone = body.contactPhone
+      updateData.contactPhone = body.contactPhone || null
     }
 
     if (body.contactEmail !== undefined) {
-      updateData.contactEmail = body.contactEmail
+      updateData.contactEmail = body.contactEmail || null
     }
 
-    // Only super_admin can change platform fee
     if (body.platformFeePercent !== undefined && user.role === 'super_admin') {
       updateData.platformFeePercent = parseFloat(body.platformFeePercent)
     }
 
-    // Only super_admin can change region
     if (body.regionId !== undefined && user.role === 'super_admin') {
-      updateData.regionId = body.regionId
+      updateData.regionId = body.regionId || null
     }
 
     const updated = await prisma.lab.update({
       where: { id },
-      data:  updateData,
+      data: updateData,
     })
 
-    // Invalidate cache
     await cache.del(`lab:${id}`)
 
-    // Also invalidate nearby cache when location changes
+    try {
+      await cache.del('labs:list')
+    } catch {}
+
     if (body.location !== undefined) {
       try {
         await cache.delPattern('nearby:labs:*')
-      } catch {
-        // Pattern delete may not be supported — ignore
-      }
+      } catch {}
     }
 
     return successResponse(updated, 'Lab updated')
   } catch (err) {
-    console.error('[Lab PUT]', err.message)
+    console.error('[Lab Update]', err.message)
 
     if (
-      err.message.includes('Access denied') ||
-      err.message.includes('token') ||
-      err.message.includes('FORBIDDEN')
+      err.message?.includes('Access denied') ||
+      err.message?.includes('token') ||
+      err.message?.includes('FORBIDDEN')
     ) {
       return errorResponse(err.message, 'AUTH_ERROR', 403)
     }
 
     return errorResponse('Failed to update lab', 'SERVER_ERROR', 500)
   }
+}
+
+export async function PUT(request, context) {
+  return updateLab(request, context)
+}
+
+export async function PATCH(request, context) {
+  return updateLab(request, context)
 }

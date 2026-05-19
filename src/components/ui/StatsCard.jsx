@@ -25,13 +25,13 @@ function useCountUp(target, duration = 1000) {
 }
 
 const COLOR_MAP = {
-  blue:   { bg: 'rgba(99,102,241,0.1)',  icon: '#6366f1', value: '#6366f1', glow: 'rgba(99,102,241,0.2)' },
-  green:  { bg: 'rgba(16,185,129,0.1)',  icon: '#10b981', value: '#10b981', glow: 'rgba(16,185,129,0.2)' },
-  purple: { bg: 'rgba(139,92,246,0.1)',  icon: '#8b5cf6', value: '#8b5cf6', glow: 'rgba(139,92,246,0.2)' },
-  orange: { bg: 'rgba(249,115,22,0.1)',  icon: '#f97316', value: '#f97316', glow: 'rgba(249,115,22,0.2)' },
-  red:    { bg: 'rgba(239,68,68,0.1)',   icon: '#ef4444', value: '#ef4444', glow: 'rgba(239,68,68,0.2)' },
-  indigo: { bg: 'rgba(99,102,241,0.1)',  icon: '#6366f1', value: '#6366f1', glow: 'rgba(99,102,241,0.2)' },
-  cyan:   { bg: 'rgba(6,182,212,0.1)',   icon: '#06b6d4', value: '#06b6d4', glow: 'rgba(6,182,212,0.2)' },
+  blue:   { bg: 'rgba(99,102,241,0.1)',   icon: '#6366f1', value: '#6366f1', glow: 'rgba(99,102,241,0.2)' },
+  green:  { bg: 'rgba(16,185,129,0.1)',   icon: '#10b981', value: '#10b981', glow: 'rgba(16,185,129,0.2)' },
+  purple: { bg: 'rgba(139,92,246,0.1)',   icon: '#8b5cf6', value: '#8b5cf6', glow: 'rgba(139,92,246,0.2)' },
+  orange: { bg: 'rgba(249,115,22,0.1)',   icon: '#f97316', value: '#f97316', glow: 'rgba(249,115,22,0.2)' },
+  red:    { bg: 'rgba(239,68,68,0.1)',    icon: '#ef4444', value: '#ef4444', glow: 'rgba(239,68,68,0.2)' },
+  indigo: { bg: 'rgba(99,102,241,0.1)',   icon: '#6366f1', value: '#6366f1', glow: 'rgba(99,102,241,0.2)' },
+  cyan:   { bg: 'rgba(6,182,212,0.1)',    icon: '#06b6d4', value: '#06b6d4', glow: 'rgba(6,182,212,0.2)' },
 }
 
 export default function StatsCard({
@@ -59,6 +59,8 @@ export default function StatsCard({
     typeof value === 'number'
       ? `${prefix}${animatedCount.toLocaleString('en-IN')}${suffix}`
       : (value ?? '—')
+
+  const isRenderableIcon = typeof Icon === 'function' || typeof Icon === 'object'
 
   return (
     <div
@@ -101,7 +103,7 @@ export default function StatsCard({
             transform: hover ? 'scale(1.1)' : 'scale(1)',
           }}
         >
-          {Icon ? <Icon size={20} /> : null}
+          {isRenderableIcon ? <Icon size={20} /> : null}
         </div>
 
         {trend !== undefined && (

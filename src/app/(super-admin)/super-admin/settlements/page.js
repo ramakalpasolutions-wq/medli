@@ -42,7 +42,15 @@ const fmtRs = (n) =>
 function getDateRangeParams(range) {
   const now = new Date()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  const endOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59,
+    999
+  )
 
   const toYMD = (d) => {
     const year = d.getFullYear()
@@ -688,7 +696,6 @@ function ProcessingCard({ settlement, onConfirm, onCancel }) {
 export default function SettlementsPage() {
   const toast = useToast()
   const mounted = useMounted()
-
   const [tab, setTab] = useState('pending')
   const [page, setPage] = useState(1)
   const [initiatingAll, setInitiatingAll] = useState(false)
@@ -721,23 +728,23 @@ export default function SettlementsPage() {
   )
 
   const historyStatus = tab === 'failed' ? 'failed' : 'completed'
-const { from, to } = getDateRangeParams(range)
+  const { from, to } = getDateRangeParams(range)
 
-const historyQs = new URLSearchParams({
-  page: String(page),
-  limit: '20',
-  status: historyStatus,
-})
+  const historyQs = new URLSearchParams({
+    page: String(page),
+    limit: '20',
+    status: historyStatus,
+  })
 
-if (from) historyQs.set('from', from)
-if (to) historyQs.set('to', to)
+  if (from) historyQs.set('from', from)
+  if (to) historyQs.set('to', to)
 
-const { data: history, isLoading: historyLoading, mutate: mutateHistory } = useSWR(
-  tab === 'history' || tab === 'failed'
-    ? `/api/settlements?${historyQs.toString()}`
-    : null,
-  fetcher
-)
+  const { data: history, isLoading: historyLoading, mutate: mutateHistory } = useSWR(
+    tab === 'history' || tab === 'failed'
+      ? `/api/settlements?${historyQs.toString()}`
+      : null,
+    fetcher
+  )
 
   const pendingHospitals = (pending?.hospitals || []).map((h) => ({
     ...h,
@@ -831,7 +838,9 @@ const { data: history, isLoading: historyLoading, mutate: mutateHistory } = useS
 
       setInstructionsData(json.data?.transferInstructions || json.data)
       setInstructionsModal(true)
-      toast.success(`Initiated ${json.data?.successful || eligible.length}/${eligible.length} settlements. Go to Processing tab to confirm with UTR.`)
+      toast.success(
+        `Initiated ${json.data?.successful || eligible.length}/${eligible.length} settlements. Go to Processing tab to confirm with UTR.`
+      )
 
       mutatePending()
       mutateProcessing()
@@ -1227,8 +1236,7 @@ const { data: history, isLoading: historyLoading, mutate: mutateHistory } = useS
             <div style={{ fontSize: 13, color: '#1d4ed8', lineHeight: 1.7 }}>
               <p style={{ fontWeight: 700, margin: '0 0 4px' }}>Manual Settlement Flow</p>
               <p style={{ margin: 0 }}>
-                1. Click <strong>Initiate Settlement</strong> — system shows bank transfer details.{' '}
-                2. Transfer the amount from your bank. 3. Go to <strong>Processing</strong> tab and <strong>Confirm with UTR</strong>.
+                1. Click <strong>Initiate Settlement</strong> — system shows bank transfer details. 2. Transfer the amount from your bank. 3. Go to <strong>Processing</strong> tab and <strong>Confirm with UTR</strong>.
               </p>
             </div>
           </div>
@@ -1341,36 +1349,56 @@ const { data: history, isLoading: historyLoading, mutate: mutateHistory } = useS
 
       {(tab === 'history' || tab === 'failed') && (
         <div>
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #f1f5f9',
-              borderRadius: 20,
-              padding: 16,
-              marginBottom: 16,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              flexWrap: 'wrap',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-            }}
-          >
-            <div>
-              <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 6px' }}>Date Range</p>
-              <DateRangePicker value={range} onChange={setRange} />
-            </div>
+        <div
+  style={{
+    background: '#fff',
+    border: '1px solid #f1f5f9',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    flexWrap: 'wrap',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  }}
+>
+  <div>
+    <p style={{ fontSize: 12, color: '#64748b', margin: '0 0 6px' }}>Date Range</p>
+    <DateRangePicker value={range} onChange={setRange} />
+  </div>
 
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <Button variant="secondary" size="sm" onClick={handleExportSettlements} loading={exporting}>
-                Export CSV
-              </Button>
+  <div
+  style={{
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginLeft: 'auto',
+    alignItems: 'center',
+  }}
+>
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={handleExportSettlements}
+    loading={exporting}
+    style={{ minWidth: 120 }}
+  >
+    Export CSV
+  </Button>
 
-              <Button variant="primary" size="sm" onClick={handleMailSettlements} loading={sendingMail}>
-                Send Mail
-              </Button>
-            </div>
-          </div>
+  <Button
+    variant="primary"
+    size="sm"
+    onClick={handleMailSettlements}
+    loading={sendingMail}
+    style={{ minWidth: 110 }}
+  >
+    Send Mail
+  </Button>
+</div>
+</div>
 
           <DataTable
             columns={historyCols}

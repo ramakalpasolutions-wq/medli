@@ -55,12 +55,12 @@ export async function getSettlementCsv({ status, from, to }) {
     escapeCsv(s.settlementNumber),
     escapeCsv(s.entityType),
     escapeCsv(s.entityName),
-    s.totalBookings ?? 0,
-    s.grossAmount ?? 0,
-    s.platformFee ?? 0,
-    s.gst ?? 0,
-    s.refundsDeducted ?? 0,
-    s.netSettlementAmount ?? 0,
+    escapeCsv(s.totalBookings ?? 0),
+    escapeCsv(s.grossAmount ?? 0),
+    escapeCsv(s.platformFee ?? 0),
+    escapeCsv(s.gst ?? 0),
+    escapeCsv(s.refundsDeducted ?? 0),
+    escapeCsv(s.netSettlementAmount ?? 0),
     escapeCsv(s.beneficiaryName),
     escapeCsv(s.beneficiaryAccount),
     escapeCsv(s.beneficiaryIFSC),
@@ -80,7 +80,7 @@ export async function GET(request) {
   try {
     const user = await verifyAuth(request)
 
-    if (user.role !== 'super_admin') {
+    if (user.role !== 'super_admin' && user.role !== 'regional_manager') {
       return Response.json({ success: false, error: 'Access denied' }, { status: 403 })
     }
 

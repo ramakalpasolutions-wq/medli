@@ -108,7 +108,7 @@ function OtpBoxes({ value, onChange, idPrefix = 'otp' }) {
   )
 }
 
-function AuthInput({ label, icon: Icon, hint, rightElement, error: fieldError, ...props }) {
+function AuthInput({ label, icon: Icon, hint, rightElement, error: fieldError, optional, ...props }) {
   const [focused, setFocused] = useState(false)
 
   return (
@@ -125,7 +125,13 @@ function AuthInput({ label, icon: Icon, hint, rightElement, error: fieldError, .
           }}
         >
           {label}
-          <span style={{ color: '#f87171', fontSize: 13 }}>*</span>
+          {optional ? (
+            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, fontWeight: 400 }}>
+              (optional — OTP required if filled)
+            </span>
+          ) : (
+            <span style={{ color: '#f87171', fontSize: 13 }}>*</span>
+          )}
         </label>
       )}
 
@@ -543,7 +549,26 @@ function SpinnerPage() {
   )
 }
 
-function StepIndicators({ step, phoneVerified }) {
+// ── Step indicators — email step only shown when email was provided ──────────
+function StepIndicators({ step, phoneVerified, hasEmail }) {
+  if (hasEmail) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+        <StepDot
+          icon={phoneVerified ? Check : Smartphone}
+          label="Phone"
+          done={phoneVerified}
+          active={step === 2}
+        />
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+        <StepDot icon={Mail} label="Email" done={false} active={step === 3} />
+        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+        <StepDot icon={BadgeCheck} label="Done" done={false} active={step === 4} />
+      </div>
+    )
+  }
+
+  // No email — only Phone → Done
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
       <StepDot
@@ -552,8 +577,6 @@ function StepIndicators({ step, phoneVerified }) {
         done={phoneVerified}
         active={step === 2}
       />
-      <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
-      <StepDot icon={Mail} label="Email" done={false} active={step === 3} />
       <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
       <StepDot icon={BadgeCheck} label="Done" done={false} active={step === 4} />
     </div>
@@ -634,6 +657,7 @@ function ResendRow({ countdown, onResend, sending, onBack, backLabel }) {
   )
 }
 
+// ── Validation — email optional; validated only if provided ─────────────────
 function validateStep1({ name, phone, email, password, agreedTerms }) {
   const errors = {}
 
@@ -643,8 +667,9 @@ function validateStep1({ name, phone, email, password, agreedTerms }) {
   if (!phone || phone.length !== 10) {
     errors.phone = 'Valid 10-digit phone number is required'
   }
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = 'Valid email address is required'
+  // Email: only validate format if the user actually typed something
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Enter a valid email address or leave it empty'
   }
   if (!password || password.length < 6) {
     errors.password = 'Password must be at least 6 characters'
@@ -680,6 +705,9 @@ function RegisterContent() {
   const [sending, setSending] = useState(false)
   const [visible, setVisible] = useState(false)
 
+  // Derived: does this registration include an email?
+  const hasEmail = email.trim().length > 0
+
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 50)
     return () => clearTimeout(t)
@@ -691,7 +719,9 @@ function RegisterContent() {
     return () => clearTimeout(t)
   }, [countdown])
 
-  const progress = Math.round(((step - 1) / 3) * 100)
+  // Progress: step 1 → 0%, step 2 → 33%, step 3 (email, if present) → 66%, step 4 → 100%
+  const totalSteps = hasEmail ? 3 : 2
+  const progress = Math.round(((step - 1) / totalSteps) * 100)
 
   const sendPhoneOtp = async () => {
     setSending(true)
@@ -768,8 +798,13 @@ function RegisterContent() {
       if (json.success) {
         setPhoneVerified(true)
         setPhoneOtp('')
-        await sendEmailOtp()
-        setStep(3)
+        // If email provided → verify it next; otherwise skip straight to review
+        if (hasEmail) {
+          await sendEmailOtp()
+          setStep(3)
+        } else {
+          setStep(4)
+        }
       } else {
         setError(json.error || 'Incorrect OTP')
         setPhoneOtp('')
@@ -819,17 +854,22 @@ function RegisterContent() {
     setLoading(true)
     setError('')
     try {
+      const body = {
+        name: name.trim(),
+        phone,
+        password,
+        agreedToTerms: true,
+        termsVersion: '1.0',
+      }
+      // Only include email if the user provided one
+      if (hasEmail) {
+        body.email = email.trim().toLowerCase()
+      }
+
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          phone,
-          email: email.trim().toLowerCase(),
-          password,
-          agreedToTerms: true,
-          termsVersion: '1.0',
-        }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (json.success) {
@@ -988,6 +1028,7 @@ function RegisterContent() {
             <ProgressBar progress={progress} />
             <ErrorBanner error={error} />
 
+            {/* ── STEP 1: Details form ─────────────────────────────────────── */}
             {step === 1 && (
               <div style={{ animation: 'auth-step .2s ease' }}>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>
@@ -1000,7 +1041,7 @@ function RegisterContent() {
                     margin: '0 0 6px',
                   }}
                 >
-                  All fields are required
+                  Phone, name and password are required
                 </p>
 
                 <p
@@ -1046,8 +1087,9 @@ function RegisterContent() {
                     onChange={field(setEmail, 'email')}
                     placeholder="you@example.com"
                     icon={Mail}
-                    hint="OTP will be sent for verification"
+                    hint={email.trim() ? 'OTP will be sent to verify this email' : undefined}
                     error={fieldErrors.email}
+                    optional
                   />
 
                   <AuthInput
@@ -1088,7 +1130,7 @@ function RegisterContent() {
                   />
 
                   <AuthBtn onClick={handleStep1} loading={sending} disabled={sending}>
-                    Verify Phone & Email To Continue
+                    {hasEmail ? 'Verify Phone & Email To Continue' : 'Verify Phone To Continue'}
                     {!sending && <ArrowRight size={16} />}
                   </AuthBtn>
 
@@ -1112,6 +1154,7 @@ function RegisterContent() {
               </div>
             )}
 
+            {/* ── STEP 2: Phone OTP ────────────────────────────────────────── */}
             {step === 2 && (
               <div style={{ animation: 'auth-step .2s ease' }}>
                 <GhostBtn
@@ -1145,7 +1188,7 @@ function RegisterContent() {
                   OTP sent to <strong style={{ color: 'rgba(255,255,255,0.7)' }}>+91 {phone}</strong>
                 </p>
 
-                <StepIndicators step={2} phoneVerified={phoneVerified} />
+                <StepIndicators step={2} phoneVerified={phoneVerified} hasEmail={hasEmail} />
 
                 <div
                   style={{
@@ -1192,6 +1235,7 @@ function RegisterContent() {
               </div>
             )}
 
+            {/* ── STEP 3: Email OTP (only when email was provided) ─────────── */}
             {step === 3 && (
               <div style={{ animation: 'auth-step .2s ease' }}>
                 <GhostBtn
@@ -1225,7 +1269,7 @@ function RegisterContent() {
                   OTP sent to <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{email}</strong>
                 </p>
 
-                <StepIndicators step={3} phoneVerified={phoneVerified} />
+                <StepIndicators step={3} phoneVerified={phoneVerified} hasEmail={hasEmail} />
 
                 <div
                   style={{
@@ -1272,6 +1316,7 @@ function RegisterContent() {
               </div>
             )}
 
+            {/* ── STEP 4: Review & submit ──────────────────────────────────── */}
             {step === 4 && (
               <div style={{ animation: 'auth-step .2s ease' }}>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>
@@ -1327,7 +1372,7 @@ function RegisterContent() {
                         {name}
                       </p>
                       <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
-                        +91 {phone} · {email}
+                        +91 {phone}{hasEmail ? ` · ${email}` : ''}
                       </p>
                     </div>
                   </div>

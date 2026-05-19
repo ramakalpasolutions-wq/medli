@@ -45,7 +45,7 @@ export default function RevenuePage() {
   if (dateRange.dateFrom) qs.set('dateFrom', dateRange.dateFrom)
   if (dateRange.dateTo) qs.set('dateTo', dateRange.dateTo)
 
-  const { data, isLoading } = useSWR(`/api/analytics/revenue?${qs}`, fetcher)
+  const { data, isLoading } = useSWR(`/api/analytics/revenue?${qs.toString()}`, fetcher)
   const s = data?.summary || {}
 
   const chartData = useMemo(
@@ -58,7 +58,7 @@ export default function RevenuePage() {
   )
 
   const handleExportCSV = () => {
-    window.location.href = `/api/analytics/export?format=csv&${qs}`
+    window.location.href = `/api/analytics/export?format=csv&${qs.toString()}`
   }
 
   const STATS = [
@@ -67,7 +67,7 @@ export default function RevenuePage() {
       title: 'Total Revenue',
       value: s.totalRevenue || 0,
       prefix: '₹',
-      icon: <IndianRupee className="w-5 h-5" />,
+      icon: IndianRupee,
       color: 'green',
     },
     {
@@ -75,7 +75,7 @@ export default function RevenuePage() {
       title: 'Platform Fee Earned',
       value: s.totalPlatformFee || 0,
       prefix: '₹',
-      icon: <TrendingUp className="w-5 h-5" />,
+      icon: TrendingUp,
       color: 'blue',
     },
     {
@@ -83,14 +83,14 @@ export default function RevenuePage() {
       title: 'GST Collected',
       value: s.totalGst || 0,
       prefix: '₹',
-      icon: <CreditCard className="w-5 h-5" />,
+      icon: CreditCard,
       color: 'purple',
     },
     {
       id: 'total-bookings',
       title: 'Paid Bookings',
       value: s.totalBookings || 0,
-      icon: <Calendar className="w-5 h-5" />,
+      icon: Calendar,
       color: 'orange',
     },
     {
@@ -98,7 +98,7 @@ export default function RevenuePage() {
       title: 'Avg. Order Value',
       value: s.totalBookings > 0 ? Math.round((s.totalRevenue || 0) / s.totalBookings) : 0,
       prefix: '₹',
-      icon: <IndianRupee className="w-5 h-5" />,
+      icon: IndianRupee,
       color: 'indigo',
     },
     {
@@ -106,7 +106,7 @@ export default function RevenuePage() {
       title: 'Net to Providers',
       value: Math.max(0, (s.totalRevenue || 0) - (s.totalPlatformFee || 0) - (s.totalGst || 0)),
       prefix: '₹',
-      icon: <TrendingUp className="w-5 h-5" />,
+      icon: TrendingUp,
       color: 'green',
     },
   ]
