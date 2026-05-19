@@ -1,4 +1,7 @@
 // C:\Users\ASUS\medli2\src\app\api\hospitals\route.js
+// ✅ FIXED: Public listing always filters inactive hospitals.
+//           Authenticated non-admin roles also get only active hospitals.
+//           Only super_admin / regional_manager can see inactive ones.
 
 import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
@@ -23,7 +26,7 @@ import {
 export function OPTIONS() { return handleOptions() }
 
 /* ────────────────────────────────────────────────────────────
-   GET — unchanged (already good)
+   GET
 ──────────────────────────────────────────────────────────── */
 export async function GET(request) {
   try {
@@ -40,6 +43,7 @@ export async function GET(request) {
       searchParams.get('limit'),
     )
 
+    // ── adminOnly: hospital_admin fetching their own hospital ────────────────
     if (adminOnly) {
       return verifyAuth(request, async (req, user) => {
         const hospital = await prisma.hospital.findFirst({
@@ -52,6 +56,19 @@ export async function GET(request) {
       })
     }
 
+    // ── Determine caller role ────────────────────────────────────────────────
+    let callerRole = null
+    try {
+      const user = await verifyAuth(request)
+      if (user) callerRole = user.role
+    } catch {
+      // unauthenticated — fine
+    }
+
+    const isSuperOrRegional =
+      callerRole === 'super_admin' || callerRole === 'regional_manager'
+
+    // ── Build where ──────────────────────────────────────────────────────────
     const where = {}
 
     if (search) {
@@ -68,18 +85,18 @@ export async function GET(request) {
       where.address = { is: addressFilter }
     }
 
-    if (isApproved !== null && isApproved !== '' && isApproved !== undefined) {
-      where.isApproved = isApproved === 'true'
-    }
-    if (isActive !== null && isActive !== '' && isActive !== undefined) {
-      where.isActive = isActive === 'true'
-    }
-
-    const hasToken =
-      !!request.headers.get('authorization') ||
-      !!request.cookies.get('accessToken')?.value
-
-    if (!hasToken) {
+    if (isSuperOrRegional) {
+      // Admins may pass explicit filters to browse inactive/unapproved ones
+      if (isApproved !== null && isApproved !== '' && isApproved !== undefined) {
+        where.isApproved = isApproved === 'true'
+      }
+      if (isActive !== null && isActive !== '' && isActive !== undefined) {
+        where.isActive = isActive === 'true'
+      }
+    } else {
+      // ✅ Everyone else (public, users, hospital_admin, doctor, lab_admin)
+      //    ALWAYS sees only active + approved hospitals.
+      //    This is the core fix — previously a logged-in token bypassed this.
       where.isApproved = true
       where.isActive   = true
     }
@@ -118,7 +135,7 @@ export async function GET(request) {
 }
 
 /* ────────────────────────────────────────────────────────────
-   POST — ✅ FIXED with proper defaults
+   POST
 ──────────────────────────────────────────────────────────── */
 export async function POST(request) {
   return verifyAuth(request, async (req, user) => {
@@ -138,16 +155,12 @@ export async function POST(request) {
       const exists = await prisma.hospital.findUnique({ where: { slug } })
       if (exists)  slug = `${slug}-${Date.now()}`
 
-      /* ✅ Smart defaults so cards never look empty */
       const departments = Array.isArray(body.departments) && body.departments.length > 0
-        ? body.departments
-        : ['General Medicine']
+        ? body.departments : ['General Medicine']
 
       const services = Array.isArray(body.services) && body.services.length > 0
-        ? body.services
-        : ['Outpatient', 'Inpatient']
+        ? body.services : ['Outpatient', 'Inpatient']
 
-      /* ✅ Default operating hours if not provided */
       const defaultHours = {
         mon: { open: '09:00', close: '18:00', isOpen: true },
         tue: { open: '09:00', close: '18:00', isOpen: true },
@@ -158,37 +171,27 @@ export async function POST(request) {
         sun: { open: '00:00', close: '00:00', isOpen: false },
       }
 
-      /* ✅ Default empty images structure */
-      const defaultImages = {
-        cover:   null,
-        logo:    null,
-        gallery: [],
-      }
+      const defaultImages = { cover: null, logo: null, gallery: [] }
 
       const hospital = await prisma.hospital.create({
         data: {
           name,
           slug,
-          address:        body.address  || undefined,
-          location:       body.location || undefined,
-          departments,                                            // ✅ never empty
-          services,                                               // ✅ never empty
-          images:         body.images || defaultImages,           // ✅ schema-safe defaults
-          contactPhone:   sanitizeInput(body.contactPhone || ''),
-          contactEmail:   sanitizeInput(body.contactEmail || ''),
-          operatingHours: body.operatingHours || defaultHours,    // ✅ default 9-6
-          adminUserId:    body.adminUserId || undefined,
-          regionId:       body.regionId    || undefined,
+          address:            body.address  || undefined,
+          location:           body.location || undefined,
+          departments,
+          services,
+          images:             body.images || defaultImages,
+          contactPhone:       sanitizeInput(body.contactPhone || ''),
+          contactEmail:       sanitizeInput(body.contactEmail || ''),
+          operatingHours:     body.operatingHours || defaultHours,
+          adminUserId:        body.adminUserId || undefined,
+          regionId:           body.regionId    || undefined,
           platformFeePercent:
             Number(body.platformFeePercent) ||
             parseFloat(process.env.DEFAULT_PLATFORM_FEE_HOSPITAL || '10'),
-
-          /* ✅ Initialize rating so cards show "New" badge instead of breaking */
-          rating: { average: 0, count: 0 },
-
-          /* ✅ Auto-approve & activate when super_admin creates
-             (super_admin is a trusted creator — no need for approval) */
-          isApproved: user.role === 'super_admin' ? true : false,
+          rating:     { average: 0, count: 0 },
+          isApproved: user.role === 'super_admin',
           isActive:   true,
         },
       })

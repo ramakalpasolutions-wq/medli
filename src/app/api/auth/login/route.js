@@ -1,3 +1,7 @@
+// C:\Users\ASUS\medli2\src\app\api\auth\login\route.js
+// ✅ FIXED: hospital_admin, lab_admin, doctor cannot log in
+//           if their linked entity is inactive or unapproved.
+
 import { NextResponse }                              from 'next/server'
 import { prisma }                                    from '@/lib/prisma'
 import { comparePassword }                           from '@/lib/utils/encryption'
@@ -25,12 +29,11 @@ export async function POST(request) {
         )
       }
 
-      // ── Build where clause ──────────────────────────────────────────
+      // ── Find user ───────────────────────────────────────────────────
       const whereClause = []
       if (phone) whereClause.push({ phone: String(phone).trim() })
       if (email) whereClause.push({ email: email.toLowerCase().trim() })
 
-      // ── Find user — exact schema fields only ────────────────────────
       const user = await prisma.user.findFirst({
         where:  { OR: whereClause },
         select: {
@@ -39,11 +42,10 @@ export async function POST(request) {
           phone:        true,
           email:        true,
           role:         true,
-          passwordHash: true,   // ✅ correct
+          passwordHash: true,
           isVerified:   true,
           isBlocked:    true,
           avatar:       true,
-          // devices is UserDevice[] embedded — select it to update FCM
           devices:      true,
         },
       })
@@ -96,6 +98,84 @@ export async function POST(request) {
         }
       }
 
+      // ── ✅ Entity status check ───────────────────────────────────────
+      // Prevent login if the linked hospital / lab / doctor is disabled.
+      if (user.role === 'hospital_admin') {
+        const hospital = await prisma.hospital.findFirst({
+          where:  { adminUserId: user.id },
+          select: { isActive: true, isApproved: true, name: true },
+        })
+        if (!hospital) {
+          return NextResponse.json(
+            { success: false, error: 'No hospital linked to this account. Contact support.' },
+            { status: 403 }
+          )
+        }
+        if (!hospital.isActive) {
+          return NextResponse.json(
+            { success: false, error: `Hospital "${hospital.name}" has been disabled. Contact support.` },
+            { status: 403 }
+          )
+        }
+        if (!hospital.isApproved) {
+          return NextResponse.json(
+            { success: false, error: `Hospital "${hospital.name}" is pending approval.` },
+            { status: 403 }
+          )
+        }
+      }
+
+      if (user.role === 'lab_admin') {
+        const lab = await prisma.lab.findFirst({
+          where:  { adminUserId: user.id },
+          select: { isActive: true, isApproved: true, name: true },
+        })
+        if (!lab) {
+          return NextResponse.json(
+            { success: false, error: 'No lab linked to this account. Contact support.' },
+            { status: 403 }
+          )
+        }
+        if (!lab.isActive) {
+          return NextResponse.json(
+            { success: false, error: `Lab "${lab.name}" has been disabled. Contact support.` },
+            { status: 403 }
+          )
+        }
+        if (!lab.isApproved) {
+          return NextResponse.json(
+            { success: false, error: `Lab "${lab.name}" is pending approval.` },
+            { status: 403 }
+          )
+        }
+      }
+
+      if (user.role === 'doctor') {
+        const doctor = await prisma.doctor.findFirst({
+          where:  { userId: user.id },
+          select: { isActive: true, isVerified: true, name: true },
+        })
+        if (!doctor) {
+          return NextResponse.json(
+            { success: false, error: 'No doctor profile linked to this account. Contact support.' },
+            { status: 403 }
+          )
+        }
+        if (!doctor.isActive) {
+          return NextResponse.json(
+            { success: false, error: `Doctor profile for "${doctor.name}" has been disabled. Contact support.` },
+            { status: 403 }
+          )
+        }
+        if (!doctor.isVerified) {
+          return NextResponse.json(
+            { success: false, error: `Doctor profile for "${doctor.name}" is pending verification.` },
+            { status: 403 }
+          )
+        }
+      }
+      // ── End entity status check ─────────────────────────────────────
+
       // ── Generate tokens ─────────────────────────────────────────────
       const payload = {
         userId: user.id,
@@ -107,7 +187,7 @@ export async function POST(request) {
       const accessToken  = generateAccessToken(payload)
       const refreshToken = generateRefreshToken(payload)
 
-      // ── Mark user verified (no lastLoginAt in schema) ───────────────
+      // ── Mark user verified ──────────────────────────────────────────
       if (!user.isVerified) {
         await prisma.user.update({
           where: { id: user.id },
@@ -115,7 +195,7 @@ export async function POST(request) {
         })
       }
 
-      // ── Audit log — fire and forget ─────────────────────────────────
+      // ── Audit log ───────────────────────────────────────────────────
       createAuditLog({
         actorId:    user.id,
         actorRole:  user.role,
@@ -130,7 +210,7 @@ export async function POST(request) {
         },
       }).catch((e) => console.warn('[login] audit skipped:', e?.message))
 
-      // ── Build response ──────────────────────────────────────────────
+      // ── Response ────────────────────────────────────────────────────
       const response = NextResponse.json({
         success: true,
         message: 'Login successful',
@@ -145,7 +225,7 @@ export async function POST(request) {
             avatar:     user.avatar,
           },
           accessToken,
-          refreshToken, // client stores this for token refresh
+          refreshToken,
         },
       })
 

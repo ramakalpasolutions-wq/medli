@@ -1,4 +1,6 @@
 // C:\Users\ASUS\medli2\src\app\api\labs\route.js
+// ✅ FIXED: Public listing always filters inactive labs.
+//           Only super_admin / regional_manager can see inactive ones.
 
 import { prisma }     from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
@@ -23,7 +25,7 @@ import {
 export function OPTIONS() { return handleOptions() }
 
 /* ────────────────────────────────────────────────────────────
-   GET — unchanged
+   GET
 ──────────────────────────────────────────────────────────── */
 export async function GET(request) {
   try {
@@ -40,6 +42,7 @@ export async function GET(request) {
       searchParams.get('limit'),
     )
 
+    // ── adminOnly: lab_admin fetching their own lab ───────────────────────────
     if (adminOnly) {
       return verifyAuth(request, async (req, user) => {
         const lab = await prisma.lab.findFirst({
@@ -52,6 +55,19 @@ export async function GET(request) {
       })
     }
 
+    // ── Determine caller role ────────────────────────────────────────────────
+    let callerRole = null
+    try {
+      const user = await verifyAuth(request)
+      if (user) callerRole = user.role
+    } catch {
+      // unauthenticated — fine
+    }
+
+    const isSuperOrRegional =
+      callerRole === 'super_admin' || callerRole === 'regional_manager'
+
+    // ── Build where ──────────────────────────────────────────────────────────
     const where = {}
 
     if (search) {
@@ -68,18 +84,16 @@ export async function GET(request) {
       where.address = { is: addressFilter }
     }
 
-    if (isApproved !== null && isApproved !== '' && isApproved !== undefined) {
-      where.isApproved = isApproved === 'true'
-    }
-    if (isActive !== null && isActive !== '' && isActive !== undefined) {
-      where.isActive = isActive === 'true'
-    }
-
-    const hasToken =
-      !!request.headers.get('authorization') ||
-      !!request.cookies.get('accessToken')?.value
-
-    if (!hasToken) {
+    if (isSuperOrRegional) {
+      // Admins may pass explicit filters
+      if (isApproved !== null && isApproved !== '' && isApproved !== undefined) {
+        where.isApproved = isApproved === 'true'
+      }
+      if (isActive !== null && isActive !== '' && isActive !== undefined) {
+        where.isActive = isActive === 'true'
+      }
+    } else {
+      // ✅ Everyone else always sees only active + approved labs
       where.isApproved = true
       where.isActive   = true
     }
@@ -117,7 +131,7 @@ export async function GET(request) {
 }
 
 /* ────────────────────────────────────────────────────────────
-   POST — ✅ FIXED with proper defaults
+   POST
 ──────────────────────────────────────────────────────────── */
 export async function POST(request) {
   return verifyAuth(request, async (req, user) => {
@@ -135,46 +149,31 @@ export async function POST(request) {
       const exists = await prisma.lab.findUnique({ where: { slug } })
       if (exists)  slug = `${slug}-${Date.now()}`
 
-      /* ✅ Smart defaults */
       const certifications = Array.isArray(body.certifications) && body.certifications.length > 0
-        ? body.certifications
-        : ['Diagnostic Services']
+        ? body.certifications : ['Diagnostic Services']
 
-      const defaultHomeCollection = {
-        enabled:      false,
-        areaCoverage: [],
-        slots:        [],
-      }
-
-      const defaultImages = {
-        cover:   null,
-        logo:    null,
-        gallery: [],
-      }
+      const defaultHomeCollection = { enabled: false, areaCoverage: [], slots: [] }
+      const defaultImages         = { cover: null, logo: null, gallery: [] }
 
       const lab = await prisma.lab.create({
         data: {
           name,
           slug,
-          address:        body.address  || undefined,
-          location:       body.location || undefined,
-          images:         body.images   || defaultImages,        // ✅ default
-          certifications,                                         // ✅ never empty
-          homeCollection: body.homeCollection || defaultHomeCollection, // ✅ default
-          walkInSlots:    Array.isArray(body.walkInSlots) ? body.walkInSlots : [],
-          contactPhone:   sanitizeInput(body.contactPhone || ''),
-          contactEmail:   sanitizeInput(body.contactEmail || ''),
-          adminUserId:    body.adminUserId || undefined,
-          regionId:       body.regionId    || undefined,
+          address:            body.address  || undefined,
+          location:           body.location || undefined,
+          images:             body.images   || defaultImages,
+          certifications,
+          homeCollection:     body.homeCollection || defaultHomeCollection,
+          walkInSlots:        Array.isArray(body.walkInSlots) ? body.walkInSlots : [],
+          contactPhone:       sanitizeInput(body.contactPhone || ''),
+          contactEmail:       sanitizeInput(body.contactEmail || ''),
+          adminUserId:        body.adminUserId || undefined,
+          regionId:           body.regionId    || undefined,
           platformFeePercent:
             Number(body.platformFeePercent) ||
             parseFloat(process.env.DEFAULT_PLATFORM_FEE_LAB || '8'),
-
-          /* ✅ Initialize rating */
-          rating: { average: 0, count: 0 },
-
-          /* ✅ Auto-approve when created by super_admin */
-          isApproved: user.role === 'super_admin' ? true : false,
+          rating:     { average: 0, count: 0 },
+          isApproved: user.role === 'super_admin',
           isActive:   true,
         },
       })
