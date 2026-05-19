@@ -17,7 +17,8 @@ export function OPTIONS() { return handleOptions() }
 export async function GET(request) {
   return verifyAuth(request, async (req, user) => {
     try {
-      checkRole(user,
+      checkRole(
+        user,
         'super_admin', 'regional_manager',
         'hospital_admin', 'lab_admin',
       )
@@ -26,6 +27,8 @@ export async function GET(request) {
       const status     = searchParams.get('status')     || ''
       const entityType = searchParams.get('entityType') || ''
       const entityId   = searchParams.get('entityId')   || ''
+      const from       = searchParams.get('from')       || ''
+      const to         = searchParams.get('to')         || ''
 
       const { page, limit, skip, take } = getPaginationParams(
         searchParams.get('page'),
@@ -37,12 +40,39 @@ export async function GET(request) {
       // ✅ Support status as array e.g. status=pending,processing
       if (status) {
         const statuses = status.split(',').map((s) => s.trim()).filter(Boolean)
-        where.status   = statuses.length === 1
+        where.status = statuses.length === 1
           ? statuses[0]
           : { in: statuses }
       }
 
       if (entityType) where.entityType = entityType
+
+      // ✅ Date range filter for table/history/export views
+      if (from || to) {
+        const createdAt = {}
+
+        if (from) {
+          const fromDate = new Date(`${from}T00:00:00.000Z`)
+          if (Number.isNaN(fromDate.getTime())) {
+            return errorResponse('Invalid from date', 400)
+          }
+          createdAt.gte = fromDate
+        }
+
+        if (to) {
+          const toDate = new Date(`${to}T23:59:59.999Z`)
+          if (Number.isNaN(toDate.getTime())) {
+            return errorResponse('Invalid to date', 400)
+          }
+          createdAt.lte = toDate
+        }
+
+        if (createdAt.gte && createdAt.lte && createdAt.gte > createdAt.lte) {
+          return errorResponse('From date cannot be greater than To date', 400)
+        }
+
+        where.createdAt = createdAt
+      }
 
       // ── Role-based filtering ────────────────────────────────────────
       if (user.role === 'hospital_admin') {
@@ -50,6 +80,7 @@ export async function GET(request) {
           where:  { adminUserId: user.userId },
           select: { id: true, name: true },
         })
+
         if (hospital) {
           where.entityType = 'hospital'
           where.entityId   = hospital.id
@@ -59,6 +90,7 @@ export async function GET(request) {
           where:  { adminUserId: user.userId },
           select: { id: true, name: true },
         })
+
         if (lab) {
           where.entityType = 'lab'
           where.entityId   = lab.id
@@ -88,6 +120,7 @@ export async function GET(request) {
       if (error.message?.includes('Access denied')) {
         return errorResponse(error.message, 403)
       }
+
       console.error('[GET /api/settlements]', error)
       return errorResponse('Internal server error', 500)
     }
@@ -140,6 +173,7 @@ export async function POST(request) {
       if (error.message?.includes('Access denied')) {
         return errorResponse(error.message, 403)
       }
+
       console.error('[POST /api/settlements]', error)
       return errorResponse('Internal server error', 500)
     }
