@@ -1,4 +1,4 @@
-// C:\Users\ASUS\medli2\src\app\api\payments\verify\route.js
+// C:\projects\medli2\src\app\api\payments\verify\route.js
 
 import crypto                   from 'crypto'
 import { prisma }               from '@/lib/prisma'
@@ -13,6 +13,8 @@ import {
   bookingConfirmedTemplate,
   meetLinkTemplate,
 } from '@/lib/emailTemplates'
+// ✅ NEW — invoice creation
+import { createBookingInvoice } from '@/lib/services/invoice.service'
 
 export function OPTIONS() { return handleOptions() }
 
@@ -68,6 +70,11 @@ export async function POST(request) {
       },
     })
 
+    // ✅ NEW — Create invoice after successful payment (non-blocking)
+    createBookingInvoice(booking, razorpay_payment_id).catch((err) =>
+      console.error('[Verify] Invoice creation failed silently:', err.message)
+    )
+
     /* ── Get user info ── */
     const user = await prisma.user.findUnique({
       where:  { id: booking.userId },
@@ -95,7 +102,6 @@ export async function POST(request) {
       })
       if (doctor?.name) doctorName = doctor.name
 
-      /* Fetch doctor's user account for email */
       if (doctor?.userId) {
         const doctorUser = await prisma.user.findUnique({
           where:  { id: doctor.userId },
@@ -113,9 +119,7 @@ export async function POST(request) {
       if (lab?.name) labName = lab.name
     }
 
-    /* ═══════════════════════════════════════════════════════════════
-       ✅ ONLINE BOOKING — Generate Meet Link
-    ═══════════════════════════════════════════════════════════════ */
+    /* ── Online booking — Generate Meet Link ── */
     let meetLink = booking.meetLink || null
 
     if (booking.type === 'online' && !meetLink) {
@@ -137,7 +141,6 @@ export async function POST(request) {
 
         meetLink = result.meetLink
 
-        /* Persist Meet link + calendar event ID */
         booking = await prisma.booking.update({
           where: { id: booking.id },
           data: {
@@ -150,10 +153,10 @@ export async function POST(request) {
       } catch (meetErr) {
         console.error('[Verify] ⚠️ Google Meet generation failed:', meetErr.message)
 
-        /* ✅ Fallback: generate dummy Meet link for dev/testing */
-        const dummyId = Math.random().toString(36).slice(2, 6) + '-' +
-                        Math.random().toString(36).slice(2, 6) + '-' +
-                        Math.random().toString(36).slice(2, 6)
+        const dummyId =
+          Math.random().toString(36).slice(2, 6) + '-' +
+          Math.random().toString(36).slice(2, 6) + '-' +
+          Math.random().toString(36).slice(2, 6)
         meetLink = `https://meet.google.com/${dummyId}`
 
         booking = await prisma.booking.update({
@@ -165,9 +168,7 @@ export async function POST(request) {
       }
     }
 
-    /* ═══════════════════════════════════════════════════════════════
-       ✅ Send Email (Meet link OR regular confirmation)
-    ═══════════════════════════════════════════════════════════════ */
+    /* ── Send Email ── */
     if (user?.email) {
       try {
         const bookingDate = booking.startTime
@@ -190,7 +191,6 @@ export async function POST(request) {
 
         let template
 
-        /* ✅ Use Meet link template for online bookings */
         if (booking.type === 'online' && meetLink) {
           template = meetLinkTemplate({
             patientName:  user.name || 'User',
@@ -203,7 +203,6 @@ export async function POST(request) {
             bookingUrl,
           })
         } else {
-          /* Regular booking confirmation */
           template = bookingConfirmedTemplate({
             patientName:  user.name || 'User',
             bookingId:    booking.bookingId,
@@ -226,13 +225,12 @@ export async function POST(request) {
         console.log('[Verify] ✅ Patient email sent to:', user.email)
         console.log('[Verify] Email messageId:', info.messageId)
 
-        /* ✅ Also send Meet link to doctor for online bookings */
         if (booking.type === 'online' && meetLink && doctorEmail) {
           try {
             const doctorTemplate = meetLinkTemplate({
               patientName:  `Doctor ${doctorName}`,
               bookingId:    booking.bookingId,
-              doctorName:   user.name || 'Patient',  // swap names for doctor's view
+              doctorName:   user.name || 'Patient',
               hospitalName,
               startTime:    fullDateTime,
               meetLink,
@@ -254,7 +252,6 @@ export async function POST(request) {
         }
       } catch (mailError) {
         console.error('[Verify] ⚠️ Patient email failed:', mailError.message)
-        /* Don't fail the booking — email is non-critical */
       }
     }
 

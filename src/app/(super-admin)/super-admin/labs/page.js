@@ -687,7 +687,7 @@ function AddLabPanel({ onClose, onSaved }) {
             placeholder="500001"
           />
 
-          <SectionTitle>🌍 Location (Optional)</SectionTitle>
+          <SectionTitle>🌍 Location </SectionTitle>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <FormInput

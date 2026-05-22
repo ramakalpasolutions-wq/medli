@@ -378,12 +378,19 @@ export default function BookingDetailPage() {
 
   const { data: booking, isLoading, mutate } = useSWR(`/api/bookings/${id}`, fetcher)
 
-    const { data: refundsData } = useSWR(
+  const { data: refundsData } = useSWR(
     id ? `/api/refunds?bookingId=${id}&page=1&limit=1` : null,
     fetcher
   )
 
   const refund = refundsData?.refunds?.[0] || null
+
+  // ─── Resolved payment status for display ────────────────────────────────────
+  // If a refund is completed, show "refunded" instead of "paid"
+  const resolvedPaymentStatus = (() => {
+    if (refund?.status === 'completed') return 'refunded'
+    return booking?.paymentStatus?.replace(/_/g, ' ') ?? '—'
+  })()
 
   const { data: doctor } = useSWR(
     booking?.doctorId ? `/api/doctors/${booking.doctorId}` : null,
@@ -394,6 +401,7 @@ export default function BookingDetailPage() {
     booking?.labId ? `/api/labs/${booking.labId}` : null,
     fetcher
   )
+
   const { data: testsData, isLoading: testsLoading } = useSWR(
     booking?.testIds?.length > 0 && booking?.labId
       ? `/api/labs/${booking.labId}/tests?ids=${booking.testIds.join(',')}`
@@ -415,12 +423,13 @@ export default function BookingDetailPage() {
   const showJoin = booking?.type === 'online' && booking?.meetLink && diffMins !== null && diffMins <= 15 && diffMins >= -30
   const canCancel = booking ? ['created', 'pending_payment', 'confirmed'].includes(booking.status) : false
   const isFinished = ['completed', 'cancelled', 'refunded', 'no_show'].includes(booking?.status)
+
   const displayRefundAmount =
-  refund?.refundAmount != null
-    ? refund.refundAmount
-    : booking?.refundAmount != null
-    ? booking.refundAmount
-    : null
+    refund?.refundAmount != null
+      ? refund.refundAmount
+      : booking?.refundAmount != null
+      ? booking.refundAmount
+      : null
 
   const handleInvoiceDownload = async () => {
     setDlInvoice(true)
@@ -457,10 +466,21 @@ export default function BookingDetailPage() {
   const handleCancel = async () => {
     setCancelling(true)
     try {
-      const res = await fetch(`/api/bookings/${id}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ reason: 'Cancelled by patient' }) })
+      const res = await fetch(`/api/bookings/${id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: 'Cancelled by patient' }),
+      })
       const json = await res.json()
-      if (json.success) { toast.success('Booking cancelled.'); mutate(); setCancelOpen(false); router.push('/user/bookings?refresh=1') }
-      else { toast.error(json.error || 'Cancel failed') }
+      if (json.success) {
+        toast.success('Booking cancelled.')
+        mutate()
+        setCancelOpen(false)
+        router.push('/user/bookings?refresh=1')
+      } else {
+        toast.error(json.error || 'Cancel failed')
+      }
     } catch { toast.error('Cancel failed. Please try again.') }
     finally { setCancelling(false) }
   }
@@ -468,7 +488,12 @@ export default function BookingDetailPage() {
   const handlePayNow = async () => {
     setPaying(true)
     try {
-      const res = await fetch('/api/payments/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ bookingId: id }) })
+      const res = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ bookingId: id }),
+      })
       const json = await res.json()
       if (!json.success) { toast.error(json.error || 'Failed to create payment order'); setPaying(false); return }
       const { razorpayOrderId, amount, currency, keyId } = json.data
@@ -480,15 +505,34 @@ export default function BookingDetailPage() {
         document.body.appendChild(s)
       })
       const rzp = new window.Razorpay({
-        key: keyId, order_id: razorpayOrderId, amount,
-        currency: currency || 'INR', name: 'MEDLI', description: 'Lab Test Booking',
+        key: keyId,
+        order_id: razorpayOrderId,
+        amount,
+        currency: currency || 'INR',
+        name: 'MEDLI',
+        description: 'Lab Test Booking',
         theme: { color: '#6366f1' },
         handler: async (response) => {
           try {
-            const verifyRes = await fetch('/api/payments/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ razorpay_order_id: response.razorpay_order_id, razorpay_payment_id: response.razorpay_payment_id, razorpay_signature: response.razorpay_signature, bookingId: id }) })
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                bookingId: id,
+              }),
+            })
             const verifyJson = await verifyRes.json()
-            if (verifyJson.success) { toast.success('Payment successful!'); mutate(); router.push(`/user/bookings/${id}/success`) }
-            else { toast.error('Payment verification failed') }
+            if (verifyJson.success) {
+              toast.success('Payment successful!')
+              mutate()
+              router.push(`/user/bookings/${id}/success`)
+            } else {
+              toast.error('Payment verification failed')
+            }
           } catch { toast.error('Verification error') }
           finally { setPaying(false) }
         },
@@ -517,9 +561,15 @@ export default function BookingDetailPage() {
 
   if (!booking) return null
 
-  const bookingDate = mounted && booking.startTime ? new Date(booking.startTime).toLocaleDateString('en-IN', { dateStyle: 'full' }) : '—'
-  const bookingTime = mounted && booking.startTime ? new Date(booking.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'
-  const bookingEndTime = mounted && booking.endTime ? new Date(booking.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : null
+  const bookingDate = mounted && booking.startTime
+    ? new Date(booking.startTime).toLocaleDateString('en-IN', { dateStyle: 'full' })
+    : '—'
+  const bookingTime = mounted && booking.startTime
+    ? new Date(booking.startTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    : '—'
+  const bookingEndTime = mounted && booking.endTime
+    ? new Date(booking.endTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    : null
 
   const typeMap = { hospital: 'Hospital Visit', online: 'Online Consultation', lab: 'Lab Test' }
   const typeLabel = typeMap[booking.type] || booking.type
@@ -532,11 +582,12 @@ export default function BookingDetailPage() {
     return null
   }
 
+  // ─── Header tiles — use resolvedPaymentStatus ────────────────────────────────
   const headerTiles = [
     { icon: <Receipt size={13} strokeWidth={2.2} />, label: 'Type', value: typeLabel },
     { icon: <CalendarDays size={13} strokeWidth={2.2} />, label: 'Date', value: bookingDate },
     { icon: <Clock3 size={13} strokeWidth={2.2} />, label: 'Time', value: bookingEndTime ? `${bookingTime} – ${bookingEndTime}` : bookingTime },
-    { icon: <CreditCard size={13} strokeWidth={2.2} />, label: 'Payment', value: booking.paymentStatus?.replace(/_/g, ' ') },
+    { icon: <CreditCard size={13} strokeWidth={2.2} />, label: 'Payment', value: resolvedPaymentStatus },
   ]
 
   return (
@@ -548,7 +599,7 @@ export default function BookingDetailPage() {
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '88px 16px 80px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <BackBtn onClick={() => router.push('/user/bookings')} />
 
-          {/* Header card */}
+          {/* ── Header card ──────────────────────────────────────────────────── */}
           <Card>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
@@ -573,7 +624,7 @@ export default function BookingDetailPage() {
             </div>
           </Card>
 
-          {/* Hospital */}
+          {/* ── Hospital ─────────────────────────────────────────────────────── */}
           {hospital && (
             <Card>
               <SectionTitle icon={<Building2 size={16} strokeWidth={2.3} />} title="Hospital Details" />
@@ -594,7 +645,7 @@ export default function BookingDetailPage() {
             </Card>
           )}
 
-          {/* Doctor */}
+          {/* ── Doctor ───────────────────────────────────────────────────────── */}
           {doctor && (
             <Card>
               <SectionTitle icon={<Stethoscope size={16} strokeWidth={2.3} />} title="Doctor Details" />
@@ -614,7 +665,7 @@ export default function BookingDetailPage() {
             </Card>
           )}
 
-          {/* Lab */}
+          {/* ── Lab ──────────────────────────────────────────────────────────── */}
           {lab && (
             <Card>
               <SectionTitle icon={<FlaskConical size={16} strokeWidth={2.3} />} title="Lab Details" />
@@ -660,7 +711,12 @@ export default function BookingDetailPage() {
                   {booking.collectionType === 'home' && booking.collectionAddress && (
                     <p style={{ fontSize: 12, color: '#64748b', margin: '6px 0 0', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                       <MapPin size={13} strokeWidth={2.3} style={{ flexShrink: 0, marginTop: 1 }} />
-                      {[booking.collectionAddress.line1, booking.collectionAddress.city, booking.collectionAddress.state, booking.collectionAddress.pinCode].filter(Boolean).join(', ')}
+                      {[
+                        booking.collectionAddress.line1,
+                        booking.collectionAddress.city,
+                        booking.collectionAddress.state,
+                        booking.collectionAddress.pinCode,
+                      ].filter(Boolean).join(', ')}
                     </p>
                   )}
                   <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -672,7 +728,7 @@ export default function BookingDetailPage() {
             </Card>
           )}
 
-          {/* Booking Summary */}
+          {/* ── Booking Summary ───────────────────────────────────────────────── */}
           <Card>
             <SectionTitle icon={<Receipt size={16} strokeWidth={2.3} />} title="Booking Summary" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -680,11 +736,12 @@ export default function BookingDetailPage() {
               <InfoRow label="Date" value={bookingDate} />
               <InfoRow label="Time" value={bookingEndTime ? `${bookingTime} – ${bookingEndTime}` : bookingTime} />
               <InfoRow label="Status" value={booking.status?.replace(/_/g, ' ')} />
-              <InfoRow label="Payment Status" value={booking.paymentStatus?.replace(/_/g, ' ')} />
+              {/* ✅ Fixed: shows "refunded" when refund is completed, not raw "paid" */}
+              <InfoRow label="Payment Status" value={resolvedPaymentStatus} />
             </div>
           </Card>
 
-          {/* Completed state */}
+          {/* ── Completed state ───────────────────────────────────────────────── */}
           {booking.status === 'completed' && (
             <div style={{ background: 'linear-gradient(135deg,rgba(16,185,129,0.06),rgba(5,150,105,0.04))', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 20, padding: 20, animation: 'bd-in .3s ease' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -696,7 +753,9 @@ export default function BookingDetailPage() {
                     {booking.type === 'lab' ? 'Tests Completed' : 'Consultation Completed'}
                   </p>
                   <p style={{ fontSize: 12, color: '#10b981', margin: '2px 0 0' }}>
-                    {mounted && booking.updatedAt ? `Completed on ${new Date(booking.updatedAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}` : '—'}
+                    {mounted && booking.updatedAt
+                      ? `Completed on ${new Date(booking.updatedAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}`
+                      : '—'}
                   </p>
                 </div>
               </div>
@@ -709,7 +768,7 @@ export default function BookingDetailPage() {
             </div>
           )}
 
-          {/* Cancelled state */}
+          {/* ── Cancelled state ───────────────────────────────────────────────── */}
           {booking.status === 'cancelled' && (
             <div style={{ background: 'linear-gradient(135deg,rgba(239,68,68,0.06),rgba(249,115,22,0.04))', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 20, padding: 20, animation: 'bd-in .3s ease' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -725,73 +784,72 @@ export default function BookingDetailPage() {
               </div>
             </div>
           )}
+
+          {/* ── Refund Status card ────────────────────────────────────────────── */}
           {(booking?.status === 'cancelled' || booking?.status === 'refunded' || refund) && (
-  <Card>
-    <SectionTitle
-      icon={<RotateCcw size={16} strokeWidth={2.3} />}
-      title="Refund Status"
-    />
+            <Card>
+              <SectionTitle
+                icon={<RotateCcw size={16} strokeWidth={2.3} />}
+                title="Refund Status"
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <InfoRow
+                  label="Refund Amount"
+                  value={
+                    displayRefundAmount != null
+                      ? `₹${Number(displayRefundAmount).toLocaleString('en-IN')}`
+                      : 'Pending'
+                  }
+                  color="#16a34a"
+                />
+                {/* ✅ Fixed: shows "not available" instead of "initiated" when no refund exists */}
+                <InfoRow
+                  label="Refund Status"
+                  value={
+                    refund?.status
+                      ? refund.status.replace(/_/g, ' ')
+                      : 'not available'
+                  }
+                />
+                <InfoRow
+                  label="Refund Number"
+                  value={refund?.refundNumber}
+                  mono
+                />
+                <InfoRow
+                  label="Refund Percent"
+                  value={refund?.refundPercent != null ? `${refund.refundPercent}%` : null}
+                />
+                <InfoRow
+                  label="Refund Method"
+                  value={refund?.refundMethod}
+                />
+                <InfoRow
+                  label="Initiated On"
+                  value={
+                    refund?.createdAt
+                      ? new Date(refund.createdAt).toLocaleString('en-IN')
+                      : null
+                  }
+                />
+                <InfoRow
+                  label="Processed At"
+                  value={
+                    refund?.processedAt
+                      ? new Date(refund.processedAt).toLocaleString('en-IN')
+                      : null
+                  }
+                />
+                <InfoRow
+                  label="Failure Reason"
+                  value={refund?.failureReason}
+                  color="#ef4444"
+                />
+              </div>
+            </Card>
+          )}
 
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <InfoRow
-        label="Refund Amount"
-        value={
-          displayRefundAmount != null
-            ? `₹${Number(displayRefundAmount).toLocaleString('en-IN')}`
-            : 'Pending'
-        }
-        color="#16a34a"
-      />  
-
-      <InfoRow
-        label="Refund Status"
-        value={refund?.status ? refund.status.replace(/_/g, ' ') : 'initiated'}
-      />
-
-      <InfoRow
-        label="Refund Number"
-        value={refund?.refundNumber}
-        mono
-      />
-
-      <InfoRow
-        label="Refund Percent"
-        value={refund?.refundPercent != null ? `${refund.refundPercent}%` : null}
-      />
-
-      <InfoRow
-        label="Refund Method"
-        value={refund?.refundMethod}
-      />
-
-      <InfoRow
-        label="Initiated On"
-        value={
-          refund?.createdAt
-            ? new Date(refund.createdAt).toLocaleString('en-IN')
-            : null
-        }
-      />
-
-      <InfoRow
-        label="Processed At"
-        value={
-          refund?.processedAt
-            ? new Date(refund.processedAt).toLocaleString('en-IN')
-            : null
-        }
-      />
-
-      <InfoRow
-        label="Failure Reason"
-        value={refund?.failureReason}
-        color="#ef4444"
-      />
-    </div>
-  </Card>
-)}
-
-          {/* Online consultation window */}
+          {/* ── Online consultation window ────────────────────────────────────── */}
           {booking.type === 'online' && !isFinished && (
             <div style={{ background: 'linear-gradient(135deg,rgba(16,185,129,0.06),rgba(5,150,105,0.04))', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 20, padding: 20 }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#065f46', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -811,7 +869,7 @@ export default function BookingDetailPage() {
             </div>
           )}
 
-          {/* Lab status tracker */}
+          {/* ── Lab status tracker ────────────────────────────────────────────── */}
           {booking.type === 'lab' && !isFinished && booking.labStatus && (
             <Card>
               <SectionTitle icon={<FlaskConical size={16} strokeWidth={2.3} />} title="Lab Status" />
@@ -825,7 +883,7 @@ export default function BookingDetailPage() {
             </Card>
           )}
 
-          {/* Lab report card (finished) */}
+          {/* ── Lab report card (finished) ────────────────────────────────────── */}
           {booking.type === 'lab' && isFinished && booking.reportR2Key && (
             <Card style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -844,7 +902,7 @@ export default function BookingDetailPage() {
             </Card>
           )}
 
-          {/* Payment summary */}
+          {/* ── Payment summary ───────────────────────────────────────────────── */}
           <Card>
             <SectionTitle icon={<IndianRupee size={16} strokeWidth={2.3} />} title="Payment Summary" />
 
@@ -878,29 +936,20 @@ export default function BookingDetailPage() {
                   }}
                 >
                   <span style={{ fontSize: 13, color: '#64748b' }}>{label}</span>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: value < 0 ? '#10b981' : '#1e293b',
-                    }}
-                  >
+                  <span style={{ fontSize: 13, fontWeight: 500, color: value < 0 ? '#10b981' : '#1e293b' }}>
                     {value < 0 ? '-' : ''}₹{Math.abs(value || 0).toFixed(2)}
                   </span>
                 </div>
               ))}
 
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                paddingTop: 10,
-                marginTop: 4,
-                borderTop: '1px solid #e2e8f0',
-              }}
-            >
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, marginTop: 4, borderTop: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-                {booking.paymentStatus === 'paid' ? 'Total Paid' : 'Payable Amount'}
+                {/* ✅ Fixed: label reflects refund state too */}
+                {refund?.status === 'completed'
+                  ? 'Total Refunded'
+                  : booking.paymentStatus === 'paid'
+                  ? 'Total Paid'
+                  : 'Payable Amount'}
               </span>
               <span style={{ fontSize: 14, fontWeight: 800, color: '#6366f1' }}>
                 ₹{booking.totalAmount?.toFixed(2)}
@@ -909,16 +958,7 @@ export default function BookingDetailPage() {
 
             {(booking.razorpayOrderId || booking.razorpayPaymentId) && (
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
-                <p
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: '#94a3b8',
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                    marginBottom: 8,
-                  }}
-                >
+                <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: 8 }}>
                   Payment Reference
                 </p>
                 {booking.razorpayOrderId && <InfoRow label="Order ID" value={booking.razorpayOrderId} mono />}
@@ -927,7 +967,7 @@ export default function BookingDetailPage() {
             )}
           </Card>
 
-          {/* Actions row */}
+          {/* ── Actions row ───────────────────────────────────────────────────── */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, animation: 'bd-in .3s ease' }}>
             {booking.paymentStatus !== 'paid' && !isFinished && (
               <ActionBtn onClick={handlePayNow} loading={paying} variant="primary">

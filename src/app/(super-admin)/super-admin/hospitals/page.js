@@ -912,7 +912,7 @@ function AddHospitalPanel({ onClose, onSaved }) {
             onChange={(e) => setForm((f) => ({ ...f, address: { ...f.address, pinCode: e.target.value } }))}
             placeholder="500001" />
 
-          <SectionTitle>🌍 Location (Optional)</SectionTitle>
+          <SectionTitle>🌍 Location </SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <FormInput label="Latitude" type="number" step="any" value={form.location.lat}
               onChange={(e) => setForm((f) => ({ ...f, location: { ...f.location, lat: e.target.value } }))}

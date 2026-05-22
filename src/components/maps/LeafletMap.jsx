@@ -10,27 +10,28 @@ export default function LeafletMap({
   zoom = 13,
   accentColor = '#1286f5',
 }) {
-  const mapRef = useRef(null)
-  const mapInst = useRef(null)
-  const leafletRef = useRef(null)
-  const markerRefs = useRef([])
-  const userMarker = useRef(null)
-  const mountedRef = useRef(false)
-  const destroyedRef = useRef(false)
+  const mapRef      = useRef(null)
+  const mapInst     = useRef(null)
+  const leafletRef  = useRef(null)
+  const markerRefs  = useRef([])
+  const userMarker  = useRef(null)
+  const mountedRef  = useRef(false)
+  const destroyedRef= useRef(false)
   const invalidateTimerRef = useRef(null)
 
   const [userLocation, setUserLocation] = useState(null)
-  const [locLoading, setLocLoading] = useState(false)
-  const [locError, setLocError] = useState(null)
-  const [distances, setDistances] = useState({})
+  const [locLoading,   setLocLoading]   = useState(false)
+  const [locError,     setLocError]     = useState(null)
+  const [distances,    setDistances]    = useState({})
 
   const validMarkers = useMemo(
     () => markers.filter((m) => m?.lat != null && m?.lng != null),
     [markers]
   )
 
+  /* ─── Haversine ─── */
   const calcDistance = useCallback((lat1, lng1, lat2, lng2) => {
-    const R = 6371
+    const R    = 6371
     const dLat = ((lat2 - lat1) * Math.PI) / 180
     const dLng = ((lng2 - lng1) * Math.PI) / 180
     const a =
@@ -44,6 +45,7 @@ export default function LeafletMap({
   const formatDist = (km) =>
     km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
 
+  /* ─── Safety ─── */
   const isMapSafe = useCallback(() => {
     const map = mapInst.current
     return !!(
@@ -57,104 +59,77 @@ export default function LeafletMap({
 
   const clearMarkers = useCallback(() => {
     markerRefs.current.forEach((m) => {
-      try {
-        m.off()
-        m.closePopup?.()
-        m.remove()
-      } catch {}
+      try { m.off(); m.closePopup?.(); m.remove() } catch {}
     })
     markerRefs.current = []
   }, [])
 
   const clearUserMarker = useCallback(() => {
-    try {
-      userMarker.current?.off?.()
-      userMarker.current?.closePopup?.()
-      userMarker.current?.remove?.()
-    } catch {}
+    try { userMarker.current?.off?.(); userMarker.current?.closePopup?.(); userMarker.current?.remove?.() } catch {}
     userMarker.current = null
   }, [])
 
   const stopMapMotion = useCallback(() => {
-    try {
-      mapInst.current?.stop?.()
-    } catch {}
+    try { mapInst.current?.stop?.() } catch {}
   }, [])
 
+  /* ─── Geolocation ─── */
   const fetchUserLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocError('Geolocation not supported')
       return
     }
-
     setLocLoading(true)
     setLocError(null)
 
     navigator.geolocation.getCurrentPosition(
       ({ coords: { latitude: lat, longitude: lng } }) => {
         if (!mountedRef.current || destroyedRef.current) return
-
         setUserLocation({ lat, lng })
         setLocLoading(false)
-
-        const nextDistances = {}
+        const next = {}
         validMarkers.forEach((m) => {
-          nextDistances[m.id] = calcDistance(lat, lng, m.lat, m.lng)
+          next[m.id] = calcDistance(lat, lng, m.lat, m.lng)
         })
-        setDistances(nextDistances)
+        setDistances(next)
       },
       (err) => {
         if (!mountedRef.current || destroyedRef.current) return
-
         setLocLoading(false)
         setLocError(
-          err.code === 1
-            ? 'Permission denied'
-            : err.code === 2
-              ? 'Location unavailable'
-              : 'Timeout'
+          err.code === 1 ? 'Permission denied'
+          : err.code === 2 ? 'Location unavailable'
+          : 'Timeout'
         )
       },
       { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
     )
   }, [validMarkers, calcDistance])
 
+  /* ─── Mount / unmount ─── */
   useEffect(() => {
-    mountedRef.current = true
+    mountedRef.current  = true
     destroyedRef.current = false
-
     return () => {
-      mountedRef.current = false
+      mountedRef.current  = false
       destroyedRef.current = true
-
-      if (invalidateTimerRef.current) {
-        clearTimeout(invalidateTimerRef.current)
-        invalidateTimerRef.current = null
-      }
-
+      if (invalidateTimerRef.current) clearTimeout(invalidateTimerRef.current)
       stopMapMotion()
       clearMarkers()
       clearUserMarker()
-
       if (mapInst.current) {
-        try {
-          mapInst.current.off()
-          mapInst.current.remove()
-        } catch {}
+        try { mapInst.current.off(); mapInst.current.remove() } catch {}
         mapInst.current = null
       }
-
       if (mapRef.current?._leaflet_id) {
-        try {
-          delete mapRef.current._leaflet_id
-        } catch {}
+        try { delete mapRef.current._leaflet_id } catch {}
       }
     }
   }, [clearMarkers, clearUserMarker, stopMapMotion])
 
+  /* ─── Init map ─── */
   useEffect(() => {
     if (!mapRef.current || mapInst.current || validMarkers.length === 0) return
-
     let cancelled = false
 
     ;(async () => {
@@ -167,38 +142,32 @@ export default function LeafletMap({
 
         delete L.Icon.Default.prototype._getIconUrl
         L.Icon.Default.mergeOptions({
-          iconRetinaUrl:
-            'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-          iconUrl:
-            'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-          shadowUrl:
-            'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+          iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+          shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
         })
 
         if (mapRef.current?._leaflet_id) {
-          try {
-            delete mapRef.current._leaflet_id
-          } catch {}
+          try { delete mapRef.current._leaflet_id } catch {}
         }
 
         const first = validMarkers[0]
         if (!first) return
 
         mapInst.current = L.map(mapRef.current, {
-          center: [first.lat, first.lng],
+          center:             [first.lat, first.lng],
           zoom,
-          zoomControl: false,
-          scrollWheelZoom: false,
+          zoomControl:        false,
+          scrollWheelZoom:    false,
           attributionControl: false,
-          fadeAnimation: false,
-          markerZoomAnimation: false,
-          zoomAnimation: false,
+          fadeAnimation:      false,
+          markerZoomAnimation:false,
+          zoomAnimation:      false,
         })
 
-        L.tileLayer(
-          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          { maxZoom: 19, subdomains: 'abcd' }
-        ).addTo(mapInst.current)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19, subdomains: 'abcd',
+        }).addTo(mapInst.current)
 
         L.control.attribution({ position: 'bottomright', prefix: false })
           .addAttribution('© <a href="https://carto.com">CARTO</a>')
@@ -208,9 +177,7 @@ export default function LeafletMap({
 
         invalidateTimerRef.current = setTimeout(() => {
           if (!isMapSafe()) return
-          try {
-            mapInst.current.invalidateSize(false)
-          } catch {}
+          try { mapInst.current.invalidateSize(false) } catch {}
         }, 200)
       } catch (err) {
         if (mountedRef.current && !destroyedRef.current) {
@@ -219,55 +186,37 @@ export default function LeafletMap({
       }
     })()
 
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [validMarkers, zoom, isMapSafe])
 
+  /* ─── Recalc distances when markers change ─── */
   useEffect(() => {
     if (!userLocation) return
-
-    const nextDistances = {}
+    const next = {}
     validMarkers.forEach((m) => {
-      nextDistances[m.id] = calcDistance(userLocation.lat, userLocation.lng, m.lat, m.lng)
+      next[m.id] = calcDistance(userLocation.lat, userLocation.lng, m.lat, m.lng)
     })
-    setDistances(nextDistances)
+    setDistances(next)
   }, [validMarkers, userLocation, calcDistance])
 
+  /* ─── User location marker ─── */
   useEffect(() => {
     const L = leafletRef.current
     if (!L || !isMapSafe()) return
-
     clearUserMarker()
-
     if (!userLocation) return
-
     try {
       const userIcon = L.divIcon({
         className: '',
         html: `
           <div style="position:relative;width:20px;height:20px;">
-            <div style="
-              position:absolute;inset:0;
-              background:${accentColor};border:3px solid #fff;
-              border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.3);z-index:2;
-            "></div>
-            <div style="
-              position:absolute;top:50%;left:50%;
-              transform:translate(-50%,-50%);
-              width:40px;height:40px;
-              background:${accentColor}30;border-radius:50%;
-              animation:pulse-ring 2s infinite;z-index:1;
-            "></div>
+            <div style="position:absolute;inset:0;background:${accentColor};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.3);z-index:2;"></div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;background:${accentColor}30;border-radius:50%;animation:pulse-ring 2s infinite;z-index:1;"></div>
           </div>`,
-        iconSize: [20, 20],
+        iconSize:   [20, 20],
         iconAnchor: [10, 10],
       })
-
-      userMarker.current = L.marker([userLocation.lat, userLocation.lng], {
-        icon: userIcon,
-        zIndexOffset: 1000,
-      })
+      userMarker.current = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon, zIndexOffset: 1000 })
         .addTo(mapInst.current)
         .bindPopup(
           '<div style="font-family:Arial;font-size:13px;font-weight:600;color:#1a1a2e;padding:4px 2px;">📍 You are here</div>',
@@ -276,6 +225,7 @@ export default function LeafletMap({
     } catch {}
   }, [userLocation, accentColor, clearUserMarker, isMapSafe])
 
+  /* ─── Place markers ─── */
   useEffect(() => {
     const L = leafletRef.current
     if (!L || !isMapSafe()) return
@@ -284,65 +234,71 @@ export default function LeafletMap({
 
     validMarkers.forEach((item) => {
       if (!isMapSafe()) return
-
       try {
         const isSelected = selected?.id === item.id
-        const pinColor = isSelected ? '#f59e0b' : item.color || accentColor
-        const pinW = isSelected ? 36 : 30
-        const pinH = isSelected ? 48 : 40
-        const dist = distances[item.id]
+        const pinColor   = isSelected ? '#f59e0b' : item.color || accentColor
+        const pinW       = isSelected ? 36 : 30
+        const pinH       = isSelected ? 48 : 40
 
+        // ── Distance badge HTML ──
+        const dist = distances[item.id]
+        const distBadge = dist != null
+          ? `<div style="
+              display:inline-flex;align-items:center;gap:5px;
+              background:${pinColor}15;
+              border:1.5px solid ${pinColor}40;
+              color:${pinColor};
+              font-size:12px;font-weight:700;
+              padding:4px 10px;border-radius:20px;
+              margin-bottom:8px;
+            ">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${pinColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+                <circle cx="12" cy="12" r="8" stroke-opacity="0.3"/>
+              </svg>
+              ${formatDist(dist)} from you
+            </div>`
+          : ''
+
+        // ── Marker pin icon ──
         const icon = L.divIcon({
           className: '',
           html: `
-            <div style="
-              position:relative;width:${pinW}px;height:${pinH}px;
-              cursor:pointer;filter:drop-shadow(0 3px 6px rgba(0,0,0,.28));
-            ">
+            <div style="position:relative;width:${pinW}px;height:${pinH}px;cursor:pointer;filter:drop-shadow(0 3px 6px rgba(0,0,0,.28));">
               <svg viewBox="0 0 36 48" width="${pinW}" height="${pinH}" xmlns="http://www.w3.org/2000/svg">
                 <path d="M18 0C10.268 0 4 6.268 4 14C4 24.5 18 48 18 48C18 48 32 24.5 32 14C32 6.268 25.732 0 18 0Z"
                   fill="${pinColor}" stroke="#fff" stroke-width="2"/>
                 <circle cx="18" cy="14" r="7" fill="#fff" opacity="0.92"/>
                 <text x="18" y="19" font-size="9" text-anchor="middle" font-family="Arial,sans-serif">${item.emoji || '📍'}</text>
               </svg>
-              ${isSelected ? `<div style="
-                position:absolute;bottom:-3px;left:50%;
-                transform:translateX(-50%);
-                width:14px;height:4px;
-                background:rgba(0,0,0,.15);border-radius:50%;filter:blur(2px);
-              "></div>` : ''}
+              ${isSelected ? `<div style="position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);width:14px;height:4px;background:rgba(0,0,0,.15);border-radius:50%;filter:blur(2px);"></div>` : ''}
             </div>`,
-          iconSize: [pinW, pinH],
-          iconAnchor: [pinW / 2, pinH],
+          iconSize:    [pinW, pinH],
+          iconAnchor:  [pinW / 2, pinH],
           popupAnchor: [0, -(pinH + 2)],
         })
 
-        const distBadge =
-          dist != null
-            ? `<span style="
-                display:inline-flex;align-items:center;gap:3px;
-                background:${pinColor}18;border:1px solid ${pinColor}50;
-                color:${pinColor};font-size:10px;font-weight:600;
-                padding:2px 8px;border-radius:20px;margin-bottom:7px;
-              ">📍 ${formatDist(dist)} away</span>`
-            : ''
-
+        // ── Popup HTML ──
         const popupHtml = `
-          <div style="min-width:210px;max-width:260px;padding:8px 2px 4px;font-family:Arial,sans-serif;">
-            <p style="font-weight:700;font-size:13px;color:#1a1a2e;margin:0 0 3px;line-height:1.3;">${item.name}</p>
-            ${item.address ? `<p style="font-size:11px;color:#6b7280;margin:0 0 5px;">📍 ${item.address}</p>` : ''}
+          <div style="min-width:220px;max-width:270px;padding:10px 2px 6px;font-family:Arial,sans-serif;">
+            <p style="font-weight:700;font-size:13px;color:#1a1a2e;margin:0 0 4px;line-height:1.3;">${item.name}</p>
+            ${item.address ? `<p style="font-size:11px;color:#6b7280;margin:0 0 6px;display:flex;align-items:center;gap:3px;">📍 ${item.address}</p>` : ''}
+
             ${distBadge}
-            ${item.rating ? `<p style="font-size:11px;color:#f59e0b;margin:0 0 5px;">⭐ ${item.rating}</p>` : ''}
+
+            ${item.rating ? `<p style="font-size:11px;color:#f59e0b;margin:0 0 6px;">⭐ ${item.rating}</p>` : ''}
             ${item.extra || ''}
-            <div style="display:flex;gap:5px;margin-top:9px;">
+
+            <div style="display:flex;gap:6px;margin-top:10px;">
               <a href="${item.href}" style="
                 flex:1;text-align:center;background:${pinColor};color:#fff;
-                text-decoration:none;padding:7px 10px;border-radius:9px;
-                font-size:11px;font-weight:600;">View Details</a>
+                text-decoration:none;padding:8px 10px;border-radius:9px;
+                font-size:11px;font-weight:700;">View Details</a>
               <a href="https://www.google.com/maps/dir/?api=1&destination=${item.lat},${item.lng}"
                 target="_blank" rel="noreferrer" style="
                 text-align:center;background:#f3f4f6;color:#374151;
-                text-decoration:none;padding:7px 10px;border-radius:9px;
+                text-decoration:none;padding:8px 10px;border-radius:9px;
                 font-size:11px;font-weight:500;">Directions</a>
             </div>
           </div>`
@@ -350,10 +306,10 @@ export default function LeafletMap({
         const marker = L.marker([item.lat, item.lng], { icon })
           .addTo(mapInst.current)
           .bindPopup(popupHtml, {
-            maxWidth: 280,
+            maxWidth:    280,
             closeButton: true,
-            className: 'medli-popup',
-            autoPan: false,
+            className:   'medli-popup',
+            autoPan:     false,
           })
 
         marker.on('click', () => {
@@ -364,15 +320,14 @@ export default function LeafletMap({
       } catch {}
     })
 
-    return () => {
-      clearMarkers()
-    }
+    return () => { clearMarkers() }
   }, [validMarkers, selected, onSelect, accentColor, distances, clearMarkers, isMapSafe])
+  // ↑ distances is in the dep array — markers re-render whenever distances update
 
+  /* ─── Pan / fit on selection change ─── */
   useEffect(() => {
     if (!isMapSafe()) return
-
-    const L = leafletRef.current
+    const L   = leafletRef.current
     const map = mapInst.current
     if (!L || !map) return
 
@@ -380,40 +335,25 @@ export default function LeafletMap({
       stopMapMotion()
 
       if (selected?.lat != null && selected?.lng != null) {
-        map.setView([selected.lat, selected.lng], Math.max(zoom, 15), {
-          animate: false,
-          reset: true,
-        })
+        map.setView([selected.lat, selected.lng], Math.max(zoom, 15), { animate: false, reset: true })
 
-        const selectedMarker = markerRefs.current.find((_, index) => {
-          return validMarkers[index]?.id === selected.id
-        })
-
-        try {
-          selectedMarker?.openPopup()
-        } catch {}
-
+        const selectedMarker = markerRefs.current.find((_, index) => validMarkers[index]?.id === selected.id)
+        try { selectedMarker?.openPopup() } catch {}
         return
       }
 
       if (validMarkers.length > 1) {
         map.fitBounds(
           L.latLngBounds(validMarkers.map((m) => [m.lat, m.lng])),
-          {
-            padding: [50, 50],
-            maxZoom: 15,
-            animate: false,
-          }
+          { padding: [50, 50], maxZoom: 15, animate: false }
         )
       } else if (validMarkers.length === 1) {
-        map.setView([validMarkers[0].lat, validMarkers[0].lng], zoom, {
-          animate: false,
-          reset: true,
-        })
+        map.setView([validMarkers[0].lat, validMarkers[0].lng], zoom, { animate: false, reset: true })
       }
     } catch {}
   }, [selected, validMarkers, zoom, isMapSafe, stopMapMotion])
 
+  /* ─── Empty state ─── */
   if (validMarkers.length === 0) {
     return (
       <div
@@ -426,18 +366,18 @@ export default function LeafletMap({
     )
   }
 
+  /* ─── Render ─── */
   return (
     <>
-      <link
-        rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
-      />
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
       <style>{`
         @keyframes pulse-ring {
-          0% { transform:translate(-50%,-50%) scale(0.8); opacity:.6; }
-          70% { transform:translate(-50%,-50%) scale(2.2); opacity:0; }
+          0%   { transform:translate(-50%,-50%) scale(0.8); opacity:.6; }
+          70%  { transform:translate(-50%,-50%) scale(2.2); opacity:0; }
           100% { transform:translate(-50%,-50%) scale(2.2); opacity:0; }
         }
+        @keyframes spin { to { transform:rotate(360deg) } }
+
         .medli-popup .leaflet-popup-content-wrapper {
           border-radius:16px!important;
           box-shadow:0 8px 32px rgba(0,0,0,.12)!important;
@@ -457,95 +397,99 @@ export default function LeafletMap({
       `}</style>
 
       <div style={{ position: 'relative', height, width: '100%' }}>
-        <div
-          ref={mapRef}
-          style={{ height: '100%', width: '100%' }}
-          className="rounded-2xl overflow-hidden"
-        />
+        <div ref={mapRef} style={{ height: '100%', width: '100%' }} className="rounded-2xl overflow-hidden" />
 
+        {/* ── Locate Me button ── */}
         <button
           onClick={fetchUserLocation}
           disabled={locLoading}
           title={userLocation ? 'Refresh location' : 'Find my location'}
           style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            zIndex: 1000,
-            width: 42,
-            height: 42,
-            borderRadius: 12,
+            position: 'absolute', top: 12, right: 12, zIndex: 1000,
+            width: 42, height: 42, borderRadius: 12,
             background: userLocation ? accentColor : '#fff',
             color: userLocation ? '#fff' : '#374151',
             border: `1.5px solid ${userLocation ? accentColor : '#e5e7eb'}`,
             boxShadow: '0 2px 12px rgba(0,0,0,.12)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: locLoading ? 'wait' : 'pointer',
             transition: 'all .2s ease',
           }}
         >
-          {locLoading ? (
-            <SpinIcon color={userLocation ? '#fff' : accentColor} />
-          ) : (
-            <LocateIcon active={!!userLocation} color={userLocation ? '#fff' : accentColor} />
-          )}
+          {locLoading
+            ? <SpinIcon color={userLocation ? '#fff' : accentColor} />
+            : <LocateIcon active={!!userLocation} color={userLocation ? '#fff' : accentColor} />}
         </button>
 
+        {/* ── Location error toast ── */}
         {locError && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 58,
-              right: 12,
-              zIndex: 1000,
-              background: '#fee2e2',
-              color: '#dc2626',
-              fontSize: 11,
-              fontWeight: 500,
-              padding: '5px 10px',
-              borderRadius: 8,
-              whiteSpace: 'nowrap',
-              boxShadow: '0 2px 8px rgba(0,0,0,.1)',
-              border: '1px solid #fecaca',
-            }}
-          >
+          <div style={{
+            position: 'absolute', top: 58, right: 12, zIndex: 1000,
+            background: '#fee2e2', color: '#dc2626',
+            fontSize: 11, fontWeight: 500,
+            padding: '5px 10px', borderRadius: 8,
+            whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,.1)',
+            border: '1px solid #fecaca',
+          }}>
             ⚠️ {locError}
           </div>
         )}
 
+        {/* ── Distance legend pill ── */}
         {userLocation && Object.keys(distances).length > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 52,
-              left: 12,
-              zIndex: 1000,
-              background: '#ffffffee',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid #e5e7eb',
-              borderRadius: 10,
-              padding: '5px 10px',
-              fontSize: 11,
-              color: '#6b7280',
-              boxShadow: '0 2px 8px rgba(0,0,0,.08)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                background: accentColor,
-                borderRadius: '50%',
-                display: 'inline-block',
-                flexShrink: 0,
-              }}
-            />
+          <div style={{
+            position: 'absolute', bottom: 52, left: 12, zIndex: 1000,
+            background: '#ffffffee', backdropFilter: 'blur(8px)',
+            border: '1px solid #e5e7eb', borderRadius: 10,
+            padding: '5px 12px', fontSize: 11, color: '#6b7280',
+            boxShadow: '0 2px 8px rgba(0,0,0,.08)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span style={{
+              width: 10, height: 10, background: accentColor,
+              borderRadius: '50%', display: 'inline-block', flexShrink: 0,
+            }} />
             Distances from your location
+          </div>
+        )}
+
+        {/* ── Nearby distances summary panel ── */}
+        {userLocation && Object.keys(distances).length > 0 && (
+          <div style={{
+            position: 'absolute', top: 12, left: 12, zIndex: 1000,
+            background: '#fffffff0', backdropFilter: 'blur(10px)',
+            border: '1px solid #e5e7eb', borderRadius: 14,
+            padding: '10px 14px',
+            boxShadow: '0 4px 16px rgba(0,0,0,.1)',
+            maxWidth: 220,
+            maxHeight: 220,
+            overflowY: 'auto',
+          }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              📍 Distances from you
+            </p>
+            {validMarkers
+              .filter((m) => distances[m.id] != null)
+              .sort((a, b) => distances[a.id] - distances[b.id])
+              .map((m) => (
+                <div key={m.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  gap: 8, marginBottom: 6,
+                  paddingBottom: 6,
+                  borderBottom: '1px solid #f1f5f9',
+                }}>
+                  <span style={{ fontSize: 11, color: '#374151', flex: 1, lineHeight: 1.3 }}>{m.name}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700,
+                    color: m.color || accentColor,
+                    background: `${m.color || accentColor}15`,
+                    padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0,
+                  }}>
+                    {formatDist(distances[m.id])}
+                  </span>
+                </div>
+              ))
+            }
           </div>
         )}
       </div>
@@ -555,16 +499,7 @@ export default function LeafletMap({
 
 function LocateIcon({ active, color }) {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" fill={active ? color : 'none'} />
       <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
       <circle cx="12" cy="12" r="8" strokeOpacity="0.3" />
@@ -574,16 +509,7 @@ function LocateIcon({ active, color }) {
 
 function SpinIcon({ color }) {
   return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      style={{ animation: 'spin .8s linear infinite' }}
-    >
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .8s linear infinite' }}>
       <path d="M12 2a10 10 0 1 0 10 10" />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </svg>

@@ -704,9 +704,18 @@ export default function HomePage() {
   const nearbyHospUrl = geo.lat && geo.lng ? `/api/hospitals/nearby?lat=${geo.lat}&lng=${geo.lng}&radius=15000&_r=${retryKey}` : null
   const nearbyLabUrl  = geo.lat && geo.lng ? `/api/labs/nearby?lat=${geo.lat}&lng=${geo.lng}&radius=15000&_r=${retryKey}`  : null
 
-  const { data: nearbyHosp, error: hospErr, isLoading: hospLoad } = useSWR(nearbyHospUrl, fetcher, { revalidateOnFocus:false, shouldRetryOnError:false })
-  const { data: nearbyLab,  error: labErr,  isLoading: labLoad  } = useSWR(nearbyLabUrl,  fetcher, { revalidateOnFocus:false, shouldRetryOnError:false })
+// ✅ FIX — unwrap the actual arrays from API response { hospitals:[...] } / { labs:[...] }
+const { data: nearbyHospResp, error: hospErr, isLoading: hospLoad } = useSWR(
+  nearbyHospUrl, fetcher,
+  { revalidateOnFocus: false, shouldRetryOnError: false }
+)
+const { data: nearbyLabResp, error: labErr, isLoading: labLoad } = useSWR(
+  nearbyLabUrl, fetcher,
+  { revalidateOnFocus: false, shouldRetryOnError: false }
+)
 
+const nearbyHosp = nearbyHospResp?.hospitals || []
+const nearbyLab  = nearbyLabResp?.labs       || []
   const handleSearch = (e) => {
     e.preventDefault()
     if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`)
@@ -1009,14 +1018,14 @@ export default function HomePage() {
         </section>
 
         {/* ══════════ TESTIMONIALS ══════════ */}
-        <section style={{ padding: 'clamp(48px,8vw,96px) 0', background: '#fff' }}>
+        {/* <section style={{ padding: 'clamp(48px,8vw,96px) 0', background: '#fff' }}>
           <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 clamp(16px,3vw,32px)' }}>
             <SectionHeader BadgeIcon={Heart} badge="Patient Stories" title="What Our Patients Say" />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 20 }}>
               {TESTI.map((t, i) => <TestiCard key={t.name} {...t} delay={i * 100} />)}
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* ══════════ CTA ══════════ */}
         <section style={{ padding: 'clamp(32px,6vw,72px) 0' }}>

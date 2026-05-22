@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: false,
 
+  
+  
+
   serverExternalPackages: [
     'bullmq',
     'ioredis',
@@ -11,16 +14,7 @@ const nextConfig = {
     'nodemailer',
     'firebase-admin',
     'googleapis',
-    'crypto',
-    'fs',
-    'path',
   ],
-
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: 'cdn.medli.in', port: '', pathname: '/**' },
-    ],
-  },
 
   async headers() {
     return [
@@ -28,16 +22,24 @@ const nextConfig = {
         source: '/api/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, PATCH, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, X-Requested-With' },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization, X-Requested-With',
+          },
           { key: 'Access-Control-Max-Age', value: '86400' },
           { key: 'ngrok-skip-browser-warning', value: 'true' },
         ],
       },
-    ]
+    ];
   },
 
-  typescript: { ignoreBuildErrors: true },
-}
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+};
 
-export default nextConfig
+export default nextConfig;

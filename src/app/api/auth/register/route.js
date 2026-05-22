@@ -1,4 +1,4 @@
-// C:\Users\ASUS\medli2\src\app\api\auth\register\route.js
+// C:\projects\medli2\src\app\api\auth\register\route.js
 
 import { NextResponse }                              from 'next/server'
 import { prisma }                                    from '@/lib/prisma'
@@ -15,14 +15,14 @@ export async function POST(request) {
       const {
         name,
         phone,
-        email,
+        email,                   // ✅ optional — may be undefined or empty string
         password,
-        agreedToTerms,           // ✅ boolean from frontend checkbox
-        termsVersion = '1.0',    // ✅ version string (default '1.0')
+        agreedToTerms,
+        termsVersion = '1.0',
       } = body
 
       /* ─────────────────────────────────────────────────────────────────
-         1. VALIDATE — All fields are now mandatory
+         1. VALIDATE
       ───────────────────────────────────────────────────────────────── */
 
       // Name
@@ -42,27 +42,21 @@ export async function POST(request) {
       }
       if (!validatePhone(phone)) {
         return NextResponse.json(
-          {
-            success: false,
-            error: 'Invalid phone number — must be 10 digits starting with 6–9',
-          },
+          { success: false, error: 'Invalid phone number — must be 10 digits starting with 6–9' },
           { status: 400 }
         )
       }
 
-      // Email — required
-      if (!email?.trim()) {
-        return NextResponse.json(
-          { success: false, error: 'Email address is required' },
-          { status: 400 }
-        )
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(email.trim())) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid email address' },
-          { status: 400 }
-        )
+      // Email — OPTIONAL: only validate format if the user actually provided one
+      const normalizedEmail = email?.trim() ? email.trim().toLowerCase() : null
+      if (normalizedEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(normalizedEmail)) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid email address' },
+            { status: 400 }
+          )
+        }
       }
 
       // Password — required
@@ -76,10 +70,7 @@ export async function POST(request) {
       // Terms — required
       if (!agreedToTerms) {
         return NextResponse.json(
-          {
-            success: false,
-            error: 'You must agree to the Terms of Service and Privacy Policy',
-          },
+          { success: false, error: 'You must agree to the Terms of Service and Privacy Policy' },
           { status: 400 }
         )
       }
@@ -89,33 +80,29 @@ export async function POST(request) {
       ───────────────────────────────────────────────────────────────── */
       const forwarded = request.headers.get('x-forwarded-for')
       const realIp    = request.headers.get('x-real-ip')
-      const clientIp  =
-        forwarded?.split(',')[0]?.trim() || realIp || 'unknown'
+      const clientIp  = forwarded?.split(',')[0]?.trim() || realIp || 'unknown'
 
       /* ─────────────────────────────────────────────────────────────────
-         3. Check duplicates — phone AND email both must be unique
+         3. Check duplicates
+         - Phone is always checked
+         - Email only checked if provided (to avoid matching null vs null)
       ───────────────────────────────────────────────────────────────── */
       const normalizedPhone = String(phone).trim()
-      const normalizedEmail = email.toLowerCase().trim()
+
+      // Build OR conditions — always check phone, only check email if provided
+      const orConditions = [{ phone: normalizedPhone }]
+      if (normalizedEmail) {
+        orConditions.push({ email: normalizedEmail })
+      }
 
       const existing = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { phone: normalizedPhone },
-            { email: normalizedEmail },
-          ],
-        },
-        select: {
-          id:    true,
-          phone: true,
-          email: true,
-        },
+        where: { OR: orConditions },
+        select: { id: true, phone: true, email: true },
       })
 
       if (existing) {
-        // Tell the user exactly which field is duplicated
         const isDuplicatePhone = existing.phone === normalizedPhone
-        const isDuplicateEmail = existing.email === normalizedEmail
+        const isDuplicateEmail = normalizedEmail && existing.email === normalizedEmail
 
         let errorMsg = 'Account already exists'
         if (isDuplicatePhone && isDuplicateEmail) {
@@ -138,25 +125,24 @@ export async function POST(request) {
       const passwordHash = await hashPassword(password)
 
       /* ─────────────────────────────────────────────────────────────────
-         5. Create user — includes terms acceptance fields
+         5. Create user
+         - email is stored as null when not provided (not empty string)
       ───────────────────────────────────────────────────────────────── */
       const user = await prisma.user.create({
         data: {
-          // ── Core fields ──────────────────────────────────────────────
           name:          name.trim(),
           phone:         normalizedPhone,
-          email:         normalizedEmail,
+          email:         normalizedEmail,   // null when not provided ✅
           passwordHash,
           role:          'user',
-          isVerified:    true,    // both phone + email verified via OTP before this call
+          isVerified:    true,
           isBlocked:     false,
           familyMembers: [],
 
-          // ── Terms acceptance — saved permanently for compliance ───────
-          agreedToTerms:   true,           // ✅ the boolean
-          agreedToTermsAt: new Date(),     // ✅ exact timestamp
-          termsVersion:    termsVersion,   // ✅ which version they agreed to
-          agreedFromIp:    clientIp,       // ✅ IP address for audit
+          agreedToTerms:   true,
+          agreedToTermsAt: new Date(),
+          termsVersion:    termsVersion,
+          agreedFromIp:    clientIp,
         },
         select: {
           id:              true,
@@ -166,15 +152,15 @@ export async function POST(request) {
           role:            true,
           isVerified:      true,
           avatar:          true,
-          agreedToTerms:   true,    // ✅ return so frontend can confirm
-          agreedToTermsAt: true,    // ✅ return timestamp
-          termsVersion:    true,    // ✅ return version
+          agreedToTerms:   true,
+          agreedToTermsAt: true,
+          termsVersion:    true,
           createdAt:       true,
         },
       })
 
       /* ─────────────────────────────────────────────────────────────────
-         6. Generate tokens — same pattern as your existing code
+         6. Generate tokens
       ───────────────────────────────────────────────────────────────── */
       const payload = {
         userId: user.id,
@@ -187,7 +173,7 @@ export async function POST(request) {
       const refreshToken = generateRefreshToken(payload)
 
       /* ─────────────────────────────────────────────────────────────────
-         7. Build response — same cookie pattern as your existing code
+         7. Build response
       ───────────────────────────────────────────────────────────────── */
       const response = NextResponse.json(
         {
@@ -198,19 +184,18 @@ export async function POST(request) {
         { status: 201 }
       )
 
-      // HttpOnly cookies — same as your existing pattern
       response.cookies.set('accessToken', accessToken, {
         httpOnly: true,
         secure:   process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge:   15 * 60,          // 15 minutes
+        maxAge:   15 * 60,
         path:     '/',
       })
       response.cookies.set('refreshToken', refreshToken, {
         httpOnly: true,
         secure:   process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge:   30 * 24 * 60 * 60, // 30 days
+        maxAge:   30 * 24 * 60 * 60,
         path:     '/',
       })
 
@@ -219,7 +204,6 @@ export async function POST(request) {
     } catch (error) {
       console.error('[POST /api/auth/register]', error)
 
-      // Handle Prisma unique constraint violation (race condition safety net)
       if (error.code === 'P2002') {
         const field = error.meta?.target?.includes('phone')
           ? 'phone number'
@@ -227,10 +211,7 @@ export async function POST(request) {
             ? 'email address'
             : 'details'
         return NextResponse.json(
-          {
-            success: false,
-            error:   `An account with this ${field} already exists`,
-          },
+          { success: false, error: `An account with this ${field} already exists` },
           { status: 409 }
         )
       }

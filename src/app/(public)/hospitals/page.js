@@ -11,7 +11,7 @@ import EmptyState    from '@/components/ui/EmptyState'
 import { SkeletonCard } from '@/components/ui/Skeleton'
 import {
   Search, List, LayoutGrid, Map,
-  Building2, AlertTriangle, X, MapPin,
+  Building2, AlertTriangle, X, MapPin, Navigation,
 } from 'lucide-react'
 
 const LeafletMap = dynamic(() => import('@/components/maps/LeafletMap'), {
@@ -28,28 +28,36 @@ const LeafletMap = dynamic(() => import('@/components/maps/LeafletMap'), {
   ),
 })
 
-/**
- * Fetcher — handles { success, data: { hospitals, pagination } }
- * Returns { hospitals: [], pagination: {} }
- */
-const fetcher = async (url) => {
+/* ─────────────────────────────────────────────
+   Fetchers
+───────────────────────────────────────────── */
+
+/** Regular list API: { success, data: { hospitals, pagination } } */
+const listFetcher = async (url) => {
   const res  = await fetch(url)
   const json = await res.json()
-
   if (!json.success && json.error) throw new Error(json.error)
 
-  if (json.data?.hospitals) {
-    return { hospitals: json.data.hospitals, pagination: json.data.pagination }
-  }
-  if (Array.isArray(json.data)) {
-    return { hospitals: json.data, pagination: json.pagination || null }
-  }
-  if (Array.isArray(json.hospitals)) {
-    return { hospitals: json.hospitals, pagination: json.pagination || null }
-  }
-
+  if (json.data?.hospitals) return { hospitals: json.data.hospitals, pagination: json.data.pagination }
+  if (Array.isArray(json.data)) return { hospitals: json.data, pagination: json.pagination || null }
+  if (Array.isArray(json.hospitals)) return { hospitals: json.hospitals, pagination: json.pagination || null }
   return { hospitals: [], pagination: null }
 }
+
+/** Nearby API: { success, data: { hospitals, total, source } } */
+const nearbyFetcher = async (url) => {
+  const res  = await fetch(url)
+  const json = await res.json()
+  if (!json.success && json.error) throw new Error(json.error)
+
+  const inner = json.data ?? {}
+  const hospitals = inner.hospitals ?? (Array.isArray(json.data) ? json.data : [])
+  return { hospitals, total: inner.total ?? hospitals.length, source: inner.source }
+}
+
+/* ─────────────────────────────────────────────
+   Constants
+───────────────────────────────────────────── */
 
 const VIEWS = [
   { key: 'list',  label: 'List',  Icon: List },
@@ -59,18 +67,17 @@ const VIEWS = [
 
 const VIEW_STORAGE_KEY = 'medli_hospitals_view'
 
+/* ─────────────────────────────────────────────
+   Small UI components
+───────────────────────────────────────────── */
+
 function SearchInput({ value, onChange, placeholder, InputIcon = Search, focusColor = '#6366f1', focusRing = 'rgba(99,102,241,0.12)' }) {
   const [focused, setFocused] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
       <InputIcon
-        size={16}
-        strokeWidth={2.2}
-        color="#94a3b8"
-        style={{
-          position: 'absolute', left: 12, top: '50%',
-          transform: 'translateY(-50%)', pointerEvents: 'none',
-        }}
+        size={16} strokeWidth={2.2} color="#94a3b8"
+        style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
       />
       <input
         value={value}
@@ -83,9 +90,7 @@ function SearchInput({ value, onChange, placeholder, InputIcon = Search, focusCo
           fontSize: 13, fontFamily: 'inherit', borderRadius: 12,
           border: `1.5px solid ${focused ? focusColor : '#e2e8f0'}`,
           background: '#fff', color: '#0f172a', outline: 'none',
-          boxShadow: focused
-            ? `0 0 0 3px ${focusRing}`
-            : '0 1px 3px rgba(0,0,0,0.06)',
+          boxShadow: focused ? `0 0 0 3px ${focusRing}` : '0 1px 3px rgba(0,0,0,0.06)',
           transition: 'all .15s ease', boxSizing: 'border-box',
         }}
       />
@@ -95,10 +100,7 @@ function SearchInput({ value, onChange, placeholder, InputIcon = Search, focusCo
 
 function ViewToggle({ view, onChange }) {
   return (
-    <div style={{
-      display: 'flex', gap: 3,
-      background: '#f1f5f9', borderRadius: 12, padding: 3,
-    }}>
+    <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 12, padding: 3 }}>
       {VIEWS.map((v) => {
         const active = view === v.key
         return (
@@ -140,41 +142,141 @@ function SelectedWrapper({ children, selected, onClick }) {
   )
 }
 
+/**
+ * "Near Me" toggle button — green when location is active.
+ */
+function NearMeBtn({ active, loading, error, onClick }) {
+  const [h, setH] = useState(false)
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setH(true)}
+      onMouseLeave={() => setH(false)}
+      disabled={loading}
+      title={active ? 'Showing hospitals within 15 km — click to clear' : 'Show hospitals near me (within 15 km)'}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        padding: '9px 14px', borderRadius: 12, border: 'none', cursor: loading ? 'wait' : 'pointer',
+        fontSize: 13, fontWeight: 600,
+        background: active
+          ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
+          : h ? '#e0e7ff' : '#f1f5f9',
+        color: active ? '#fff' : '#6366f1',
+        boxShadow: active ? '0 4px 14px rgba(99,102,241,0.35)' : 'none',
+        transition: 'all .18s ease',
+      }}
+    >
+      {loading ? (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .8s linear infinite' }}>
+          <path d="M12 2a10 10 0 1 0 10 10" />
+        </svg>
+      ) : (
+        <Navigation size={15} strokeWidth={2.2} />
+      )}
+      {loading ? 'Locating…' : active ? 'Within 15 km' : 'Near Me'}
+      {active && <X size={13} strokeWidth={2.5} style={{ marginLeft: 2 }} />}
+    </button>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   Main Page
+───────────────────────────────────────────── */
+
 export default function HospitalsPage() {
   const router = useRouter()
 
-  const [search,   setSearch]   = useState('')
-  const [city,     setCity]     = useState('')
-  const [selected, setSelected] = useState(null)
+  const [search,     setSearch]     = useState('')
+  const [city,       setCity]       = useState('')
+  const [selected,   setSelected]   = useState(null)
+  const [view,       setView]       = useState('list')
 
-  const [view, setView] = useState('list')
+  // Location state
+  const [userCoords,  setUserCoords]  = useState(null) // { lat, lng }
+  const [locLoading,  setLocLoading]  = useState(false)
+  const [locError,    setLocError]    = useState(null)
+  const [nearbyMode,  setNearbyMode]  = useState(false) // true = use nearby API
 
+  /* Persist view preference */
   useEffect(() => {
     try {
       const saved = localStorage.getItem(VIEW_STORAGE_KEY)
       if (saved && ['list', 'split', 'map'].includes(saved)) setView(saved)
-    } catch { /* localStorage blocked — keep default 'list' */ }
+    } catch {}
   }, [])
 
   useEffect(() => {
-    try { localStorage.setItem(VIEW_STORAGE_KEY, view) }
-    catch { /* silent fail */ }
+    try { localStorage.setItem(VIEW_STORAGE_KEY, view) } catch {}
   }, [view])
 
-  /* Data fetching */
-  const qs = new URLSearchParams({ limit: 50 })
-  if (search) qs.set('search', search)
-  if (city)   qs.set('city',   city)
+  /* ── Location: request and activate nearby mode ── */
+  const handleNearMe = useCallback(() => {
+    // Toggle off
+    if (nearbyMode) {
+      setNearbyMode(false)
+      return
+    }
 
-  const { data, isLoading, error } = useSWR(
-    `/api/hospitals?${qs}`,
-    fetcher,
+    if (!navigator.geolocation) {
+      setLocError('Geolocation not supported by your browser')
+      return
+    }
+
+    setLocLoading(true)
+    setLocError(null)
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setUserCoords({ lat: coords.latitude, lng: coords.longitude })
+        setNearbyMode(true)
+        setLocLoading(false)
+        // Clear text filters when using location
+        setSearch('')
+        setCity('')
+      },
+      (err) => {
+        setLocLoading(false)
+        setLocError(
+          err.code === 1 ? 'Location permission denied'
+          : err.code === 2 ? 'Location unavailable'
+          : 'Location request timed out'
+        )
+      },
+      { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+    )
+  }, [nearbyMode])
+
+  /* ── Data fetching ── */
+  const listQs = new URLSearchParams({ limit: 50 })
+  if (search) listQs.set('search', search)
+  if (city)   listQs.set('city',   city)
+
+  // Only fetch list API when NOT in nearby mode
+  const { data: listData, isLoading: listLoading, error: listError } = useSWR(
+    !nearbyMode ? `/api/hospitals?${listQs}` : null,
+    listFetcher,
     { revalidateOnFocus: false }
   )
 
-  const hospitals = data?.hospitals ?? []
-  const total     = data?.pagination?.total ?? hospitals.length
+  // Only fetch nearby API when in nearby mode AND we have coords
+  const nearbyUrl = nearbyMode && userCoords
+    ? `/api/hospitals/nearby?lat=${userCoords.lat.toFixed(6)}&lng=${userCoords.lng.toFixed(6)}&radius=15000`
+    : null
 
+  const { data: nearbyData, isLoading: nearbyLoading, error: nearbyError } = useSWR(
+    nearbyUrl,
+    nearbyFetcher,
+    { revalidateOnFocus: false }
+  )
+
+  const hospitals  = nearbyMode ? (nearbyData?.hospitals ?? []) : (listData?.hospitals ?? [])
+  const isLoading  = nearbyMode ? nearbyLoading : listLoading
+  const error      = nearbyMode ? nearbyError   : listError
+  const total      = nearbyMode
+    ? (nearbyData?.total ?? hospitals.length)
+    : (listData?.pagination?.total ?? hospitals.length)
+
+  /* ── Map markers ── */
   const mapMarkers = useMemo(() =>
     hospitals
       .filter((h) => Array.isArray(h.location?.coordinates) && h.location.coordinates.length === 2)
@@ -184,14 +286,14 @@ export default function HospitalsPage() {
         lng:     h.location.coordinates[0],
         name:    h.name,
         address: [h.address?.city, h.address?.state].filter(Boolean).join(', '),
-        rating:  h.rating?.average > 0
-                   ? `${h.rating.average.toFixed(1)} (${h.rating.count})`
-                   : null,
-        color:  '#6366f1',
-        href:   `/hospitals/${h.id}`,
-        extra:  h.departments?.length > 0
-                  ? `<p style="font-size:11px;color:#6b7280;margin:0 0 4px;">${h.departments.slice(0, 3).join(' · ')}</p>`
-                  : '',
+        rating:  h.rating?.average > 0 ? `${h.rating.average.toFixed(1)} (${h.rating.count})` : null,
+        color:   '#6366f1',
+        href:    `/hospitals/${h.id}`,
+        extra:   h.distance != null
+          ? `<p style="font-size:11px;color:#6366f1;margin:0 0 4px;font-weight:600;">📍 ${(h.distance / 1000).toFixed(1)} km away</p>`
+          : (h.departments?.length > 0
+            ? `<p style="font-size:11px;color:#6b7280;margin:0 0 4px;">${h.departments.slice(0, 3).join(' · ')}</p>`
+            : ''),
       }))
   , [hospitals])
 
@@ -200,6 +302,7 @@ export default function HospitalsPage() {
     setSelected((prev) => prev?.id === item.id ? null : h)
   }, [hospitals])
 
+  /* ── Subcomponents ── */
   const ErrorBox = () => (
     <div style={{
       padding: 32, borderRadius: 20,
@@ -214,12 +317,13 @@ export default function HospitalsPage() {
 
   const EmptyBox = () => (
     <EmptyState
-      title="No hospitals found"
-      message={search || city ? 'Try different search terms' : 'No hospitals available yet'}
+      title={nearbyMode ? 'No hospitals within 15 km' : 'No hospitals found'}
+      message={nearbyMode
+        ? 'Try expanding your search or check a different location'
+        : (search || city ? 'Try different search terms' : 'No hospitals available yet')}
     />
   )
 
-  /* Grid for list view */
   const HospitalGrid = () => {
     if (isLoading) return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
@@ -243,7 +347,6 @@ export default function HospitalsPage() {
     )
   }
 
-  /* List for split view (scrollable) */
   const HospitalList = () => {
     if (isLoading) return (
       <div style={{ display: 'grid', gap: 12 }}>
@@ -253,11 +356,7 @@ export default function HospitalsPage() {
     if (error)             return <ErrorBox />
     if (!hospitals.length) return <EmptyBox />
     return (
-      <div style={{
-        display: 'grid', gap: 12,
-        maxHeight: 'calc(100vh - 240px)',
-        overflowY: 'auto', paddingRight: 4,
-      }}>
+      <div style={{ display: 'grid', gap: 12, maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 4 }}>
         {hospitals.map((h) => (
           <SelectedWrapper
             key={h.id}
@@ -271,13 +370,14 @@ export default function HospitalsPage() {
     )
   }
 
+  /* ─────────────────────────────────────────────
+     Render
+  ───────────────────────────────────────────── */
   return (
     <>
       <style>{`
-        @keyframes shimmer {
-          0%   { background-position:  200% 0 }
-          100% { background-position: -200% 0 }
-        }
+        @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+        @keyframes spin     { to { transform: rotate(360deg) } }
       `}</style>
 
       <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
@@ -311,7 +411,9 @@ export default function HospitalsPage() {
               <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
                 {isLoading
                   ? 'Finding hospitals…'
-                  : `${total} hospital${total !== 1 ? 's' : ''} found`
+                  : nearbyMode
+                    ? `${total} hospital${total !== 1 ? 's' : ''} within 15 km`
+                    : `${total} hospital${total !== 1 ? 's' : ''} found`
                 }
               </p>
             </div>
@@ -319,23 +421,38 @@ export default function HospitalsPage() {
           </div>
 
           {/* Filters */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
-            <div style={{ flex: 1, minWidth: 160, maxWidth: 340 }}>
-              <SearchInput
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search hospitals…"
-              />
-            </div>
-            <div style={{ width: 180 }}>
-              <SearchInput
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Filter by city…"
-                InputIcon={MapPin}
-              />
-            </div>
-            {(search || city) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'center' }}>
+            {/* Search — hidden when nearby mode is active */}
+            {!nearbyMode && (
+              <>
+                <div style={{ flex: 1, minWidth: 160, maxWidth: 340 }}>
+                  <SearchInput
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search hospitals…"
+                  />
+                </div>
+                <div style={{ width: 180 }}>
+                  <SearchInput
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Filter by city…"
+                    InputIcon={MapPin}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Near Me button */}
+            <NearMeBtn
+              active={nearbyMode}
+              loading={locLoading}
+              error={locError}
+              onClick={handleNearMe}
+            />
+
+            {/* Clear text filters */}
+            {!nearbyMode && (search || city) && (
               <button
                 onClick={() => { setSearch(''); setCity('') }}
                 style={{
@@ -352,14 +469,37 @@ export default function HospitalsPage() {
             )}
           </div>
 
+          {/* Location error */}
+          {locError && (
+            <div style={{
+              marginBottom: 16, padding: '10px 16px', borderRadius: 12,
+              background: '#fff1f2', border: '1px solid #fecaca',
+              color: '#dc2626', fontSize: 13,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <AlertTriangle size={16} strokeWidth={2.2} />
+              {locError}
+            </div>
+          )}
+
+          {/* Nearby mode info banner */}
+          {nearbyMode && !isLoading && (
+            <div style={{
+              marginBottom: 16, padding: '10px 16px', borderRadius: 12,
+              background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.2)',
+              color: '#6366f1', fontSize: 13, fontWeight: 500,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <Navigation size={15} strokeWidth={2.2} />
+              Showing hospitals within 15 km of your current location, sorted by distance.
+            </div>
+          )}
+
           {/* Views */}
           {view === 'list' && <HospitalGrid />}
 
           {view === 'map' && (
-            <div style={{
-              borderRadius: 20, overflow: 'hidden',
-              height: 'calc(100vh - 220px)', minHeight: 400,
-            }}>
+            <div style={{ borderRadius: 20, overflow: 'hidden', height: 'calc(100vh - 220px)', minHeight: 400 }}>
               <LeafletMap
                 markers={mapMarkers}
                 selected={selected}

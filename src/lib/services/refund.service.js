@@ -1,28 +1,15 @@
-// C:\Users\ASUS\medli2\src\lib\services\refund.service.js
-// ✅ ONLY CHANGE from your original:
-//    - Removed: import { process1PayRefund } from '@/lib/services/payment.service'
-//    - Replaced: process1PayRefund() call → Razorpay SDK refund call
-//    - Added:    syncRefundStatus() — used by /api/refunds/[id]/verify/route.js
-//    - Everything else (calculateRefundAmount, retryRefund, structure) UNCHANGED
+// C:\projects\medli2\src\lib\services\refund.service.js
 
-import Razorpay                   from 'razorpay'
+import Razorpay from 'razorpay'
 import { prisma } from '../prisma.js'
 import { generateRefundNumber } from '../utils/helpers.js'
 import { emailQueue, smsQueue } from '../queues/setup.js'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Razorpay SDK instance
-// Works with test keys (rzp_test_*) and live keys (rzp_live_*) — no code change needed
-// ─────────────────────────────────────────────────────────────────────────────
 const razorpay = new Razorpay({
   key_id:     process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 })
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REFUND POLICY — UNCHANGED
-// >24h = 100% | 12-24h = 50% | 4-12h = 25% | <4h = 0%
-// ─────────────────────────────────────────────────────────────────────────────
 export function calculateRefundAmount(booking) {
   const hoursUntilStart =
     (new Date(booking.startTime) - new Date()) / (1000 * 60 * 60)
@@ -40,10 +27,11 @@ export function calculateRefundAmount(booking) {
   return { refundPercent, refundAmount }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROCESS REFUND — replaces process1PayRefund with Razorpay SDK
-// ─────────────────────────────────────────────────────────────────────────────
 export async function processRefund({ bookingId, initiatedBy, reason }) {
+  // 🔍 DEBUG
+  console.log('[REFUND] processRefund called at:', new Date().toISOString())
+  console.log('[REFUND] bookingId:', bookingId)
+
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } })
   if (!booking) throw new Error('Booking not found')
 
@@ -57,7 +45,7 @@ export async function processRefund({ bookingId, initiatedBy, reason }) {
     throw new Error('No refund applicable based on cancellation policy')
   }
 
-  // ── Idempotency: don't create duplicate refunds ──────────────────────────
+  // ── Idempotency check ──
   const existingRefund = await prisma.refund.findFirst({
     where: {
       bookingId,
@@ -66,9 +54,20 @@ export async function processRefund({ bookingId, initiatedBy, reason }) {
     orderBy: { createdAt: 'desc' },
   })
 
-  if (existingRefund) return existingRefund
+  // 🔍 DEBUG
+  if (existingRefund) {
+    console.log('═══════════════════════════════════════════════════════')
+    console.log('[REFUND] ⚠️  EXISTING REFUND FOUND — returning old one!')
+    console.log('  - refundNumber:', existingRefund.refundNumber)
+    console.log('  - createdAt:   ', existingRefund.createdAt)
+    console.log('  - status:      ', existingRefund.status)
+    console.log('  - NO new refund created. This is the BUG source!')
+    console.log('═══════════════════════════════════════════════════════')
+    return existingRefund
+  }
 
-  // ── Get Razorpay payment ID ───────────────────────────────────────────────
+  console.log('[REFUND] No existing refund — creating new one now...')
+
   const payment = await prisma.payment.findFirst({
     where:   { bookingId },
     orderBy: { createdAt: 'desc' },
@@ -80,7 +79,6 @@ export async function processRefund({ bookingId, initiatedBy, reason }) {
     )
   }
 
-  // ── Create Refund record as pending ──────────────────────────────────────
   const refundNumber = generateRefundNumber()
 
   const refund = await prisma.refund.create({
@@ -99,47 +97,43 @@ export async function processRefund({ bookingId, initiatedBy, reason }) {
     },
   })
 
+  // 🔍 DEBUG — what timestamp did Prisma give the new refund
+  console.log('[REFUND] ✅ New refund created in DB:')
+  console.log('  - refundNumber:', refund.refundNumber)
+  console.log('  - createdAt:   ', refund.createdAt)
+  console.log('  - id:          ', refund.id)
+
   try {
-    // ── ✅ Call Razorpay SDK refund API ───────────────────────────────────────
-    // razorpay.payments.refund(paymentId, { amount, notes })
-    // amount is in paise (₹ × 100)
-    // Works identically with test keys and live keys
     const razorpayRefund = await razorpay.payments.refund(
       payment.razorpayPaymentId,
       {
-        amount: Math.round(refundAmount * 100), // paise
+        amount: Math.round(refundAmount * 100),
         notes: {
           booking_id:    bookingId,
           refund_number: refundNumber,
           reason:        reason || 'Booking cancelled',
         },
-        speed: 'normal', // 'normal' = 5-7 days, 'optimum' = instant if eligible
+        speed: 'normal',
       }
     )
 
-    // razorpayRefund.status: 'pending' | 'processed' | 'failed'
-    const rzStatus  = razorpayRefund.status
+    const rzStatus    = razorpayRefund.status
     const isCompleted = rzStatus === 'processed'
     const isFailed    = rzStatus === 'failed'
 
-    // Map Razorpay status → our DB status
-    // 'pending'   → 'processing'  (Razorpay is processing it asynchronously)
-    // 'processed' → 'completed'   (instant refund, rare on test mode)
-    // 'failed'    → 'failed'
     const nextStatus = isCompleted ? 'completed' : isFailed ? 'failed' : 'processing'
 
     const updatedRefund = await prisma.refund.update({
       where: { id: refund.id },
       data: {
         status:               nextStatus,
-        razorpayRefundId:     razorpayRefund.id,      // rfnd_XXXXXX
+        razorpayRefundId:     razorpayRefund.id,
         razorpayRefundStatus: rzStatus,
         processedAt:          isCompleted ? new Date() : null,
         failureReason:        isFailed ? (razorpayRefund.description || 'Razorpay refund failed') : null,
       },
     })
 
-    // ── Update Booking payment status ────────────────────────────────────────
     await prisma.booking.update({
       where: { id: bookingId },
       data: {
@@ -148,7 +142,6 @@ export async function processRefund({ bookingId, initiatedBy, reason }) {
       },
     })
 
-    // ── Update Payment record — append to refunds[] embedded array ───────────
     if (payment) {
       const refundEntry = {
         amount:           refundAmount,
@@ -168,7 +161,6 @@ export async function processRefund({ bookingId, initiatedBy, reason }) {
       })
     }
 
-    // ── Notify user ──────────────────────────────────────────────────────────
     const notifData = {
       userId:       booking.userId,
       bookingId:    booking.bookingId,
@@ -200,19 +192,13 @@ export async function processRefund({ bookingId, initiatedBy, reason }) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SYNC REFUND STATUS — called by GET /api/refunds/[id]/verify
-// Polls Razorpay for current status of a 'processing' refund
-// No webhook needed — admin clicks "Verify" in the refunds table
-// ─────────────────────────────────────────────────────────────────────────────
 export async function syncRefundStatus(refundId) {
   const refund = await prisma.refund.findUnique({ where: { id: refundId } })
   if (!refund)                       throw new Error('Refund not found')
   if (!refund.razorpayRefundId)      throw new Error('No Razorpay refund ID on record')
-  if (refund.status === 'completed') return refund   // already done
-  if (refund.status === 'failed')    return refund   // already terminal
+  if (refund.status === 'completed') return refund
+  if (refund.status === 'failed')    return refund
 
-  // ── Fetch current status from Razorpay ───────────────────────────────────
   const rzRefund = await razorpay.refunds.fetch(refund.razorpayRefundId)
 
   const rzStatus    = rzRefund.status
@@ -220,7 +206,6 @@ export async function syncRefundStatus(refundId) {
   const isFailed    = rzStatus === 'failed'
 
   if (!isCompleted && !isFailed) {
-    // Still pending/processing — nothing to update yet
     console.log(`[Refund Sync] ${refund.refundNumber} still ${rzStatus}`)
     return await prisma.refund.update({
       where: { id: refundId },
@@ -228,7 +213,6 @@ export async function syncRefundStatus(refundId) {
     })
   }
 
-  // ── Terminal state reached — update DB ───────────────────────────────────
   const updated = await prisma.refund.update({
     where: { id: refundId },
     data: {
@@ -239,7 +223,6 @@ export async function syncRefundStatus(refundId) {
     },
   })
 
-  // ── Update Booking ────────────────────────────────────────────────────────
   if (isCompleted) {
     await prisma.booking.update({
       where: { id: refund.bookingId },
@@ -249,7 +232,6 @@ export async function syncRefundStatus(refundId) {
   }
 
   if (isFailed) {
-    // Revert booking to 'paid' so admin can retry
     await prisma.booking.update({
       where: { id: refund.bookingId },
       data:  { paymentStatus: 'paid' },
@@ -260,9 +242,6 @@ export async function syncRefundStatus(refundId) {
   return updated
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RETRY REFUND — UNCHANGED
-// ─────────────────────────────────────────────────────────────────────────────
 export async function retryRefund({ refundId, initiatedBy }) {
   const refund = await prisma.refund.findUnique({ where: { id: refundId } })
   if (!refund)                    throw new Error('Refund not found')

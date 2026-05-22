@@ -19,12 +19,27 @@ function normalizeDoc(doc) {
   return { ...doc, _id: undefined, id }
 }
 
+/**
+ * Haversine distance in kilometres between two lat/lng points.
+ */
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const lat    = parseFloat(searchParams.get('lat'))
     const lng    = parseFloat(searchParams.get('lng'))
-    const radius = parseInt(searchParams.get('radius') || '15000', 10)
+    const radius = parseInt(searchParams.get('radius') || '15000', 10) // metres, default 15 km
 
     if (isNaN(lat) || isNaN(lng)) {
       return errorResponse('lat and lng are required', 'VALIDATION_ERROR', 400)
@@ -45,8 +60,9 @@ export async function GET(request) {
     } catch {}
 
     let hospitals = []
+    let source = 'geoNear'
 
-    /* ── Try $geoNear first ── */
+    /* ── Primary: MongoDB $geoNear (requires 2dsphere index) ── */
     try {
       const result = await prisma.$runCommandRaw({
         aggregate: 'hospitals',
@@ -55,7 +71,7 @@ export async function GET(request) {
             $geoNear: {
               near:          { type: 'Point', coordinates: [lng, lat] },
               distanceField: 'distance',
-              maxDistance:   radius,
+              maxDistance:   radius,   // strictly enforced — only within radius metres
               spherical:     true,
               query:         { isApproved: true, isActive: true },
             },
@@ -75,50 +91,60 @@ export async function GET(request) {
 
       const raw = result?.cursor?.firstBatch || []
       hospitals = raw.map(normalizeDoc)
-
-      console.log(`[Hospitals Nearby] ✅ $geoNear returned ${hospitals.length}`)
+      console.log(`[Hospitals Nearby] ✅ $geoNear returned ${hospitals.length} within ${radius}m`)
     } catch (geoErr) {
-      console.warn('[Hospitals Nearby] $geoNear failed, using fallback:', geoErr.message)
+      console.warn('[Hospitals Nearby] $geoNear failed, using Haversine fallback:', geoErr.message)
+      source = 'haversine-fallback'
+
+      /*
+       * Haversine fallback — pull a broad candidate set then filter
+       * strictly by distance in JavaScript. Never returns results
+       * outside the requested radius.
+       */
+      try {
+        const candidates = await prisma.hospital.findMany({
+          where:   { isApproved: true, isActive: true },
+          take:    300, // wide net so we don't miss nearby ones
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, name: true, slug: true,
+            address: true, location: true, images: true,
+            rating: true, departments: true, contactPhone: true,
+          },
+        })
+
+        const radiusKm = radius / 1000
+
+        hospitals = candidates
+          .filter((h) => {
+            const coords = h.location?.coordinates
+            if (!Array.isArray(coords) || coords.length < 2) return false
+            const distKm = haversineKm(lat, lng, coords[1], coords[0])
+            return distKm <= radiusKm
+          })
+          .map((h) => {
+            const coords = h.location?.coordinates
+            const distKm = haversineKm(lat, lng, coords[1], coords[0])
+            return { ...h, distance: Math.round(distKm * 1000) } // distance in metres like $geoNear
+          })
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, 15)
+
+        console.log(`[Hospitals Nearby] ✅ Haversine fallback: ${hospitals.length} within ${radiusKm}km`)
+      } catch (fbErr) {
+        console.error('[Hospitals Nearby] Haversine fallback also failed:', fbErr.message)
+      }
     }
 
-    /* ✅ FALLBACK — if $geoNear failed OR returned empty, get any approved hospitals */
-    if (hospitals.length === 0) {
-      const fallback = await prisma.hospital.findMany({
-        where:  { isApproved: true, isActive: true },
-        take:   15,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true, name: true, slug: true,
-          address: true, location: true, images: true,
-          rating: true, departments: true, contactPhone: true,
-        },
-      })
-      hospitals = fallback
-      console.log(`[Hospitals Nearby] ✅ Fallback returned ${hospitals.length}`)
-    }
+    const payload = { hospitals, total: hospitals.length, source }
 
     try {
-      await cache.set(cacheKey, JSON.stringify(hospitals), 300)
+      await cache.set(cacheKey, JSON.stringify(payload), 300)
     } catch {}
 
-    return successResponse(hospitals, 'Nearby hospitals')
+    return successResponse(payload, 'Nearby hospitals')
   } catch (err) {
     console.error('[Hospitals Nearby] FATAL:', err.message)
-
-    /* ✅ Even on total failure, try basic fetch */
-    try {
-      const emergency = await prisma.hospital.findMany({
-        where:  { isApproved: true, isActive: true },
-        take:   15,
-        select: {
-          id: true, name: true, slug: true,
-          address: true, location: true, images: true,
-          rating: true, departments: true, contactPhone: true,
-        },
-      })
-      return successResponse(emergency, 'Nearby hospitals (emergency fallback)')
-    } catch {
-      return errorResponse('Failed to fetch nearby hospitals', 'SERVER_ERROR', 500)
-    }
+    return errorResponse('Failed to fetch nearby hospitals', 'SERVER_ERROR', 500)
   }
 }

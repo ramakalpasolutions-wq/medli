@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Check,
   LifeBuoy,
+  Heart,
 } from 'lucide-react'
 
 const LINKS = {
@@ -31,9 +32,6 @@ const LINKS = {
   ],
   Company: [
     { label: 'About', href: '/about', Icon: Lightbulb },
-    // { label: 'Careers', href: '/careers', Icon: Briefcase },
-    // { label: 'Blog', href: '/blog', Icon: FileText },
-    // { label: 'Contact', href: '/contact', Icon: Mail },
     { label: 'Support', href: '/user/support', Icon: LifeBuoy },
   ],
   Legal: [
@@ -94,6 +92,7 @@ export default function Footer() {
   const [email, setEmail] = useState('')
   const [subbed, setSubbed] = useState(false)
   const [subHover, setSubHover] = useState(false)
+  const [credHover, setCredHover] = useState(false)
 
   const handleSubscribe = (e) => {
     e.preventDefault()
@@ -109,6 +108,14 @@ export default function Footer() {
         @keyframes ft-float {
           0%,100% { transform:translateY(0); }
           50% { transform:translateY(-4px); }
+        }
+
+        @keyframes ft-heartbeat {
+          0%,100% { transform:scale(1); }
+          15% { transform:scale(1.25); }
+          30% { transform:scale(1); }
+          45% { transform:scale(1.18); }
+          60% { transform:scale(1); }
         }
 
         .ft-link {
@@ -272,10 +279,6 @@ export default function Footer() {
                     padding: 4,
                     flexShrink: 0,
                     overflow: 'hidden',
-                    // background: 'linear-gradient(135deg,rgba(99,102,241,.16),rgba(139,92,246,.12))',
-                    // border: '1px solid rgba(255,255,255,.08)',
-                    // boxShadow: '0 6px 20px rgba(99,102,241,.18)',
-                    // animation: 'ft-float 3s ease-in-out infinite',
                   }}
                 >
                   <Image
@@ -435,7 +438,7 @@ export default function Footer() {
             style={{
               borderTop: '1px solid rgba(255,255,255,.06)',
               paddingTop: 24,
-              paddingBottom: 32,
+              paddingBottom: 20,
               display: 'flex',
               flexWrap: 'wrap',
               alignItems: 'center',
@@ -470,6 +473,58 @@ export default function Footer() {
                 GSTIN: {process.env.NEXT_PUBLIC_GSTIN || '27MEDLI1234Z1'}
               </span>
             </div>
+          </div>
+
+          {/* ✅ NEW — Designed & Developed credit (centered, bottom) */}
+          <div
+            style={{
+              borderTop: '1px solid rgba(255,255,255,.04)',
+              padding: '18px 0 28px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <a
+              href="https://www.ramakalpasolutions.in/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseEnter={() => setCredHover(true)}
+              onMouseLeave={() => setCredHover(false)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 18px',
+                borderRadius: 100,
+                background: credHover
+                  ? 'linear-gradient(135deg,rgba(99,102,241,.12),rgba(139,92,246,.10))'
+                  : 'rgba(255,255,255,.03)',
+                border: `1px solid ${credHover ? 'rgba(99,102,241,.30)' : 'rgba(255,255,255,.06)'}`,
+                textDecoration: 'none',
+                fontSize: 12,
+                fontWeight: 500,
+                color: credHover ? '#a5b4fc' : '#64748b',
+                transition: 'all .25s ease',
+                transform: credHover ? 'translateY(-1px)' : 'translateY(0)',
+                boxShadow: credHover ? '0 6px 18px rgba(99,102,241,.18)' : 'none',
+              }}
+            >
+              <span>Designed &amp; Developed</span>
+              <span>by</span>
+              <span
+                style={{
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg,#818cf8,#a78bfa)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  letterSpacing: '0.2px',
+                }}
+              >
+                Ramakalpa Solutions
+              </span>
+            </a>
           </div>
         </div>
       </footer>
