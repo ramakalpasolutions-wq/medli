@@ -1,4 +1,4 @@
-package com.example.app;
+package com.ramakalpa.sectirmeldllp;
 
 import android.os.Bundle;
 import android.webkit.GeolocationPermissions;
