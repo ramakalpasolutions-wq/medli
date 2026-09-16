@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { cache }        from '@/lib/cache'
 
+const isDev = process.env.NODE_ENV === 'development'
+
 const LIMITS = {
-  auth:    { max: 10,  window: 60  },   // 10 req / 60 s
-  otp:     { max: 5,   window: 300 },   // 5  req / 5 min
-  payment: { max: 20,  window: 60  },
-  default: { max: 100, window: 60  },
+  auth:    { max: isDev ? 1000 : 10,  window: 60  },   // 10 req / 60 s in prod
+  otp:     { max: isDev ? 1000 : 5,   window: 300 },   // 5  req / 5 min in prod
+  payment: { max: isDev ? 1000 : 20,  window: 60  },
+  default: { max: isDev ? 5000 : 100, window: 60  },
 }
 
 /**
@@ -17,6 +19,11 @@ const LIMITS = {
  * @param {Function} handler  — async (request) => Response
  */
 export async function withRateLimit(request, type = 'default', handler) {
+  // In development mode, automatically bypass to avoid test lockouts
+  if (isDev) {
+    return handler(request)
+  }
+
   try {
     const limit = LIMITS[type] ?? LIMITS.default
 
@@ -41,8 +48,8 @@ export async function withRateLimit(request, type = 'default', handler) {
         {
           status:  429,
           headers: {
-            'Retry-After':        String(limit.window),
-            'X-RateLimit-Limit':  String(limit.max),
+            'Retry-After':           String(limit.window),
+            'X-RateLimit-Limit':     String(limit.max),
             'X-RateLimit-Remaining': '0',
           },
         }
