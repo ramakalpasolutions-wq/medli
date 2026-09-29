@@ -7,6 +7,7 @@ import DataTable from '@/components/ui/DataTable'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import BulkUploadModal from '@/components/admin/BulkUploadModal' // 👈 IMPORTED
 import { useToast } from '@/context/ToastContext'
 
 const fetcher = (url) =>
@@ -137,6 +138,7 @@ export default function LabsPage() {
   const [viewItem, setViewItem] = useState(null)
   const [editItem, setEditItem] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false) // 👈 NEW
   const toast = useToast()
 
   const qs = new URLSearchParams({ page, limit: 20 })
@@ -284,6 +286,8 @@ export default function LabsPage() {
                   {pendingCount} Pending
                 </Badge>
               )}
+              {/* ── NEW: Bulk Upload Trigger ──────────────────────── */}
+              <ABtn label="📤 Bulk Upload" variant="outline" onClick={() => setBulkOpen(true)} />
               <AddBtn onClick={() => setPanelOpen(true)} />
             </div>
           }
@@ -354,6 +358,14 @@ export default function LabsPage() {
             }}
           />
         )}
+
+        {/* ── NEW: Bulk Upload Modal ───────────────────────────── */}
+        <BulkUploadModal
+          isOpen={bulkOpen}
+          onClose={() => setBulkOpen(false)}
+          entityType="lab"
+          onUploadSuccess={() => { mutate(); setBulkOpen(false) }}
+        />
       </div>
     </>
   )
@@ -449,8 +461,6 @@ function AddLabPanel({ onClose, onSaved }) {
     }
 
     setSaving(true)
-    const result = { lab: null, admin: null, errors: [] }
-
     try {
       const meRes = await fetch('/api/auth/me', { credentials: 'include' })
       if (!meRes.ok) {
@@ -501,24 +511,15 @@ function AddLabPanel({ onClose, onSaved }) {
         body: JSON.stringify(labPayload),
       })
 
-      if (labRes.status === 401) {
-        toast.error('Session expired during lab creation')
-        setTimeout(() => {
-          window.location.href = '/auth/login?redirect=/super-admin/labs'
-        }, 1500)
-        return
-      }
-
       const labJson = await labRes.json()
 
       if (!labJson.success) {
-        result.errors.push(`Lab: ${labJson.error}`)
         toast.error(`❌ Lab failed: ${labJson.error}`)
         return
       }
 
-      result.lab = labJson.data
-      toast.success(`✅ Lab "${result.lab.name}" created`)
+      const lab = labJson.data
+      toast.success(`✅ Lab "${lab.name}" created`)
 
       if (form.createAdmin) {
         const adminPayload = {
@@ -527,7 +528,7 @@ function AddLabPanel({ onClose, onSaved }) {
           phone: form.adminPhone.trim() || undefined,
           password: form.adminPassword,
           role: 'lab_admin',
-          labId: result.lab.id,
+          labId: lab.id,
         }
 
         const adminRes = await fetch('/api/users', {
@@ -540,10 +541,8 @@ function AddLabPanel({ onClose, onSaved }) {
         const adminJson = await adminRes.json()
 
         if (adminJson.success) {
-          result.admin = adminJson.data
           toast.success(`✅ Admin login created: ${form.adminEmail}`)
         } else {
-          result.errors.push(`Admin: ${adminJson.error}`)
           toast.error(`⚠️ Lab created but admin failed: ${adminJson.error}`)
         }
       }
@@ -1717,7 +1716,7 @@ function InfoBox({ label, value }) {
 
 function IDRow({ label, value }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'center' }}>
       <span style={{ fontSize: 11, color: '#94a3b8' }}>{label}</span>
       <span
         style={{

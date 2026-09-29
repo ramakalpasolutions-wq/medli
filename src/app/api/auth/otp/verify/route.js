@@ -75,7 +75,7 @@ export async function POST(request) {
       let user = null
 
       if (phone) {
-        user = await prisma.user.findUnique({
+        user = await prisma.user.findFirst({
           where:  { phone },
           select: {
             id: true, name: true, phone: true,
@@ -84,7 +84,7 @@ export async function POST(request) {
           },
         })
       } else if (email) {
-        user = await prisma.user.findUnique({
+        user = await prisma.user.findFirst({
           where:  { email },
           select: {
             id: true, name: true, phone: true,

@@ -307,8 +307,8 @@ type FamilyMember {
 model User {
   id             String           @id @default(auto()) @map("_id") @db.ObjectId
   name           String
-  email          String?          @unique
-  phone          String?          @unique
+  email          String?         
+  phone          String?         
   role           Role             @default(user)
   passwordHash   String?
   avatar         String?
@@ -406,19 +406,24 @@ model Lab {
 model Test {
   id                      String   @id @default(auto()) @map("_id") @db.ObjectId
   labId                   String   @db.ObjectId
+  templateId              String?  @db.ObjectId           // Links to TestTemplate (null if custom)
   name                    String
-  code                    String?
+  code                    String?                         // Matches template code, or custom
   category                String?
   parameters              String[]
-  price                   Float
-  discountedPrice         Float?
+  price                   Float                           // Lab's configured price (overrides template)
+  discountedPrice         Float?                          // Lab's discounted offer price
   turnaroundTime          TAT?
   sampleType              String?
   preparationInstructions String?
-  isActive                Boolean  @default(true)
+  
+  isActive                Boolean  @default(false)        // Lab decides if they offer this test (Default: false)
+  isCustom                Boolean  @default(false)        // True if added directly by lab
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
+  @@unique([labId, code])
+  @@index([labId, isActive])
   @@map("tests")
 }
 
@@ -786,4 +791,36 @@ model SupportTicket {
   @@index([status])
   @@index([createdAt])
   @@map("support_tickets")
+}
+model TestTemplate {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                    String
+  code                    String   @unique                // e.g., "CBC", "TSH"
+  category                String                          // e.g., "Hematology"
+  parameters              String[]                        // e.g., ["Hb", "WBC", "Platelets"]
+  suggestedPrice          Float                           // Suggested global price
+  turnaroundTime          TAT?
+  sampleType              String?                         // e.g., "Blood", "Urine"
+  preparationInstructions String?
+  isActive                Boolean  @default(true)         // Super admin master control
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("test_templates")
+}
+model TestPackage {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  labId           String   @db.ObjectId
+  name            String                                  // e.g., "Full Body Health Check"
+  code            String?                                 // Package unique code
+  description     String?
+  testIds         String[] @db.ObjectId                   // Dynamic reference to lab's Tests
+  price           Float                                   // Lab-set bundled price
+  discountedPrice Float?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([labId, code])
+  @@map("test_packages")
 }

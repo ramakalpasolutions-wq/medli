@@ -9,9 +9,10 @@ import Button       from '@/components/ui/Button'
 import Input        from '@/components/ui/Input'
 import Modal        from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import BulkUploadModal from '@/components/admin/BulkUploadModal' // 👈 IMPORTED
 import { useToast } from '@/context/ToastContext'
 import {
-  Search, CheckCircle, ToggleLeft, Eye, MapPin, Phone, Mail, Clock, Plus, Pencil,
+  Search, CheckCircle, ToggleLeft, Eye, MapPin, Phone, Mail, Clock, Plus, Pencil, Upload,
 } from 'lucide-react'
 
 const fetcher = (url) =>
@@ -44,17 +45,15 @@ const DAY_LABELS = {
   fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   MAIN PAGE
-═══════════════════════════════════════════════════════════════════════════ */
 export default function HospitalsPage() {
   const [page,       setPage]       = useState(1)
   const [search,     setSearch]     = useState('')
   const [action,     setAction]     = useState(null)
   const [loading,    setLoading]    = useState(false)
   const [viewItem,   setViewItem]   = useState(null)
-  const [editItem,   setEditItem]   = useState(null)   // ← NEW
+  const [editItem,   setEditItem]   = useState(null)
   const [panelOpen,  setPanelOpen]  = useState(false)
+  const [bulkOpen,   setBulkOpen]   = useState(false) // 👈 NEW
   const toast = useToast()
 
   const qs = new URLSearchParams({ page, limit: 20 })
@@ -132,7 +131,6 @@ export default function HospitalsPage() {
             onClick={() => setViewItem(row)}>
             View
           </Button>
-          {/* ── NEW: Edit button ─────────────────────────────────── */}
           <Button size="xs" variant="ghost" leftIcon={<Pencil className="w-3 h-3" />}
             onClick={() => setEditItem(row)}
             style={{ color: '#6366f1' }}>
@@ -174,6 +172,11 @@ export default function HospitalsPage() {
               {pendingCount > 0 && (
                 <Badge variant="warning" size="lg" dot pulse>{pendingCount} Pending</Badge>
               )}
+              {/* ── NEW: Bulk Upload Trigger ──────────────────────── */}
+              <Button variant="outline" leftIcon={<Upload className="w-4 h-4" />}
+                onClick={() => setBulkOpen(true)}>
+                Bulk Upload
+              </Button>
               <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />}
                 onClick={() => setPanelOpen(true)}>
                 Add Hospital
@@ -192,7 +195,6 @@ export default function HospitalsPage() {
           page={page} totalPages={totalPages} onPageChange={setPage}
           emptyTitle="No hospitals found" />
 
-        {/* View Detail Modal */}
         <Modal open={!!viewItem} onClose={() => setViewItem(null)} title="Hospital Details" size="lg">
           {viewItem && (
             <HospitalDetail
@@ -202,7 +204,6 @@ export default function HospitalsPage() {
           )}
         </Modal>
 
-        {/* Confirm Action Modal */}
         <ConfirmModal open={!!action} onClose={() => setAction(null)} onConfirm={performAction}
           title={action?.type === 'approve' ? 'Approve Hospital?' : action?.hospital?.isActive ? 'Disable Hospital?' : 'Enable Hospital?'}
           message={action?.type === 'approve' ? 'This hospital will become visible on the platform.' : 'Toggle hospital active status.'}
@@ -212,7 +213,6 @@ export default function HospitalsPage() {
           details={{ Name: action?.hospital?.name, City: action?.hospital?.address?.city || '—' }}
         />
 
-        {/* Add Hospital Slide Panel */}
         {panelOpen && (
           <AddHospitalPanel
             onClose={() => setPanelOpen(false)}
@@ -220,7 +220,6 @@ export default function HospitalsPage() {
           />
         )}
 
-        {/* ── NEW: Edit Hospital Slide Panel ──────────────────────────── */}
         {editItem && (
           <EditHospitalPanel
             hospital={editItem}
@@ -228,13 +227,21 @@ export default function HospitalsPage() {
             onSaved={() => { mutate(); setEditItem(null) }}
           />
         )}
+
+        {/* ── NEW: Bulk Upload Modal ───────────────────────────── */}
+        <BulkUploadModal
+          isOpen={bulkOpen}
+          onClose={() => setBulkOpen(false)}
+          entityType="hospital"
+          onUploadSuccess={() => { mutate(); setBulkOpen(false) }}
+        />
       </div>
     </>
   )
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   EDIT HOSPITAL PANEL  ← NEW
+   EDIT HOSPITAL PANEL
 ═══════════════════════════════════════════════════════════════════════════ */
 function EditHospitalPanel({ hospital, onClose, onSaved }) {
   const toast   = useToast()
@@ -364,14 +371,12 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
 
   return (
     <>
-      {/* Backdrop */}
       <div onClick={onClose} style={{
         position: 'fixed', inset: 0, zIndex: 900,
         background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
         animation: 'hosp-fade .2s ease',
       }} />
 
-      {/* Panel */}
       <div style={{
         position: 'fixed', right: 0, top: 0, bottom: 0,
         width: 'min(600px, 96vw)',
@@ -381,7 +386,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
         animation: 'hosp-slide .28s cubic-bezier(0.34,1.56,0.64,1)',
       }}>
 
-        {/* ── Header ──────────────────────────────────────────────── */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '16px 20px', flexShrink: 0,
@@ -414,7 +418,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
           <CloseBtn onClick={onClose} />
         </div>
 
-        {/* ── Tab Bar ─────────────────────────────────────────────── */}
         <div style={{
           display: 'flex', borderBottom: '1px solid #f1f5f9',
           background: '#fafafa', flexShrink: 0, overflowX: 'auto',
@@ -431,13 +434,11 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
           ))}
         </div>
 
-        {/* ── Scrollable Content ───────────────────────────────────── */}
         <div style={{
           flex: 1, overflowY: 'auto', padding: 20,
           display: 'flex', flexDirection: 'column', gap: 16,
         }}>
 
-          {/* ── Tab: Info ─────────────────────────────────────────── */}
           {tab === 'info' && (
             <>
               <SectionTitle>Basic Information</SectionTitle>
@@ -467,7 +468,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
                 onChange={(e) => set('platformFeePercent', e.target.value)}
                 hint="Percentage commission charged by MEDLI" />
 
-              {/* Read-only info */}
               <div style={{
                 padding: '12px 14px', borderRadius: 12,
                 background: '#f8fafc', border: '1px solid #e2e8f0',
@@ -483,7 +483,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
             </>
           )}
 
-          {/* ── Tab: Address & Location ──────────────────────────── */}
           {tab === 'location' && (
             <>
               <SectionTitle>Address</SectionTitle>
@@ -524,10 +523,9 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
             </>
           )}
 
-          {/* ── Tab: Departments & Services ─────────────────────── */}
           {tab === 'services' && (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between' }}>
                 <SectionTitle>
                   Departments
                   <span style={{ color: '#6366f1', fontWeight: 700, marginLeft: 4 }}>
@@ -543,7 +541,7 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
 
               <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }} />
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyBetween: 'space-between' }}>
                 <SectionTitle>
                   Services
                   <span style={{ color: '#10b981', fontWeight: 700, marginLeft: 4 }}>
@@ -559,7 +557,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
             </>
           )}
 
-          {/* ── Tab: Operating Hours ────────────────────────────── */}
           {tab === 'hours' && (
             <>
               <SectionTitle>Operating Hours</SectionTitle>
@@ -587,7 +584,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
                       border: `1px solid ${slot.isOpen ? '#bbf7d0' : '#e2e8f0'}`,
                       transition: 'all .15s ease',
                     }}>
-                      {/* Day toggle */}
                       <label style={{
                         display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
                       }}>
@@ -614,7 +610,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
                         }}>{DAY_LABELS[day].slice(0, 3)}</span>
                       </label>
 
-                      {/* Open time */}
                       <div>
                         <p style={{ fontSize: 10, color: '#94a3b8', margin: '0 0 3px', fontWeight: 600 }}>OPEN</p>
                         <input type="time" value={slot.open || '09:00'}
@@ -630,7 +625,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
                           }} />
                       </div>
 
-                      {/* Close time */}
                       <div>
                         <p style={{ fontSize: 10, color: '#94a3b8', margin: '0 0 3px', fontWeight: 600 }}>CLOSE</p>
                         <input type="time" value={slot.close || '18:00'}
@@ -653,7 +647,6 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
           )}
         </div>
 
-        {/* ── Footer ──────────────────────────────────────────────── */}
         <div style={{
           padding: '14px 20px', borderTop: '1px solid #f1f5f9',
           flexShrink: 0, display: 'flex', gap: 10,
@@ -672,7 +665,7 @@ function EditHospitalPanel({ hospital, onClose, onSaved }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ADD HOSPITAL PANEL  (unchanged)
+   ADD HOSPITAL PANEL (unchanged)
 ═══════════════════════════════════════════════════════════════════════════ */
 function AddHospitalPanel({ onClose, onSaved }) {
   const toast = useToast()
@@ -753,8 +746,6 @@ function AddHospitalPanel({ onClose, onSaved }) {
     }
 
     setSaving(true)
-    const result = { hospital: null, admin: null, errors: [] }
-
     try {
       const meRes = await fetch('/api/auth/me', { credentials: 'include' })
       if (!meRes.ok) {
@@ -792,22 +783,15 @@ function AddHospitalPanel({ onClose, onSaved }) {
         body: JSON.stringify(hospitalPayload),
       })
 
-      if (hospRes.status === 401) {
-        toast.error('Session expired during hospital creation')
-        setTimeout(() => { window.location.href = '/auth/login?redirect=/super-admin/hospitals' }, 1500)
-        return
-      }
-
       const hospJson = await hospRes.json()
 
       if (!hospJson.success) {
-        result.errors.push(`Hospital: ${hospJson.error}`)
         toast.error(`❌ Hospital failed: ${hospJson.error}`)
         return
       }
 
-      result.hospital = hospJson.data
-      toast.success(`✅ Hospital "${result.hospital.name}" created`)
+      const hospital = hospJson.data
+      toast.success(`✅ Hospital "${hospital.name}" created`)
 
       if (form.createAdmin) {
         const adminPayload = {
@@ -816,7 +800,7 @@ function AddHospitalPanel({ onClose, onSaved }) {
           phone:      form.adminPhone.trim() || undefined,
           password:   form.adminPassword,
           role:       'hospital_admin',
-          hospitalId: result.hospital.id,
+          hospitalId: hospital.id,
         }
 
         const adminRes  = await fetch('/api/users', {
@@ -829,10 +813,8 @@ function AddHospitalPanel({ onClose, onSaved }) {
         const adminJson = await adminRes.json()
 
         if (adminJson.success) {
-          result.admin = adminJson.data
           toast.success(`✅ Admin login created: ${form.adminEmail}`)
         } else {
-          result.errors.push(`Admin: ${adminJson.error}`)
           toast.error(`⚠️ Hospital created but admin failed: ${adminJson.error}`)
         }
       }
@@ -863,7 +845,7 @@ function AddHospitalPanel({ onClose, onSaved }) {
         animation: 'hosp-slide .28s cubic-bezier(0.34,1.56,0.64,1)',
       }}>
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyBetween: 'space-between',
           padding: '16px 20px', borderBottom: '1px solid #f1f5f9', flexShrink: 0,
         }}>
           <div>
@@ -990,14 +972,13 @@ function AddHospitalPanel({ onClose, onSaved }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HOSPITAL DETAIL VIEW  (unchanged)
+   HOSPITAL DETAIL VIEW (unchanged)
 ═══════════════════════════════════════════════════════════════════════════ */
 function HospitalDetail({ hospital: h, onUpdate }) {
   const [showAdminForm, setShowAdminForm] = useState(false)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Header */}
       <div style={{
         display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap',
         padding: 16, background: '#f8fafc', borderRadius: 16,
@@ -1028,7 +1009,6 @@ function HospitalDetail({ hospital: h, onUpdate }) {
         </div>
       </div>
 
-      {/* Info Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <InfoCard icon={<MapPin style={{ width: 16, height: 16, color: '#6366f1' }} />} label="Address"
           value={[h.address?.line1, h.address?.city, h.address?.state, h.address?.pinCode].filter(Boolean).join(', ') || '—'} />
@@ -1168,7 +1148,7 @@ function HospitalDetail({ hospital: h, onUpdate }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SET ADMIN FORM  (unchanged)
+   SET ADMIN FORM (unchanged)
 ═══════════════════════════════════════════════════════════════════════════ */
 function SetEntityAdminForm({ entityType, entityId, entityName, defaultEmail, onCancel, onSuccess }) {
   const toast = useToast()
@@ -1255,7 +1235,7 @@ function SetEntityAdminForm({ entityType, entityId, entityName, defaultEmail, on
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SHARED UI HELPERS  (unchanged)
+   SHARED UI HELPERS
 ═══════════════════════════════════════════════════════════════════════════ */
 function FormInput({ label, hint, ...props }) {
   const [focused, setFocused] = useState(false)
@@ -1397,7 +1377,7 @@ function InfoCard({ icon, label, value }) {
 
 function IDRow({ label, value }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'center' }}>
       <span style={{ fontSize: 11, color: '#94a3b8' }}>{label}</span>
       <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#64748b' }}>{value}</span>
     </div>
