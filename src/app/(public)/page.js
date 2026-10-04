@@ -649,7 +649,7 @@ const QUICK = [
 const STEPS = [
   { step:'01', Icon: Search,   title:'Search & Discover', desc:'Find top-rated hospitals, labs and doctors near you with real-time availability.', gradient:'linear-gradient(135deg,#6366f1,#8b5cf6)' },
   { step:'02', Icon: Calendar, title:'Book Instantly',    desc:'Select your preferred date, time slot and book in seconds. No waiting.',          gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
-  { step:'03', Icon: Shield,   title:'Pay Securely',      desc:'Pay via Razorpay gateway. Get instant confirmation and smart reminders.',          gradient:'linear-gradient(135deg,#10b981,#059669)' },
+  { step:'03', Icon: Shield,   title:'Pay Securely',      desc:'Pay via Cashfree gateway. Get instant confirmation and smart reminders.',          gradient:'linear-gradient(135deg,#10b981,#059669)' },
 ]
 
 const STATS = [
