@@ -8,55 +8,86 @@ function verifyWebhookSignature({
   timestamp,
   signature,
 }) {
+  const secretKey =
+    process.env.CASHFREE_SECRET_KEY
+
   if (
     !rawBody ||
     !timestamp ||
     !signature ||
-    !process.env.CASHFREE_SECRET_KEY
+    !secretKey
   ) {
     return false
   }
 
-  const signedPayload =
-    `${timestamp}${rawBody}`
+  try {
+    const signedPayload =
+      `${timestamp}${rawBody}`
 
-  const expectedSignature =
-    crypto
-      .createHmac(
-        'sha256',
-        process.env.CASHFREE_SECRET_KEY
-      )
-      .update(signedPayload)
-      .digest('base64')
+    const expectedSignature =
+      crypto
+        .createHmac(
+          'sha256',
+          secretKey
+        )
+        .update(signedPayload)
+        .digest('base64')
 
-  const expectedBuffer =
-    Buffer.from(expectedSignature)
+    const expectedBuffer =
+      Buffer.from(expectedSignature)
 
-  const receivedBuffer =
-    Buffer.from(signature)
+    const receivedBuffer =
+      Buffer.from(signature)
 
-  if (
-    expectedBuffer.length !==
-    receivedBuffer.length
-  ) {
+    if (
+      expectedBuffer.length !==
+      receivedBuffer.length
+    ) {
+      return false
+    }
+
+    return crypto.timingSafeEqual(
+      expectedBuffer,
+      receivedBuffer
+    )
+  } catch (error) {
+    console.error(
+      '[Cashfree Webhook] Signature verification error:',
+      error
+    )
+
     return false
   }
+}
 
-  return crypto.timingSafeEqual(
-    expectedBuffer,
-    receivedBuffer
-  )
+function normalizePaymentMethod(
+  paymentData
+) {
+  const method =
+    paymentData?.payment_group ||
+    paymentData?.payment_method ||
+    null
+
+  if (!method) {
+    return null
+  }
+
+  if (typeof method === 'string') {
+    return method
+  }
+
+  try {
+    return JSON.stringify(method)
+  } catch {
+    return null
+  }
 }
 
 export async function POST(request) {
   try {
-    /*
-     * IMPORTANT:
-     * Read request.text() BEFORE JSON.parse().
-     *
-     * Cashfree webhook verification requires the
-     * original/raw body.
-     */
+    // ============================================================
+    // RAW BODY
+    // ============================================================
 
     const rawBody =
       await request.text()
@@ -70,6 +101,10 @@ export async function POST(request) {
       request.headers.get(
         'x-webhook-signature'
       )
+
+    // ============================================================
+    // VERIFY SIGNATURE
+    // ============================================================
 
     const valid =
       verifyWebhookSignature({
@@ -95,12 +130,21 @@ export async function POST(request) {
       )
     }
 
+    // ============================================================
+    // PARSE PAYLOAD
+    // ============================================================
+
     let payload
 
     try {
       payload =
         JSON.parse(rawBody)
-    } catch {
+    } catch (error) {
+      console.error(
+        '[Cashfree Webhook] Invalid JSON:',
+        error
+      )
+
       return Response.json(
         {
           success: false,
@@ -113,10 +157,8 @@ export async function POST(request) {
       )
     }
 
-    console.log(
-      '[Cashfree Webhook]',
-      payload?.type
-    )
+    const webhookType =
+      payload?.type || null
 
     const order =
       payload?.data?.order || {}
@@ -125,14 +167,45 @@ export async function POST(request) {
       payload?.data?.payment || {}
 
     const orderId =
-      order.order_id
+      order?.order_id || null
+
+    const gatewayStatus =
+      String(
+        paymentData?.payment_status ||
+          ''
+      ).toUpperCase()
+
+    console.log(
+      '[Cashfree Webhook] Received:',
+      {
+        type: webhookType,
+        orderId,
+        paymentStatus:
+          gatewayStatus || null,
+        cfPaymentId:
+          paymentData?.cf_payment_id ||
+          null,
+      }
+    )
+
+    // ============================================================
+    // ORDER ID
+    // ============================================================
 
     if (!orderId) {
+      console.warn(
+        '[Cashfree Webhook] Missing order_id'
+      )
+
       return Response.json({
         success: true,
         ignored: true,
       })
     }
+
+    // ============================================================
+    // FIND PAYMENT
+    // ============================================================
 
     const payment =
       await prisma.payment.findFirst({
@@ -152,15 +225,15 @@ export async function POST(request) {
         orderId
       )
 
-      /*
-       * Return 200 for a correctly authenticated
-       * webhook that doesn't belong to this DB.
-       */
       return Response.json({
         success: true,
         ignored: true,
       })
     }
+
+    // ============================================================
+    // FIND BOOKING
+    // ============================================================
 
     const booking =
       await prisma.booking.findUnique({
@@ -181,55 +254,118 @@ export async function POST(request) {
       })
     }
 
-    const gatewayStatus =
-      String(
-        paymentData.payment_status ||
-          ''
-      ).toUpperCase()
+    // ============================================================
+    // CASHFREE DATA
+    // ============================================================
 
     const cashfreePaymentId =
-      paymentData.cf_payment_id
+      paymentData?.cf_payment_id
         ? String(
             paymentData.cf_payment_id
           )
         : null
 
     const paymentMethod =
-      paymentData.payment_group ||
-      paymentData.payment_method ||
-      null
+      normalizePaymentMethod(
+        paymentData
+      )
 
     const bankReference =
-      paymentData.bank_reference ||
+      paymentData?.bank_reference ||
       null
 
     const failureReason =
-      paymentData.payment_message ||
-      paymentData.error_details
+      paymentData?.payment_message ||
+      paymentData?.error_details
         ?.error_description ||
       null
 
-    // ------------------------------------------
+    const paymentAmount =
+      Number(
+        paymentData?.payment_amount ||
+          0
+      )
+
+    // ============================================================
     // SUCCESS
-    // ------------------------------------------
+    // ============================================================
 
     if (
       gatewayStatus === 'SUCCESS'
     ) {
+      const expectedAmount =
+        Number(
+          booking.totalAmount ||
+            payment.amount ||
+            0
+        )
+
+      if (
+        Number.isFinite(expectedAmount) &&
+        expectedAmount > 0 &&
+        Number.isFinite(paymentAmount) &&
+        paymentAmount > 0 &&
+        Math.abs(
+          expectedAmount -
+            paymentAmount
+        ) > 0.01
+      ) {
+        console.error(
+          '[Cashfree Webhook] Amount mismatch:',
+          {
+            orderId,
+            expectedAmount,
+            paymentAmount,
+          }
+        )
+
+        await prisma.payment.update({
+          where: {
+            id: payment.id,
+          },
+
+          data: {
+            cashfreePaymentStatus:
+              gatewayStatus,
+
+            cashfreePaymentId,
+
+            cashfreeFailureReason:
+              `Amount mismatch. Expected ${expectedAmount}, received ${paymentAmount}`,
+
+            webhookPayload:
+              payload,
+          },
+        })
+
+        // Return 200 because webhook itself
+        // was authentic. Do not confirm booking.
+        return Response.json({
+          success: true,
+          ignored: true,
+          reason:
+            'amount_mismatch',
+        })
+      }
+
+      // ========================================================
+      // UPDATE PAYMENT
+      // ========================================================
+
       await prisma.payment.update({
         where: {
           id: payment.id,
         },
 
         data: {
-          status:
-            'success',
+          status: 'success',
 
           cashfreeOrderStatus:
+            order?.order_status ||
             'PAID',
 
           cashfreePaymentStatus:
-            gatewayStatus,
+            'SUCCESS',
 
           cashfreePaymentId,
 
@@ -251,15 +387,15 @@ export async function POST(request) {
         },
       })
 
-      /*
-       * Webhooks may be delivered more than once.
-       *
-       * Only transition an unpaid booking.
-       */
+      // ========================================================
+      // UPDATE BOOKING
+      // ========================================================
 
       if (
         booking.paymentStatus !==
-        'paid'
+          'paid' ||
+        booking.status !==
+          'confirmed'
       ) {
         await prisma.booking.update({
           where: {
@@ -273,35 +409,73 @@ export async function POST(request) {
             status:
               'confirmed',
 
-            cashfreePaymentId:
-              cashfreePaymentId,
+            cashfreeOrderId:
+              orderId,
+
+            cashfreePaymentId,
           },
         })
       }
 
+      // ========================================================
+      // UPDATE INVOICE PAYMENT IDS
+      // ========================================================
+
+      try {
+        await prisma.invoice.updateMany({
+          where: {
+            bookingId:
+              booking.id,
+          },
+
+          data: {
+            cashfreeOrderId:
+              orderId,
+
+            cashfreePaymentId,
+          },
+        })
+      } catch (invoiceError) {
+        console.error(
+          '[Cashfree Webhook] Invoice update failed:',
+          invoiceError?.message
+        )
+      }
+
       console.log(
         '[Cashfree Webhook] SUCCESS:',
-        orderId
+        {
+          orderId,
+          bookingId:
+            booking.id,
+          bookingRef:
+            booking.bookingId,
+          cashfreePaymentId,
+        }
       )
+
+      return Response.json({
+        success: true,
+      })
     }
 
-    // ------------------------------------------
-    // FAILED
-    // ------------------------------------------
+    // ============================================================
+    // FAILED / USER DROPPED
+    // ============================================================
 
-    else if (
+    if (
       gatewayStatus === 'FAILED' ||
       gatewayStatus ===
         'USER_DROPPED'
     ) {
       /*
-       * Never overwrite an already successful
-       * payment with an older/duplicate failed
-       * webhook.
+       * Cashfree can send multiple webhook events.
+       * Never overwrite an already-successful payment.
        */
 
       if (
-        payment.status !== 'success' &&
+        payment.status !==
+          'success' &&
         booking.paymentStatus !==
           'paid'
       ) {
@@ -314,13 +488,24 @@ export async function POST(request) {
             status:
               'failed',
 
+            cashfreeOrderStatus:
+              order?.order_status ||
+              null,
+
             cashfreePaymentStatus:
               gatewayStatus,
 
             cashfreePaymentId,
 
+            cashfreePaymentMethod:
+              paymentMethod,
+
+            cashfreeBankReference:
+              bankReference,
+
             cashfreeFailureReason:
-              failureReason,
+              failureReason ||
+              'Payment failed',
 
             webhookPayload:
               payload,
@@ -330,6 +515,11 @@ export async function POST(request) {
           },
         })
 
+        /*
+         * Do not cancel the booking.
+         *
+         * User may retry payment.
+         */
         await prisma.booking.update({
           where: {
             id: booking.id,
@@ -339,10 +529,6 @@ export async function POST(request) {
             paymentStatus:
               'failed',
 
-            /*
-             * Keep booking available for another
-             * payment attempt.
-             */
             status:
               'pending_payment',
           },
@@ -351,30 +537,54 @@ export async function POST(request) {
 
       console.log(
         '[Cashfree Webhook] FAILED:',
-        orderId
+        {
+          orderId,
+          gatewayStatus,
+          bookingId:
+            booking.id,
+        }
       )
-    }
 
-    // ------------------------------------------
-    // OTHER STATUS
-    // ------------------------------------------
-
-    else {
-      await prisma.payment.update({
-        where: {
-          id: payment.id,
-        },
-
-        data: {
-          cashfreePaymentStatus:
-            gatewayStatus ||
-            null,
-
-          webhookPayload:
-            payload,
-        },
+      return Response.json({
+        success: true,
       })
     }
+
+    // ============================================================
+    // PENDING / OTHER
+    // ============================================================
+
+    await prisma.payment.update({
+      where: {
+        id: payment.id,
+      },
+
+      data: {
+        cashfreeOrderStatus:
+          order?.order_status ||
+          null,
+
+        cashfreePaymentStatus:
+          gatewayStatus ||
+          null,
+
+        cashfreePaymentId:
+          cashfreePaymentId ||
+          payment.cashfreePaymentId ||
+          null,
+
+        webhookPayload:
+          payload,
+      },
+    })
+
+    console.log(
+      '[Cashfree Webhook] Other status:',
+      {
+        orderId,
+        gatewayStatus,
+      }
+    )
 
     return Response.json({
       success: true,
@@ -382,9 +592,17 @@ export async function POST(request) {
   } catch (error) {
     console.error(
       '[Cashfree Webhook] ERROR:',
-      error
+      {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+      }
     )
 
+    /*
+     * Return 500 here so Cashfree can retry
+     * processing if our database/server failed.
+     */
     return Response.json(
       {
         success: false,
