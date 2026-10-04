@@ -551,8 +551,9 @@ model Payment {
 }
 
 model Invoice {
-  id                  String        @id @default(auto()) @map("_id") @db.ObjectId
-  invoiceNumber       String        @unique
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber String @unique
+
   bookingId           String        @db.ObjectId
   userId              String        @db.ObjectId
   entityType          String?
@@ -577,11 +578,13 @@ model Invoice {
   paymentMode       String?
   cashfreePaymentId String?
   cashfreeOrderId   String?
-  type              InvoiceType @default(invoice)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
 
-  @@index([bookingId])
+  type InvoiceType @default(invoice)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookingId, type])
   @@index([userId])
   @@map("invoices")
 }
@@ -728,8 +731,9 @@ model Refund {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([bookingId, type])
-@@index([userId])
+  @@index([bookingId])
+  @@index([userId])
+  @@index([cashfreeRefundId])
   @@map("refunds")
 }
 
