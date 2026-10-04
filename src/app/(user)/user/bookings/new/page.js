@@ -9,7 +9,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Navbar from '@/components/public/Navbar'
 
 import { useToast } from '@/context/ToastContext'
-
+import { load } from '@cashfreepayments/cashfree-js'
 import { useAuth } from '@/hooks/useAuth'
 
 import useSWR from 'swr'
@@ -1115,76 +1115,568 @@ function NewBookingContent() {
 
 
 
-  const initiatePayment = async () => {
-    if (!bookingId) {
-      toast.error('No booking found. Please go back and try again.')
+ const initiatePayment = async () => {
+  // ============================================================
+  // VALIDATE BOOKING
+  // ============================================================
+
+  if (!bookingId) {
+    toast.error(
+      'No booking found. Please go back and try again.'
+    )
+    return
+  }
+
+  setLoading(true)
+
+  try {
+    // ==========================================================
+    // 1. CREATE CASHFREE ORDER
+    // ==========================================================
+
+    console.log('[Cashfree] Creating payment order...', {
+      bookingId,
+    })
+
+    const orderRes = await fetch(
+      '/api/payments/create-order',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json',
+        },
+
+        credentials: 'include',
+
+        body: JSON.stringify({
+          bookingId,
+        }),
+      }
+    )
+
+    // ==========================================================
+    // 2. READ CREATE-ORDER RESPONSE
+    // ==========================================================
+
+    let orderJson
+
+    try {
+      orderJson = await orderRes.json()
+    } catch (parseError) {
+      console.error(
+        '[Cashfree] Failed to parse create-order response:',
+        parseError
+      )
+
+      throw new Error(
+        'Invalid response received while creating payment order'
+      )
+    }
+
+    // ==========================================================
+    // 3. SAFE DEBUG
+    // ==========================================================
+    //
+    // IMPORTANT:
+    // Do NOT print the complete payment_session_id.
+    // ==========================================================
+
+    console.log('[Cashfree DEBUG] create-order:', {
+      httpStatus: orderRes.status,
+
+      success:
+        orderJson?.success ?? false,
+
+      orderId:
+        orderJson?.data?.orderId ?? null,
+
+      cashfreeOrderId:
+        orderJson?.data?.cashfreeOrderId ?? null,
+
+      cfOrderId:
+        orderJson?.data?.cfOrderId ?? null,
+
+      orderStatus:
+        orderJson?.data?.orderStatus ?? null,
+
+      amount:
+        orderJson?.data?.amount ?? null,
+
+      currency:
+        orderJson?.data?.currency ?? null,
+
+      hasPaymentSessionId:
+        Boolean(
+          orderJson?.data?.paymentSessionId
+        ),
+
+      paymentSessionPrefix:
+        orderJson?.data?.paymentSessionId
+          ? String(
+              orderJson.data.paymentSessionId
+            ).slice(0, 20)
+          : null,
+
+      frontendMode:
+        process.env.NEXT_PUBLIC_CASHFREE_MODE,
+    })
+
+    // ==========================================================
+    // 4. CHECK CREATE ORDER RESULT
+    // ==========================================================
+
+    if (
+      !orderRes.ok ||
+      !orderJson?.success
+    ) {
+      console.error(
+        '[Cashfree] create-order failed:',
+        {
+          status:
+            orderRes.status,
+
+          error:
+            orderJson?.error,
+
+          code:
+            orderJson?.code,
+        }
+      )
+
+      throw new Error(
+        orderJson?.error ||
+          'Could not create Cashfree payment order'
+      )
+    }
+
+    // ==========================================================
+    // 5. GET CASHFREE DATA
+    // ==========================================================
+
+    const {
+      orderId,
+      cashfreeOrderId,
+      paymentSessionId,
+    } = orderJson.data || {}
+
+    const finalOrderId =
+      orderId ||
+      cashfreeOrderId
+
+    // ==========================================================
+    // 6. VALIDATE ORDER ID
+    // ==========================================================
+
+    if (!finalOrderId) {
+      console.error(
+        '[Cashfree] Cashfree order ID missing'
+      )
+
+      throw new Error(
+        'Cashfree order ID was not returned'
+      )
+    }
+
+    // ==========================================================
+    // 7. VALIDATE PAYMENT SESSION
+    // ==========================================================
+
+    if (!paymentSessionId) {
+      console.error(
+        '[Cashfree] payment_session_id missing',
+        {
+          orderId:
+            finalOrderId,
+        }
+      )
+
+      throw new Error(
+        'Cashfree payment session ID was not returned'
+      )
+    }
+
+    if (
+      typeof paymentSessionId !==
+      'string'
+    ) {
+      console.error(
+        '[Cashfree] Invalid payment session type:',
+        typeof paymentSessionId
+      )
+
+      throw new Error(
+        'Cashfree returned an invalid payment session ID'
+      )
+    }
+
+    const cleanPaymentSessionId =
+      paymentSessionId.trim()
+
+    if (!cleanPaymentSessionId) {
+      throw new Error(
+        'Cashfree returned an empty payment session ID'
+      )
+    }
+
+    // ==========================================================
+    // 8. DETERMINE CASHFREE ENVIRONMENT
+    // ==========================================================
+
+    const cashfreeMode =
+      process.env
+        .NEXT_PUBLIC_CASHFREE_MODE ===
+      'production'
+        ? 'production'
+        : 'sandbox'
+
+    console.log(
+      '[Cashfree] Checkout configuration:',
+      {
+        orderId:
+          finalOrderId,
+
+        mode:
+          cashfreeMode,
+
+        hasPaymentSessionId:
+          true,
+
+        paymentSessionPrefix:
+          cleanPaymentSessionId.slice(
+            0,
+            20
+          ),
+      }
+    )
+
+    // ==========================================================
+    // 9. LOAD CASHFREE SDK
+    // ==========================================================
+
+    let cashfree
+
+    try {
+      cashfree = await load({
+        mode:
+          cashfreeMode,
+      })
+    } catch (sdkError) {
+      console.error(
+        '[Cashfree] SDK initialization error:',
+        sdkError
+      )
+
+      throw new Error(
+        'Unable to initialize Cashfree checkout'
+      )
+    }
+
+    if (!cashfree) {
+      throw new Error(
+        'Cashfree checkout could not be initialized'
+      )
+    }
+
+    // ==========================================================
+    // 10. OPEN CASHFREE CHECKOUT
+    // ==========================================================
+
+    console.log(
+      '[Cashfree] Opening checkout...',
+      {
+        orderId:
+          finalOrderId,
+
+        mode:
+          cashfreeMode,
+      }
+    )
+
+    let checkoutResult
+
+    try {
+      checkoutResult =
+        await cashfree.checkout({
+          paymentSessionId:
+            cleanPaymentSessionId,
+
+          redirectTarget:
+            '_modal',
+        })
+    } catch (checkoutError) {
+      console.error(
+        '[Cashfree] checkout() exception:',
+        checkoutError
+      )
+
+      throw new Error(
+        checkoutError?.message ||
+          'Unable to open Cashfree checkout'
+      )
+    }
+
+    console.log(
+      '[Cashfree] Checkout finished:',
+      {
+        hasError:
+          Boolean(
+            checkoutResult?.error
+          ),
+
+        redirect:
+          checkoutResult?.redirect ??
+          null,
+      }
+    )
+
+    // ==========================================================
+    // 11. CASHFREE CHECKOUT ERROR
+    // ==========================================================
+
+    if (checkoutResult?.error) {
+      console.error(
+        '[Cashfree] Checkout error:',
+        checkoutResult.error
+      )
+
+      const checkoutMessage =
+        checkoutResult.error
+          ?.message ||
+        checkoutResult.error
+          ?.errorText ||
+        'Payment failed or was cancelled'
+
+      throw new Error(
+        checkoutMessage
+      )
+    }
+
+    // ==========================================================
+    // 12. VERIFY PAYMENT SERVER-SIDE
+    // ==========================================================
+
+    console.log(
+      '[Cashfree] Verifying payment...',
+      {
+        orderId:
+          finalOrderId,
+
+        bookingId,
+      }
+    )
+
+    const verifyRes =
+      await fetch(
+        '/api/payments/verify',
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+
+          credentials:
+            'include',
+
+          body:
+            JSON.stringify({
+              orderId:
+                finalOrderId,
+
+              bookingId,
+            }),
+        }
+      )
+
+    // ==========================================================
+    // 13. READ VERIFY RESPONSE
+    // ==========================================================
+
+    let verifyJson
+
+    try {
+      verifyJson =
+        await verifyRes.json()
+    } catch (parseError) {
+      console.error(
+        '[Cashfree] Failed to parse verify response:',
+        parseError
+      )
+
+      throw new Error(
+        'Invalid response received while verifying payment'
+      )
+    }
+
+    // ==========================================================
+    // 14. VERIFY DEBUG
+    // ==========================================================
+
+    console.log(
+      '[Cashfree DEBUG] verify:',
+      {
+        httpStatus:
+          verifyRes.status,
+
+        success:
+          verifyJson?.success ??
+          false,
+
+        pending:
+          verifyJson?.pending ??
+          false,
+
+        error:
+          verifyJson?.error ??
+          null,
+
+        orderId:
+          verifyJson?.data
+            ?.orderId ??
+          null,
+
+        paymentStatus:
+          verifyJson?.data
+            ?.paymentStatus ??
+          null,
+
+        bookingStatus:
+          verifyJson?.data
+            ?.bookingStatus ??
+          null,
+
+        paymentId:
+          verifyJson?.data
+            ?.cashfreePaymentId ||
+          verifyJson?.data
+            ?.paymentId ||
+          null,
+      }
+    )
+
+    // ==========================================================
+    // 15. PAYMENT STILL PENDING
+    // ==========================================================
+
+    if (
+      verifyRes.status === 202 ||
+      verifyJson?.pending === true
+    ) {
+      toast.error(
+        'Payment is still processing. Please check the booking status shortly.'
+      )
+
+      router.replace(
+        `/user/bookings/${bookingId}`
+      )
+
       return
     }
 
-    setLoading(true)
+    // ==========================================================
+    // 16. VERIFICATION FAILED
+    // ==========================================================
 
-    try {
-      const orderRes = await fetch('/api/payments/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ bookingId }),
-      })
+    if (
+      !verifyRes.ok ||
+      !verifyJson?.success
+    ) {
+      console.error(
+        '[Cashfree] Verification failed:',
+        {
+          status:
+            verifyRes.status,
 
-      const orderJson = await orderRes.json()
+          response:
+            verifyJson,
+        }
+      )
 
-      if (!orderRes.ok || !orderJson.success) {
-        throw new Error(orderJson.error || 'Could not create payment order')
-      }
+      toast.error(
+        verifyJson?.error ||
+          'Payment verification failed. Please contact support.'
+      )
 
-      const { orderId, paymentSessionId } = orderJson.data || {}
+      router.replace(
+        `/user/bookings/${bookingId}/failed`
+      )
 
-      if (!orderId || !paymentSessionId) {
-        throw new Error('Cashfree order/session information is missing')
-      }
-
-      const cashfree = await load({
-        mode:
-          process.env.NEXT_PUBLIC_CASHFREE_MODE === 'production'
-            ? 'production'
-            : 'sandbox',
-      })
-
-      const checkoutResult = await cashfree.checkout({
-        paymentSessionId,
-        redirectTarget: '_modal',
-      })
-
-      if (checkoutResult?.error) {
-        throw new Error(
-          checkoutResult.error?.message || 'Payment failed or was cancelled'
-        )
-      }
-
-      const verifyRes = await fetch('/api/payments/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ orderId, bookingId }),
-      })
-
-      const verifyJson = await verifyRes.json()
-
-      if (!verifyRes.ok || !verifyJson.success) {
-        toast.error(verifyJson.error || 'Payment verification failed. Contact support.')
-        router.replace(`/user/bookings/${bookingId}/failed`)
-        return
-      }
-
-      toast.success('Payment successful!')
-      router.replace(`/user/bookings/${bookingId}/success`)
-    } catch (err) {
-      console.error('[Cashfree initiatePayment]', err)
-      toast.error(err.message || 'Could not open payment. Please try again.')
-    } finally {
-      setLoading(false)
+      return
     }
+
+    // ==========================================================
+    // 17. PAYMENT SUCCESS
+    // ==========================================================
+
+    const verifiedPaymentId =
+      verifyJson?.data
+        ?.cashfreePaymentId ||
+      verifyJson?.data
+        ?.paymentId ||
+      null
+
+    console.log(
+      '[Cashfree] Payment successful:',
+      {
+        bookingId,
+
+        orderId:
+          finalOrderId,
+
+        paymentId:
+          verifiedPaymentId,
+
+        paymentStatus:
+          verifyJson?.data
+            ?.paymentStatus,
+
+        bookingStatus:
+          verifyJson?.data
+            ?.bookingStatus,
+
+        amount:
+          verifyJson?.data
+            ?.amount,
+      }
+    )
+
+    toast.success(
+      'Payment successful!'
+    )
+
+    // ==========================================================
+    // 18. REDIRECT SUCCESS PAGE
+    // ==========================================================
+
+    router.replace(
+      `/user/bookings/${bookingId}/success`
+    )
+  } catch (err) {
+    // ==========================================================
+    // PAYMENT ERROR
+    // ==========================================================
+
+    console.error(
+      '[Cashfree initiatePayment] Error:',
+      {
+        name:
+          err?.name,
+
+        message:
+          err?.message,
+      }
+    )
+
+    toast.error(
+      err?.message ||
+        'Could not open payment. Please try again.'
+    )
+  } finally {
+    setLoading(false)
   }
+}
 
 
   if (!mounted) {
