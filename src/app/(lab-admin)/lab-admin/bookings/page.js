@@ -32,12 +32,32 @@ function useMounted() {
   }, [])
   return m
 }
+const fetcher = async (url) => {
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+  })
 
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' })
-    .then((r) => r.json())
-    .then((j) => j.data)
+  const json = await response.json()
 
+  if (!response.ok) {
+    throw new Error(
+      json?.message ||
+      json?.error ||
+      'Failed to fetch bookings'
+    )
+  }
+
+  // Supports both:
+  //
+  // { success: true, bookings: [...], pagination: {...} }
+  //
+  // and older API format:
+  //
+  // { success: true, data: { bookings: [...], pagination: {...} } }
+
+  return json?.data || json
+}
 const KF = `
   @keyframes lb-spin { to{transform:rotate(360deg)} }
   @keyframes lb-in   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
