@@ -621,13 +621,79 @@ export async function POST(request) {
     let cashfreeData = null
 
 
-    try {
-      cashfreeData =
-        await cashfreeResponse.json()
-    } catch {
-      cashfreeData = null
-    }
+   let cashfreeData = null
 
+try {
+  cashfreeData = await cashfreeResponse.json()
+} catch (parseError) {
+  console.error(
+    '[Cashfree create-order] Failed to parse Cashfree response:',
+    parseError
+  )
+
+  cashfreeData = null
+}
+
+// ========================================================
+// CASHFREE RESPONSE DEBUG
+// ========================================================
+
+// IMPORTANT:
+// Never log the complete payment_session_id.
+
+console.log(
+  '[Cashfree create-order] Cashfree response:',
+  {
+    httpStatus: cashfreeResponse.status,
+
+    ok: cashfreeResponse.ok,
+
+    orderId:
+      cashfreeData?.order_id || null,
+
+    cfOrderId:
+      cashfreeData?.cf_order_id != null
+        ? String(cashfreeData.cf_order_id)
+        : null,
+
+    orderStatus:
+      cashfreeData?.order_status || null,
+
+    orderAmount:
+      cashfreeData?.order_amount ?? null,
+
+    orderCurrency:
+      cashfreeData?.order_currency || null,
+
+    hasPaymentSessionId:
+      Boolean(
+        cashfreeData?.payment_session_id
+      ),
+
+    paymentSessionPrefix:
+      cashfreeData?.payment_session_id
+        ? String(
+            cashfreeData.payment_session_id
+          ).slice(0, 25)
+        : null,
+
+    paymentSessionLength:
+      cashfreeData?.payment_session_id
+        ? String(
+            cashfreeData.payment_session_id
+          ).length
+        : 0,
+
+    environment:
+      process.env.CASHFREE_ENV,
+
+    apiBaseUrl:
+      getCashfreeBaseUrl(),
+
+    apiVersion:
+      getCashfreeApiVersion(),
+  }
+)
 
     // ========================================================
     // CASHFREE ERROR
@@ -828,30 +894,48 @@ export async function POST(request) {
     // SUCCESS LOG
     // ========================================================
 
-    console.log(
-      '[Cashfree create-order] Order created:',
-      {
-        bookingId:
-          booking.id,
+   console.log(
+  '[Cashfree create-order] Order created:',
+  {
+    bookingId:
+      booking.id,
 
-        bookingRef:
-          booking.bookingId,
+    bookingRef:
+      booking.bookingId,
 
-        cashfreeOrderId,
+    cashfreeOrderId,
 
-        cfOrderId,
+    cfOrderId,
 
-        orderStatus:
-          cashfreeOrderStatus,
+    orderStatus:
+      cashfreeOrderStatus,
 
-        paymentId:
-          payment.id,
+    paymentId:
+      payment.id,
 
-        amount:
-          finalAmount,
-      }
-    )
+    amount:
+      finalAmount,
 
+    hasPaymentSessionId:
+      Boolean(paymentSessionId),
+
+    paymentSessionPrefix:
+      paymentSessionId
+        ? String(paymentSessionId).slice(
+            0,
+            25
+          )
+        : null,
+
+    paymentSessionLength:
+      paymentSessionId
+        ? String(paymentSessionId).length
+        : 0,
+
+    environment:
+      process.env.CASHFREE_ENV,
+  }
+)
 
     // ========================================================
     // RESPONSE
