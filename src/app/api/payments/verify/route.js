@@ -1,871 +1,661 @@
-import { verifyAuth } from '@/lib/middleware/auth.middleware'
-import {
-  successResponse,
-  errorResponse,
-  handleOptions,
-} from '@/lib/utils/apiResponse'
+import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
-import { Cashfree } from '@/lib/utils/cashfree'
-
-import { sendEmail } from '@/lib/email'
-import {
-  bookingConfirmedTemplate,
-  meetLinkTemplate,
-} from '@/lib/emailTemplates'
-
-import { createBookingInvoice } from '@/lib/services/invoice.service'
-
-export function OPTIONS() {
-  return handleOptions()
-}
-
-/**
- * Converts Cashfree payment response into MEDLI's internal data.
- */
-function getPaymentDetails(payment = {}) {
-  return {
-    paymentId: payment.cf_payment_id
-      ? String(payment.cf_payment_id)
-      : null,
-
-    status: payment.payment_status || null,
-
-    method:
-      payment.payment_group ||
-      payment.payment_method ||
-      null,
-
-    bankReference:
-      payment.bank_reference || null,
-
-    failureReason:
-      payment.payment_message ||
-      payment.error_details?.error_description ||
-      null,
-  }
-}
-
-/**
- * Get the successful Cashfree payment from the order's payment list.
- */
-async function getSuccessfulPayment(orderId) {
-  const response = await Cashfree.PGOrderFetchPayments(orderId)
-
-  const payments = Array.isArray(response?.data)
-    ? response.data
-    : []
-
-  const successPayment = payments.find(
-    (payment) =>
-      String(payment?.payment_status || '').toUpperCase() === 'SUCCESS'
-  )
-
-  return {
-    payments,
-    successPayment: successPayment || null,
-  }
-}
+import { verifyAuth } from '@/lib/middleware/auth.middleware'
+import { cashfreeRequest } from '@/lib/utils/cashfree'
 
 export async function POST(request) {
   try {
-    // --------------------------------------------------
+    // ========================================================
     // AUTH
-    // --------------------------------------------------
+    // ========================================================
 
-    const authUser = await verifyAuth(request)
+    const user = await verifyAuth(request)
 
-    const authUserId = authUser.userId || authUser.id
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Authentication required',
+        },
+        {
+          status: 401,
+        }
+      )
+    }
 
-    // --------------------------------------------------
+    // ========================================================
     // REQUEST
-    // --------------------------------------------------
+    // ========================================================
 
     const body = await request.json()
 
     const orderId =
-      body.orderId ||
-      body.order_id ||
-      body.cashfreeOrderId
+      body?.orderId ||
+      body?.cashfreeOrderId
 
-    const requestedBookingId =
-      body.bookingId ||
-      body.booking_id ||
-      null
+    const bookingId =
+      body?.bookingId
 
     if (!orderId) {
-      return errorResponse(
-        'Cashfree orderId is required',
-        'MISSING_ORDER_ID',
-        400
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cashfree order ID is required',
+        },
+        {
+          status: 400,
+        }
       )
     }
 
-    // --------------------------------------------------
+    // ========================================================
     // FIND PAYMENT
-    // --------------------------------------------------
+    // ========================================================
 
-    const payment = await prisma.payment.findFirst({
-      where: {
-        cashfreeOrderId: orderId,
-      },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })
+    const payment =
+      await prisma.payment.findFirst({
+        where: {
+          cashfreeOrderId:
+            orderId,
+        },
+      })
 
     if (!payment) {
-      return errorResponse(
-        'Payment order not found',
-        'PAYMENT_NOT_FOUND',
-        404
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Payment record not found',
+        },
+        {
+          status: 404,
+        }
       )
     }
 
-    // --------------------------------------------------
+    // ========================================================
     // FIND BOOKING
-    // --------------------------------------------------
+    // ========================================================
 
-    let booking = await prisma.booking.findUnique({
-      where: {
-        id: payment.bookingId,
-      },
-    })
+    const booking =
+      await prisma.booking.findUnique({
+        where: {
+          id:
+            payment.bookingId,
+        },
+      })
 
     if (!booking) {
-      return errorResponse(
-        'Booking not found',
-        'BOOKING_NOT_FOUND',
-        404
-      )
-    }
-
-    // User must own booking.
-    if (booking.userId !== authUserId) {
-      return errorResponse(
-        'Access denied',
-        'FORBIDDEN',
-        403
-      )
-    }
-
-    if (
-      requestedBookingId &&
-      requestedBookingId !== booking.id
-    ) {
-      return errorResponse(
-        'Booking does not match payment order',
-        'BOOKING_MISMATCH',
-        400
-      )
-    }
-
-    // --------------------------------------------------
-    // ALREADY PAID
-    // --------------------------------------------------
-
-    if (
-      booking.paymentStatus === 'paid' &&
-      payment.status === 'success'
-    ) {
-      return successResponse(
+      return NextResponse.json(
         {
-          bookingId: booking.id,
-          bookingRef: booking.bookingId,
-          orderId,
-          paymentId:
-            payment.cashfreePaymentId || null,
-          paymentStatus: 'paid',
-          bookingStatus: booking.status,
-          meetLink: booking.meetLink || null,
+          success: false,
+          error: 'Booking not found',
         },
-        'Payment already verified'
+        {
+          status: 404,
+        }
       )
     }
 
-    // --------------------------------------------------
-    // ASK CASHFREE FOR ORDER
-    // --------------------------------------------------
+    if (
+      bookingId &&
+      String(booking.id) !==
+        String(bookingId)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Booking does not match payment order',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
+
+    // ========================================================
+    // OWNERSHIP
+    // ========================================================
+
+    const authUserId =
+      user.userId ||
+      user.id
+
+    const isOwner =
+      String(booking.userId) ===
+      String(authUserId)
+
+    const isSuperAdmin =
+      user.role ===
+      'super_admin'
+
+    if (
+      !isOwner &&
+      !isSuperAdmin
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'You are not authorized to verify this payment',
+        },
+        {
+          status: 403,
+        }
+      )
+    }
+
+    // ========================================================
+    // IDEMPOTENT SUCCESS
+    // ========================================================
+
+    if (
+      booking.paymentStatus ===
+        'paid' &&
+      payment.status ===
+        'success'
+    ) {
+      return NextResponse.json(
+        {
+          success: true,
+
+          message:
+            'Payment already verified',
+
+          data: {
+            bookingId:
+              booking.id,
+
+            bookingRef:
+              booking.bookingId,
+
+            orderId:
+              payment.cashfreeOrderId,
+
+            paymentId:
+              payment.cashfreePaymentId,
+
+            paymentStatus:
+              'SUCCESS',
+
+            bookingStatus:
+              booking.status,
+          },
+        },
+        {
+          status: 200,
+        }
+      )
+    }
+
+    // ========================================================
+    // FETCH ORDER FROM CASHFREE
+    // ========================================================
+
+    const cashfreeOrder =
+      await cashfreeRequest(
+        `/orders/${encodeURIComponent(orderId)}`
+      )
 
     console.log(
-      '[Cashfree Verify] Fetching order:',
-      orderId
+      '[Cashfree verify] Order:',
+      {
+        orderId,
+        orderStatus:
+          cashfreeOrder?.order_status,
+      }
     )
 
-    const orderResponse =
-      await Cashfree.PGFetchOrder(orderId)
+    // ========================================================
+    // FETCH PAYMENTS FROM CASHFREE
+    // ========================================================
 
-    const cashfreeOrder = orderResponse?.data
-
-    if (!cashfreeOrder) {
-      throw new Error(
-        'Unable to retrieve order from Cashfree'
+    const cashfreePayments =
+      await cashfreeRequest(
+        `/orders/${encodeURIComponent(orderId)}/payments`
       )
-    }
 
-    const orderStatus = String(
-      cashfreeOrder.order_status || ''
-    ).toUpperCase()
+    const payments =
+      Array.isArray(
+        cashfreePayments
+      )
+        ? cashfreePayments
+        : []
 
     console.log(
-      '[Cashfree Verify] Order status:',
-      orderStatus
+      '[Cashfree verify] Payments:',
+      payments.map(
+        (item) => ({
+          cfPaymentId:
+            item?.cf_payment_id,
+
+          status:
+            item?.payment_status,
+
+          amount:
+            item?.payment_amount,
+        })
+      )
     )
 
-    // --------------------------------------------------
-    // FETCH PAYMENT DETAILS
-    // --------------------------------------------------
+    // ========================================================
+    // FIND SUCCESSFUL PAYMENT
+    // ========================================================
 
-    let payments = []
-    let successfulPayment = null
-
-    try {
-      const result =
-        await getSuccessfulPayment(orderId)
-
-      payments = result.payments
-      successfulPayment =
-        result.successPayment
-    } catch (paymentError) {
-      console.error(
-        '[Cashfree Verify] Payment fetch failed:',
-        paymentError?.response?.data ||
-          paymentError.message
+    const successfulPayment =
+      payments.find(
+        (item) =>
+          String(
+            item?.payment_status ||
+              ''
+          ).toUpperCase() ===
+          'SUCCESS'
       )
-    }
 
-    // --------------------------------------------------
-    // NOT PAID
-    // --------------------------------------------------
+    // ========================================================
+    // NO SUCCESSFUL PAYMENT
+    // ========================================================
 
-    if (orderStatus !== 'PAID') {
-      const latestPayment =
-        payments.length > 0
-          ? payments[payments.length - 1]
-          : null
+    if (!successfulPayment) {
+      const pendingPayment =
+        payments.find(
+          (item) =>
+            String(
+              item?.payment_status ||
+                ''
+            ).toUpperCase() ===
+            'PENDING'
+        )
 
-      const latest =
-        getPaymentDetails(latestPayment || {})
+      if (pendingPayment) {
+        await prisma.payment.update({
+          where: {
+            id:
+              payment.id,
+          },
 
-      const isFailed =
-        latest.status &&
-        ['FAILED', 'USER_DROPPED'].includes(
-          String(latest.status).toUpperCase()
+          data: {
+            cashfreeOrderStatus:
+              cashfreeOrder
+                ?.order_status ||
+              null,
+
+            cashfreePaymentStatus:
+              'PENDING',
+
+            status:
+              'pending',
+
+            callbackData:
+              {
+                order:
+                  cashfreeOrder,
+
+                payments:
+                  payments,
+              },
+          },
+        })
+
+        return NextResponse.json(
+          {
+            success: false,
+
+            pending: true,
+
+            error:
+              'Payment is still pending',
+
+            data: {
+              orderId,
+
+              paymentStatus:
+                'PENDING',
+            },
+          },
+          {
+            status: 202,
+          }
+        )
+      }
+
+      const failedPayment =
+        payments.find(
+          (item) => {
+            const status =
+              String(
+                item?.payment_status ||
+                  ''
+              ).toUpperCase()
+
+            return (
+              status === 'FAILED' ||
+              status ===
+                'USER_DROPPED'
+            )
+          }
         )
 
       await prisma.payment.update({
         where: {
-          id: payment.id,
+          id:
+            payment.id,
         },
 
         data: {
-          status:
-            isFailed
-              ? 'failed'
-              : 'pending',
-
           cashfreeOrderStatus:
-            orderStatus || null,
-
-          cashfreePaymentStatus:
-            latest.status || null,
+            cashfreeOrder
+              ?.order_status ||
+            null,
 
           cashfreePaymentId:
-            latest.paymentId || null,
+            failedPayment
+              ?.cf_payment_id
+              ? String(
+                  failedPayment
+                    .cf_payment_id
+                )
+              : null,
 
-          cashfreePaymentMethod:
-            latest.method || null,
-
-          cashfreeBankReference:
-            latest.bankReference || null,
+          cashfreePaymentStatus:
+            failedPayment
+              ?.payment_status ||
+            'FAILED',
 
           cashfreeFailureReason:
-            latest.failureReason || null,
-
-          callbackData:
-            cashfreeOrder,
-        },
-      })
-
-      /*
-       * Do NOT cancel the MEDLI booking simply because
-       * Cashfree is currently ACTIVE.
-       *
-       * The patient may still retry payment.
-       */
-
-      await prisma.booking.update({
-        where: {
-          id: booking.id,
-        },
-
-        data: {
-          paymentStatus:
-            isFailed
-              ? 'failed'
-              : 'pending',
+            failedPayment
+              ?.payment_message ||
+            failedPayment
+              ?.error_details
+              ?.error_description ||
+            'Payment failed',
 
           status:
-            'pending_payment',
+            'failed',
+
+          failedAt:
+            new Date(),
+
+          callbackData: {
+            order:
+              cashfreeOrder,
+
+            payments:
+              payments,
+          },
         },
       })
 
-      return errorResponse(
-        isFailed
-          ? latest.failureReason ||
-              'Payment failed'
-          : 'Payment has not been completed yet',
-        isFailed
-          ? 'PAYMENT_FAILED'
-          : 'PAYMENT_PENDING',
-        400
+      return NextResponse.json(
+        {
+          success: false,
+
+          error:
+            failedPayment
+              ?.payment_message ||
+            'Payment was not successful',
+
+          data: {
+            orderId,
+
+            paymentStatus:
+              failedPayment
+                ?.payment_status ||
+              'FAILED',
+          },
+        },
+        {
+          status: 400,
+        }
       )
     }
 
-    // --------------------------------------------------
-    // ORDER PAID BUT PAYMENT ENTRY NOT FOUND
-    // --------------------------------------------------
+    // ========================================================
+    // AMOUNT VERIFICATION
+    // ========================================================
 
-    if (!successfulPayment) {
-      console.error(
-        '[Cashfree Verify] Order PAID but successful payment not found:',
-        orderId
+    const expectedAmount =
+      Number(
+        booking.totalAmount
       )
 
-      return errorResponse(
-        'Payment is marked paid but payment details are not available yet. Please retry verification.',
-        'PAYMENT_DETAILS_PENDING',
-        409
+    const paidAmount =
+      Number(
+        successfulPayment
+          ?.payment_amount
       )
-    }
-
-    const paymentDetails =
-      getPaymentDetails(successfulPayment)
-
-    // --------------------------------------------------
-    // AMOUNT VALIDATION
-    // --------------------------------------------------
-
-    const cashfreeAmount =
-      Number(cashfreeOrder.order_amount)
-
-    const bookingAmount =
-      Number(booking.totalAmount)
 
     if (
-      !Number.isFinite(cashfreeAmount) ||
-      !Number.isFinite(bookingAmount) ||
+      !Number.isFinite(
+        paidAmount
+      ) ||
       Math.abs(
-        cashfreeAmount - bookingAmount
+        expectedAmount -
+          paidAmount
       ) > 0.01
     ) {
       console.error(
-        '[Cashfree Verify] Amount mismatch',
+        '[Cashfree verify] Amount mismatch:',
         {
-          bookingAmount,
-          cashfreeAmount,
+          bookingId:
+            booking.id,
+
+          expectedAmount,
+
+          paidAmount,
+
           orderId,
         }
       )
 
-      return errorResponse(
-        'Payment amount verification failed',
-        'AMOUNT_MISMATCH',
-        400
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Payment amount does not match booking amount',
+        },
+        {
+          status: 400,
+        }
       )
     }
 
-    // --------------------------------------------------
-    // UPDATE PAYMENT
-    // --------------------------------------------------
+    // ========================================================
+    // NORMALIZE PAYMENT METHOD
+    // ========================================================
 
-    await prisma.payment.update({
-      where: {
-        id: payment.id,
-      },
-
-      data: {
-        status:
-          'success',
-
-        cashfreeOrderStatus:
-          orderStatus,
-
-        cashfreePaymentStatus:
-          paymentDetails.status,
-
-        cashfreePaymentId:
-          paymentDetails.paymentId,
-
-        cashfreePaymentMethod:
-          paymentDetails.method,
-
-        cashfreeBankReference:
-          paymentDetails.bankReference,
-
-        cashfreeFailureReason:
-          null,
-
-        callbackData:
-          successfulPayment,
-
-        paidAt:
-          new Date(),
-      },
-    })
-
-    // --------------------------------------------------
-    // CONFIRM BOOKING
-    // --------------------------------------------------
-
-    booking = await prisma.booking.update({
-      where: {
-        id: booking.id,
-      },
-
-      data: {
-        status:
-          'confirmed',
-
-        paymentStatus:
-          'paid',
-
-        cashfreePaymentId:
-          paymentDetails.paymentId,
-
-        cashfreeCfOrderId:
-          cashfreeOrder.cf_order_id
-            ? String(
-                cashfreeOrder.cf_order_id
-              )
-            : booking.cashfreeCfOrderId,
-      },
-    })
-
-    console.log(
-      '[Cashfree Verify] Payment verified:',
-      {
-        bookingId: booking.bookingId,
-        orderId,
-        paymentId:
-          paymentDetails.paymentId,
-      }
-    )
-
-    // --------------------------------------------------
-    // CREATE INVOICE
-    // --------------------------------------------------
-
-    try {
-      await createBookingInvoice(
-        booking,
-        paymentDetails.paymentId
-      )
-
-      console.log(
-        '[Cashfree Verify] Invoice created'
-      )
-    } catch (invoiceError) {
-      console.error(
-        '[Cashfree Verify] Invoice creation failed:',
-        invoiceError.message
-      )
-    }
-
-    // --------------------------------------------------
-    // GET USER
-    // --------------------------------------------------
-
-    const user = await prisma.user.findUnique({
-      where: {
-        id: booking.userId,
-      },
-
-      select: {
-        name: true,
-        email: true,
-        phone: true,
-      },
-    })
-
-    // --------------------------------------------------
-    // HOSPITAL / DOCTOR / LAB
-    // --------------------------------------------------
-
-    let hospitalName = '-'
-    let doctorName = '-'
-    let doctorEmail = null
-    let labName = '-'
-
-    if (booking.hospitalId) {
-      const hospital =
-        await prisma.hospital.findUnique({
-          where: {
-            id: booking.hospitalId,
-          },
-
-          select: {
-            name: true,
-          },
-        })
-
-      if (hospital?.name) {
-        hospitalName = hospital.name
-      }
-    }
-
-    if (booking.doctorId) {
-      const doctor =
-        await prisma.doctor.findUnique({
-          where: {
-            id: booking.doctorId,
-          },
-
-          select: {
-            name: true,
-            userId: true,
-          },
-        })
-
-      if (doctor?.name) {
-        doctorName = doctor.name
-      }
-
-      if (doctor?.userId) {
-        const doctorUser =
-          await prisma.user.findUnique({
-            where: {
-              id: doctor.userId,
-            },
-
-            select: {
-              email: true,
-            },
-          })
-
-        doctorEmail =
-          doctorUser?.email || null
-      }
-    }
-
-    if (booking.labId) {
-      const lab =
-        await prisma.lab.findUnique({
-          where: {
-            id: booking.labId,
-          },
-
-          select: {
-            name: true,
-          },
-        })
-
-      if (lab?.name) {
-        labName = lab.name
-      }
-    }
-
-    // --------------------------------------------------
-    // ONLINE BOOKING → GOOGLE MEET
-    // --------------------------------------------------
-
-    let meetLink =
-      booking.meetLink || null
+    let paymentMethod =
+      successfulPayment
+        ?.payment_group ||
+      null
 
     if (
-      booking.type === 'online' &&
-      !meetLink
+      successfulPayment
+        ?.payment_method
     ) {
-      console.log(
-        '[Cashfree Verify] Creating Google Meet...'
-      )
-
-      try {
-        const {
-          createConsultationEvent,
-        } = await import(
-          '@/lib/services/meet.service'
-        )
-
-        const result =
-          await createConsultationEvent({
-            bookingId:
-              booking.bookingId,
-
-            doctorEmail:
-              doctorEmail ||
-              process.env.DEFAULT_DOCTOR_EMAIL ||
-              'doctor@medli.in',
-
-            patientEmail:
-              user?.email ||
-              'patient@medli.in',
-
-            patientName:
-              user?.name ||
-              'Patient',
-
-            doctorName,
-
-            startTime:
-              booking.startTime,
-
-            endTime:
-              booking.endTime ||
-              new Date(
-                new Date(
-                  booking.startTime
-                ).getTime() +
-                  30 * 60 * 1000
-              ),
-
-            timezone:
-              booking.timezone ||
-              'Asia/Kolkata',
-          })
-
-        meetLink =
-          result.meetLink
-
-        booking =
-          await prisma.booking.update({
-            where: {
-              id: booking.id,
-            },
-
-            data: {
-              meetLink,
-
-              calendarEventId:
-                result.calendarEventId,
-            },
-          })
-
-        console.log(
-          '[Cashfree Verify] Meet created:',
-          meetLink
-        )
-      } catch (meetError) {
-        /*
-         * Do NOT create fake Google Meet URLs.
-         *
-         * Your previous implementation generated a
-         * random meet.google.com URL when Google failed.
-         * That URL isn't a real meeting.
-         */
-
-        console.error(
-          '[Cashfree Verify] Google Meet creation failed:',
-          meetError.message
-        )
+      if (
+        typeof successfulPayment
+          .payment_method ===
+        'string'
+      ) {
+        paymentMethod =
+          successfulPayment
+            .payment_method
+      } else {
+        try {
+          paymentMethod =
+            JSON.stringify(
+              successfulPayment
+                .payment_method
+            )
+        } catch {
+          // Keep payment_group.
+        }
       }
     }
 
-    // --------------------------------------------------
-    // EMAIL
-    // --------------------------------------------------
+    // ========================================================
+    // BANK REFERENCE
+    // ========================================================
 
-    if (user?.email) {
-      try {
-        const bookingDate =
-          booking.startTime
-            ? new Date(
-                booking.startTime
-              ).toLocaleDateString(
-                'en-IN',
-                {
-                  dateStyle:
-                    'full',
+    const bankReference =
+      successfulPayment
+        ?.bank_reference
+        ? String(
+            successfulPayment
+              .bank_reference
+          )
+        : null
 
-                  timeZone:
-                    'Asia/Kolkata',
-                }
-              )
-            : '-'
+    const cfPaymentId =
+      successfulPayment
+        ?.cf_payment_id
+        ? String(
+            successfulPayment
+              .cf_payment_id
+          )
+        : null
 
-        const bookingTime =
-          booking.startTime
-            ? new Date(
-                booking.startTime
-              ).toLocaleTimeString(
-                'en-IN',
-                {
-                  hour:
-                    '2-digit',
+    // ========================================================
+    // MARK PAYMENT SUCCESS
+    // ========================================================
 
-                  minute:
-                    '2-digit',
+    const updatedPayment =
+      await prisma.payment.update({
+        where: {
+          id:
+            payment.id,
+        },
 
-                  timeZone:
-                    'Asia/Kolkata',
-                }
-              )
-            : '-'
+        data: {
+          cashfreePaymentId:
+            cfPaymentId,
 
-        const fullDateTime =
-          `${bookingDate} at ${bookingTime}`
+          cashfreeOrderStatus:
+            cashfreeOrder
+              ?.order_status ||
+            'PAID',
 
-        const bookingUrl =
-          `${process.env.NEXT_PUBLIC_APP_URL}` +
-          `/user/bookings/${booking.id}`
+          cashfreePaymentStatus:
+            'SUCCESS',
 
-        let template
+          cashfreePaymentMethod:
+            paymentMethod,
 
-        if (
-          booking.type === 'online' &&
-          meetLink
-        ) {
-          template =
-            meetLinkTemplate({
-              patientName:
-                user.name ||
-                'User',
+          cashfreeBankReference:
+            bankReference,
 
-              bookingId:
-                booking.bookingId,
+          cashfreeFailureReason:
+            null,
 
-              doctorName,
+          amount:
+            paidAmount,
 
-              hospitalName,
+          currency:
+            successfulPayment
+              ?.payment_currency ||
+            'INR',
 
-              startTime:
-                fullDateTime,
+          status:
+            'success',
 
-              meetLink,
+          callbackData: {
+            order:
+              cashfreeOrder,
 
-              totalAmount:
-                booking.totalAmount,
+            payment:
+              successfulPayment,
+          },
 
-              bookingUrl,
-            })
-        } else {
-          template =
-            bookingConfirmedTemplate({
-              patientName:
-                user.name ||
-                'User',
+          paidAt:
+            new Date(),
 
-              bookingId:
-                booking.bookingId,
+          failedAt:
+            null,
+        },
+      })
 
-              bookingType:
-                booking.type,
+    // ========================================================
+    // CONFIRM BOOKING
+    // ========================================================
 
-              hospitalName:
-                booking.type === 'lab'
-                  ? labName
-                  : hospitalName,
+    const updatedBooking =
+      await prisma.booking.update({
+        where: {
+          id:
+            booking.id,
+        },
 
-              doctorName:
-                booking.type === 'lab'
-                  ? '-'
-                  : doctorName,
+        data: {
+          cashfreePaymentId:
+            cfPaymentId,
 
-              startTime:
-                fullDateTime,
+          paymentStatus:
+            'paid',
 
-              totalAmount:
-                booking.totalAmount,
+          status:
+            'confirmed',
+        },
+      })
 
-              bookingUrl,
-            })
-        }
+    // ========================================================
+    // UPDATE EXISTING INVOICE
+    // ========================================================
 
-        await sendEmail({
-          to:
-            user.email,
+    try {
+      const invoice =
+        await prisma.invoice.findFirst({
+          where: {
+            bookingId:
+              booking.id,
 
-          subject:
-            template.subject,
+            type:
+              'invoice',
+          },
 
-          text:
-            template.text,
-
-          html:
-            template.html,
+          orderBy: {
+            createdAt:
+              'desc',
+          },
         })
 
-        console.log(
-          '[Cashfree Verify] Patient email sent:',
-          user.email
-        )
+      if (invoice) {
+        await prisma.invoice.update({
+          where: {
+            id:
+              invoice.id,
+          },
 
-        // ----------------------------------------------
-        // DOCTOR EMAIL
-        // ----------------------------------------------
+          data: {
+            paymentMethod:
+              'Cashfree',
 
-        if (
-          booking.type === 'online' &&
-          meetLink &&
-          doctorEmail
-        ) {
-          try {
-            const doctorTemplate =
-              meetLinkTemplate({
-                patientName:
-                  `Doctor ${doctorName}`,
+            paymentMode:
+              paymentMethod ||
+              'Cashfree',
 
-                bookingId:
-                  booking.bookingId,
+            cashfreePaymentId:
+              cfPaymentId,
 
-                doctorName:
-                  user.name ||
-                  'Patient',
-
-                hospitalName,
-
-                startTime:
-                  fullDateTime,
-
-                meetLink,
-
-                totalAmount:
-                  booking.totalAmount,
-
-                bookingUrl:
-                  `${process.env.NEXT_PUBLIC_APP_URL}` +
-                  '/doctor/appointments',
-              })
-
-            await sendEmail({
-              to:
-                doctorEmail,
-
-              subject:
-                `New Online Consultation - ${booking.bookingId}`,
-
-              text:
-                doctorTemplate.text,
-
-              html:
-                doctorTemplate.html,
-            })
-
-            console.log(
-              '[Cashfree Verify] Doctor email sent:',
-              doctorEmail
-            )
-          } catch (doctorEmailError) {
-            console.error(
-              '[Cashfree Verify] Doctor email failed:',
-              doctorEmailError.message
-            )
-          }
-        }
-      } catch (emailError) {
-        console.error(
-          '[Cashfree Verify] Patient email failed:',
-          emailError.message
-        )
+            cashfreeOrderId:
+              orderId,
+          },
+        })
       }
+    } catch (invoiceError) {
+      console.error(
+        '[Cashfree verify] Invoice update failed:',
+        invoiceError?.message
+      )
     }
 
-    // --------------------------------------------------
+    // ========================================================
     // SUCCESS
-    // --------------------------------------------------
+    // ========================================================
 
-    return successResponse(
+    console.log(
+      '[Cashfree verify] Payment verified:',
       {
         bookingId:
           booking.id,
@@ -875,40 +665,93 @@ export async function POST(request) {
 
         orderId,
 
-        paymentId:
-          paymentDetails.paymentId,
+        cfPaymentId,
 
-        paymentStatus:
-          'paid',
+        amount:
+          paidAmount,
+      }
+    )
 
-        bookingStatus:
-          'confirmed',
+    return NextResponse.json(
+      {
+        success: true,
 
-        meetLink:
-          meetLink || null,
+        message:
+          'Payment verified successfully',
+
+        data: {
+          bookingId:
+            updatedBooking.id,
+
+          bookingRef:
+            updatedBooking
+              .bookingId,
+
+          orderId,
+
+          cashfreeOrderId:
+            orderId,
+
+          paymentId:
+            cfPaymentId,
+
+          cashfreePaymentId:
+            cfPaymentId,
+
+          paymentStatus:
+            'SUCCESS',
+
+          bookingStatus:
+            updatedBooking.status,
+
+          amount:
+            paidAmount,
+
+          currency:
+            updatedPayment
+              .currency,
+        },
       },
-
-      booking.type === 'online' &&
-        meetLink
-        ? 'Payment verified — Meet link sent to your email'
-        : 'Payment verified successfully'
+      {
+        status: 200,
+      }
     )
   } catch (error) {
     console.error(
-      '[Cashfree Verify] ERROR:',
-      error?.response?.data ||
-        error?.message ||
-        error
+      '[Cashfree verify] ERROR:',
+      {
+        name:
+          error?.name,
+
+        message:
+          error?.message,
+
+        status:
+          error?.status,
+
+        cashfreeResponse:
+          error
+            ?.cashfreeResponse,
+      }
     )
 
-    return errorResponse(
-      error?.response?.data?.message ||
-        error?.message ||
-        'Payment verification failed',
+    return NextResponse.json(
+      {
+        success: false,
 
-      'CASHFREE_VERIFY_ERROR',
-
-      500
+        error:
+          error?.cashfreeResponse
+            ?.message ||
+          error?.message ||
+          'Failed to verify payment',
+      },
+      {
+        status:
+          error?.status >= 400 &&
+          error?.status < 500
+            ? 400
+            : 500,
+      }
     )
   }
 }
