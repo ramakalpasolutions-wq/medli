@@ -93,17 +93,39 @@ async function createIndexes() {
   )
 
   // ── 7. Bookings ───────────────────────────────────────────────────────────
-  await applyIndexes(
-    'bookings',
-    [
-      { key: { userId: 1, status: 1 },      name: 'userId_status' },
-      { key: { doctorId: 1, startTime: 1 }, name: 'doctorId_startTime' },
-      { key: { hospitalId: 1, status: 1 },  name: 'hospitalId_status' },
-      { key: { labId: 1, status: 1 },       name: 'labId_status' },
-      { key: { razorpayOrderId: 1 },        name: 'razorpayOrderId_idx', sparse: true },
-    ],
-    'bookings (compound query indexes)'
-  )
+ // ── 7. Bookings ───────────────────────────────────────────────────────────
+await applyIndexes(
+  'bookings',
+  [
+    {
+      key: { userId: 1, status: 1 },
+      name: 'userId_status',
+    },
+    {
+      key: { doctorId: 1, startTime: 1 },
+      name: 'doctorId_startTime',
+    },
+    {
+      key: { hospitalId: 1, status: 1 },
+      name: 'hospitalId_status',
+    },
+    {
+      key: { labId: 1, status: 1 },
+      name: 'labId_status',
+    },
+    {
+      key: { cashfreeOrderId: 1 },
+      name: 'cashfreeOrderId_idx',
+      sparse: true,
+    },
+    {
+      key: { cashfreePaymentId: 1 },
+      name: 'cashfreePaymentId_idx',
+      sparse: true,
+    },
+  ],
+  'bookings (compound query + Cashfree indexes)'
+)
 
   // ── 8. Coupons ────────────────────────────────────────────────────────────
   await applyIndexes(

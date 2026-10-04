@@ -573,7 +573,7 @@ model Invoice {
   totalAmount         Float?
   gstDetails          GSTDetails?
 
-  // ── Razorpay payment info on invoice (replaces onePayPgRefId) ──────────
+  // ── Cashfree payment information ───────────────────────────────────────
   paymentMethod     String?
   paymentMode       String?
   cashfreePaymentId String?
@@ -584,7 +584,7 @@ model Invoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([bookingId, type])
+  @@index([bookingId, type])
   @@index([userId])
   @@map("invoices")
 }

@@ -121,7 +121,8 @@ export async function POST(request, { params }) {
       console.log('  - createdAt:       ', refundResult?.createdAt)
       console.log('  - processedAt:     ', refundResult?.processedAt)
       console.log('  - status:          ', refundResult?.status)
-      console.log('  - razorpayRefundId:', refundResult?.razorpayRefundId)
+      console.log('  - cashfreeRefundId:', refundResult?.cashfreeRefundId)
+console.log('  - cashfreeRefundStatus:', refundResult?.cashfreeRefundStatus)
       console.log('═══════════════════════════════════════════════════════')
 
       console.log(
