@@ -1,54 +1,30 @@
 'use client'
 
-
-
 import { useState, useEffect, Suspense } from 'react'
-
 import { useSearchParams, useRouter } from 'next/navigation'
-
 import Navbar from '@/components/public/Navbar'
-
 import { useToast } from '@/context/ToastContext'
-import { load } from '@cashfreepayments/cashfree-js'
 import { useAuth } from '@/hooks/useAuth'
-
 import useSWR from 'swr'
 import { load } from '@cashfreepayments/cashfree-js'
 
 import {
-
   Check,
-
   FlaskConical,
-
   MapPin,
-
   Home,
-
   User,
-
   Users,
-
   CalendarDays,
-
   Clock3,
-
   Tag,
-
   ShieldCheck,
-
   ChevronLeft,
-
   ChevronRight,
-
   Stethoscope,
-
   Video,
-
   Building2,
-
   CircleAlert,
-
 } from 'lucide-react'
 
 
