@@ -1299,12 +1299,7 @@ function NewBookingContent() {
     // 8. DETERMINE CASHFREE ENVIRONMENT
     // ==========================================================
 
-    const cashfreeMode =
-      process.env
-        .NEXT_PUBLIC_CASHFREE_MODE ===
-      'production'
-        ? 'production'
-        : 'sandbox'
+    const cashfreeMode = 'production'
 
     console.log(
       '[Cashfree] Checkout configuration:',
