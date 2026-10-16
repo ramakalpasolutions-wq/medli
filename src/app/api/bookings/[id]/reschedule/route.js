@@ -9,6 +9,11 @@ const MAX_RESCHEDULES = 2
 
 export function OPTIONS() { return handleOptions() }
 
+// ✅ Helper: extract IST date string (YYYY-MM-DD) from any Date/ISO string
+function getIstDateString(dateInput) {
+  return new Date(dateInput).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+}
+
 export async function POST(request, { params }) {
   try {
     const user = await verifyAuth(request)
@@ -68,10 +73,10 @@ export async function POST(request, { params }) {
       }
     }
 
-    // Invalidate slot cache
+    // ✅ FIX: Use IST date for cache keys instead of UTC .toISOString()
     if (booking.doctorId) {
-      const oldDate = new Date(booking.startTime).toISOString().split('T')[0]
-      const newDate = newStart.toISOString().split('T')[0]
+      const oldDate = getIstDateString(booking.startTime)
+      const newDate = getIstDateString(newStart)
       await cache.del(`slots:${booking.doctorId}:${oldDate}`)
       await cache.del(`slots:${booking.doctorId}:${newDate}`)
     }

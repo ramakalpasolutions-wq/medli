@@ -656,7 +656,52 @@ export default function LabBookingsPage() {
   if (tab !== 'all') qs.set('status', tab)
 
   const { data, isLoading, mutate } = useSWR(`/api/bookings?${qs}`, fetcher)
-  const bookings = data?.bookings || []
+  const rawBookings =
+  Array.isArray(data?.bookings)
+    ? data.bookings
+    : []
+
+const bookings = rawBookings.map((booking) => ({
+  ...booking,
+
+  userName:
+    booking.userName ||
+    booking.user?.name ||
+    booking.patient?.name ||
+    'Patient',
+
+  userPhone:
+    booking.userPhone ||
+    booking.user?.phone ||
+    booking.patient?.phone ||
+    '',
+
+  userEmail:
+    booking.userEmail ||
+    booking.user?.email ||
+    booking.patient?.email ||
+    '',
+
+  hospitalName:
+    booking.hospitalName ||
+    booking.hospital?.name ||
+    '',
+
+  doctorName:
+    booking.doctorName ||
+    booking.doctor?.name ||
+    '',
+
+  labName:
+    booking.labName ||
+    booking.lab?.name ||
+    '',
+
+  tests:
+    Array.isArray(booking.tests)
+      ? booking.tests
+      : [],
+}))
   const totalPages = data?.pagination?.totalPages || 1
 
   const updateStatus = async (newStatus) => {

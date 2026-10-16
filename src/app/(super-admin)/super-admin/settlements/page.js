@@ -31,10 +31,24 @@ function useMounted() {
   return m
 }
 
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' })
-    .then((r) => r.json())
-    .then((j) => j.data)
+const fetcher = async (url) => {
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+  })
+
+  const json = await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      json?.message ||
+      json?.error ||
+      'Request failed'
+    )
+  }
+
+  return json?.data ?? json
+}
 
 const fmtRs = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`

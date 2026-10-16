@@ -1,25 +1,22 @@
+// src/app/api/payments/verify/route.js
+
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
+import { verifyAuth } from '@/lib/middleware/auth.middleware'
+import { cashfreeRequest } from '@/lib/utils/cashfree'
 
 import {
-  verifyAuth,
-} from '@/lib/middleware/auth.middleware'
+  queueBookingConfirmedWhatsapp,
+} from '@/lib/services/booking-notification.service'
 
-import {
-  cashfreeRequest,
-} from '@/lib/utils/cashfree'
-
-export const dynamic =
-  'force-dynamic'
+export const dynamic = 'force-dynamic'
 
 // ============================================================
 // HELPERS
 // ============================================================
 
-function normalizePaymentMethod(
-  payment
-) {
+function normalizePaymentMethod(payment) {
   const method =
     payment?.payment_group ||
     payment?.payment_method ||
@@ -29,45 +26,49 @@ function normalizePaymentMethod(
     return null
   }
 
-  if (
-    typeof method ===
-    'string'
-  ) {
+  if (typeof method === 'string') {
     return method
   }
 
   try {
-    return JSON.stringify(
-      method
-    )
+    return JSON.stringify(method)
   } catch {
     return null
   }
+}
+
+function getPaymentStatus(payment) {
+  return String(
+    payment?.payment_status || ''
+  ).toUpperCase()
+}
+
+function getFailureReason(payment) {
+  return (
+    payment?.payment_message ||
+    payment?.error_details?.error_description ||
+    'Payment failed'
+  )
 }
 
 // ============================================================
 // POST
 // ============================================================
 
-export async function POST(
-  request
-) {
+export async function POST(request) {
   try {
     // ========================================================
     // AUTH
     // ========================================================
 
     const user =
-      await verifyAuth(
-        request
-      )
+      await verifyAuth(request)
 
     if (!user) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Authentication required',
+          error: 'Authentication required',
         },
         {
           status: 401,
@@ -79,12 +80,26 @@ export async function POST(
     // REQUEST BODY
     // ========================================================
 
-    const body =
-      await request.json()
+    let body
+
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid request body',
+        },
+        {
+          status: 400,
+        }
+      )
+    }
 
     const orderId =
       body?.orderId ||
-      body?.cashfreeOrderId
+      body?.cashfreeOrderId ||
+      null
 
     const bookingId =
       body?.bookingId ||
@@ -94,8 +109,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Cashfree order ID is required',
+          error: 'Cashfree order ID is required',
         },
         {
           status: 400,
@@ -118,8 +132,7 @@ export async function POST(
     const payment =
       await prisma.payment.findFirst({
         where: {
-          cashfreeOrderId:
-            orderId,
+          cashfreeOrderId: orderId,
         },
 
         orderBy: {
@@ -131,8 +144,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Payment record not found',
+          error: 'Payment record not found',
         },
         {
           status: 404,
@@ -147,8 +159,7 @@ export async function POST(
     const booking =
       await prisma.booking.findUnique({
         where: {
-          id:
-            payment.bookingId,
+          id: payment.bookingId,
         },
       })
 
@@ -156,8 +167,7 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Booking not found',
+          error: 'Booking not found',
         },
         {
           status: 404,
@@ -195,16 +205,11 @@ export async function POST(
       user.id
 
     const isOwner =
-      String(
-        booking.userId
-      ) ===
-      String(
-        authUserId
-      )
+      String(booking.userId) ===
+      String(authUserId)
 
     const isSuperAdmin =
-      user.role ===
-      'super_admin'
+      user.role === 'super_admin'
 
     if (
       !isOwner &&
@@ -227,11 +232,23 @@ export async function POST(
     // ========================================================
 
     if (
-      booking.paymentStatus ===
-        'paid' &&
-      payment.status ===
-        'success'
+      booking.paymentStatus === 'paid' &&
+      payment.status === 'success'
     ) {
+      /*
+       * This is safe because the queue uses a deterministic
+       * jobId:
+       *
+       * booking-confirmed-{bookingId}
+       *
+       * Therefore webhook + verify cannot intentionally
+       * create separate confirmation jobs.
+       */
+
+      await queueBookingConfirmedWhatsapp(
+        booking.id
+      )
+
       return NextResponse.json(
         {
           success: true,
@@ -282,18 +299,15 @@ export async function POST(
         orderId,
 
         cfOrderId:
-          cashfreeOrder
-            ?.cf_order_id ||
+          cashfreeOrder?.cf_order_id ||
           null,
 
         orderStatus:
-          cashfreeOrder
-            ?.order_status ||
+          cashfreeOrder?.order_status ||
           null,
 
         amount:
-          cashfreeOrder
-            ?.order_amount ||
+          cashfreeOrder?.order_amount ||
           null,
       }
     )
@@ -310,32 +324,25 @@ export async function POST(
       )
 
     const payments =
-      Array.isArray(
-        response
-      )
+      Array.isArray(response)
         ? response
         : []
 
     console.log(
       '[Cashfree verify] Payments:',
-      payments.map(
-        (item) => ({
-          cfPaymentId:
-            item
-              ?.cf_payment_id ||
-            null,
+      payments.map((item) => ({
+        cfPaymentId:
+          item?.cf_payment_id ||
+          null,
 
-          status:
-            item
-              ?.payment_status ||
-            null,
+        status:
+          item?.payment_status ||
+          null,
 
-          amount:
-            item
-              ?.payment_amount ||
-            null,
-        })
-      )
+        amount:
+          item?.payment_amount ||
+          null,
+      }))
     )
 
     // ========================================================
@@ -345,11 +352,7 @@ export async function POST(
     const successfulPayment =
       payments.find(
         (item) =>
-          String(
-            item
-              ?.payment_status ||
-              ''
-          ).toUpperCase() ===
+          getPaymentStatus(item) ===
           'SUCCESS'
       )
 
@@ -357,25 +360,22 @@ export async function POST(
     // NO SUCCESS
     // ========================================================
 
-    if (
-      !successfulPayment
-    ) {
+    if (!successfulPayment) {
+      // ------------------------------------------------------
+      // PENDING
+      // ------------------------------------------------------
+
       const pendingPayment =
         payments.find(
           (item) =>
-            String(
-              item
-                ?.payment_status ||
-                ''
-            ).toUpperCase() ===
+            getPaymentStatus(item) ===
             'PENDING'
         )
 
       if (pendingPayment) {
         await prisma.payment.update({
           where: {
-            id:
-              payment.id,
+            id: payment.id,
           },
 
           data: {
@@ -421,42 +421,30 @@ export async function POST(
         )
       }
 
-      // ======================================================
-      // FAILED PAYMENT
-      // ======================================================
+      // ------------------------------------------------------
+      // FAILED / USER DROPPED
+      // ------------------------------------------------------
 
       const failedPayment =
-        payments.find(
-          (item) => {
-            const status =
-              String(
-                item
-                  ?.payment_status ||
-                  ''
-              ).toUpperCase()
+        payments.find((item) => {
+          const status =
+            getPaymentStatus(item)
 
-            return (
-              status ===
-                'FAILED' ||
-              status ===
-                'USER_DROPPED'
-            )
-          }
-        )
+          return (
+            status === 'FAILED' ||
+            status === 'USER_DROPPED'
+          )
+        })
 
       if (failedPayment) {
         const failureReason =
-          failedPayment
-            ?.payment_message ||
-          failedPayment
-            ?.error_details
-            ?.error_description ||
-          'Payment failed'
+          getFailureReason(
+            failedPayment
+          )
 
         await prisma.payment.update({
           where: {
-            id:
-              payment.id,
+            id: payment.id,
           },
 
           data: {
@@ -497,15 +485,18 @@ export async function POST(
           },
         })
 
+        /*
+         * Never overwrite a booking that has already
+         * been successfully paid.
+         */
+
         if (
-          booking
-            .paymentStatus !==
+          booking.paymentStatus !==
           'paid'
         ) {
           await prisma.booking.update({
             where: {
-              id:
-                booking.id,
+              id: booking.id,
             },
 
             data: {
@@ -540,14 +531,13 @@ export async function POST(
         )
       }
 
-      // ======================================================
-      // NO PAYMENT ATTEMPT YET
-      // ======================================================
+      // ------------------------------------------------------
+      // NO PAYMENT ATTEMPT
+      // ------------------------------------------------------
 
       await prisma.payment.update({
         where: {
-          id:
-            payment.id,
+          id: payment.id,
         },
 
         data: {
@@ -714,8 +704,7 @@ export async function POST(
 
     await prisma.payment.update({
       where: {
-        id:
-          payment.id,
+        id: payment.id,
       },
 
       data: {
@@ -781,8 +770,7 @@ export async function POST(
     const updatedBooking =
       await prisma.booking.update({
         where: {
-          id:
-            booking.id,
+          id: booking.id,
         },
 
         data: {
@@ -802,6 +790,22 @@ export async function POST(
             cfPaymentId,
         },
       })
+
+    // ========================================================
+    // WHATSAPP NOTIFICATION
+    // ========================================================
+
+    /*
+     * Do not make Cashfree verification depend on
+     * WhatsApp delivery.
+     *
+     * queueBookingConfirmedWhatsapp catches its own
+     * queue errors.
+     */
+
+    await queueBookingConfirmedWhatsapp(
+      updatedBooking.id
+    )
 
     // ========================================================
     // UPDATE INVOICE
@@ -832,8 +836,7 @@ export async function POST(
     } catch (invoiceError) {
       console.error(
         '[Cashfree verify] Invoice update failed:',
-        invoiceError
-          ?.message
+        invoiceError?.message
       )
     }
 

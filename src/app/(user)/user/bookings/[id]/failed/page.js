@@ -67,15 +67,161 @@ export default function BookingFailedPage({ params }) {
     }
   }, [])
 
-  const handleRetry = async () => {
-    setRetrying(true)
-    try {
-      const res = await fetch('/api/payments/create-order', {
+ const handleRetry = async () => {
+  if (retrying) return
+
+  setRetrying(true)
+
+  try {
+    const response = await fetch(
+      '/api/payments/create-order',
+      {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ bookingId: id }),
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
+
+        credentials:
+          'include',
+
+        body:
+          JSON.stringify({
+            bookingId: id,
+          }),
+      }
+    )
+
+    const json =
+      await response.json()
+
+    if (
+      !response.ok ||
+      !json?.success
+    ) {
+      throw new Error(
+        json?.message ||
+        json?.error ||
+        'Failed to create payment order'
+      )
+    }
+
+    const paymentData =
+      json?.data || json
+
+    const paymentSessionId =
+      paymentData
+        ?.paymentSessionId
+
+    const orderId =
+      paymentData
+        ?.cashfreeOrderId ||
+      paymentData
+        ?.orderId
+
+    if (
+      !paymentSessionId
+    ) {
+      throw new Error(
+        'Cashfree payment session was not returned'
+      )
+    }
+
+    const cashfree =
+      await load({
+        mode:
+          'production',
       })
+
+    if (!cashfree) {
+      throw new Error(
+        'Unable to load Cashfree checkout'
+      )
+    }
+
+    const result =
+      await cashfree.checkout({
+        paymentSessionId:
+          String(
+            paymentSessionId
+          ).trim(),
+
+        redirectTarget:
+          '_modal',
+      })
+
+    if (
+      result?.error
+    ) {
+      console.error(
+        '[Cashfree Retry] Checkout error:',
+        result.error
+      )
+
+      throw new Error(
+        result.error
+          ?.message ||
+        'Payment could not be completed'
+      )
+    }
+
+    // Ask server to verify the Cashfree order.
+    if (orderId) {
+      try {
+        await fetch(
+          '/api/payments/verify',
+          {
+            method:
+              'POST',
+
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
+
+            credentials:
+              'include',
+
+            body:
+              JSON.stringify({
+                bookingId:
+                  id,
+
+                orderId:
+                  orderId,
+              }),
+          }
+        )
+      } catch (
+        verifyError
+      ) {
+        console.warn(
+          '[Cashfree Retry] Verify request:',
+          verifyError
+        )
+      }
+    }
+
+    // The webhook/verify endpoint may take a
+    // moment to update MongoDB.
+    router.replace(
+      `/user/bookings/${id}/pending`
+    )
+  } catch (error) {
+    console.error(
+      '[Cashfree Retry] Error:',
+      error
+    )
+
+    alert(
+      error?.message ||
+      'Unable to retry payment. Please try again.'
+    )
+  } finally {
+    setRetrying(false)
+  }
+}
 
       const json = await res.json()
 

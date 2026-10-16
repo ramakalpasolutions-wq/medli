@@ -73,9 +73,11 @@ export async function invalidateSlotCache(
   }
 
   try {
-    const date = new Date(startTime)
-      .toISOString()
-      .split('T')[0]
+    // ✅ FIX: Use IST date instead of UTC .toISOString()
+    // .toISOString() on Vercel gives UTC date which can be
+    // one day behind IST after 18:30 IST (e.g. 2025-07-11T00:00 IST
+    // = 2025-07-10T18:30Z → toISOString returns "2025-07-10")
+    const date = new Date(startTime).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
     await cache.del(
       `slots:${doctorId}:${date}`
@@ -271,8 +273,6 @@ export async function createBooking({
       )
     }
 
-    // Always trust DB relationship.
-
     finalHospitalId =
       doctor.hospitalId
 
@@ -281,9 +281,6 @@ export async function createBooking({
         'Doctor is not assigned to a hospital'
       )
     }
-
-    // If frontend supplied hospital,
-    // verify that it matches.
 
     if (
       hospitalId &&
@@ -542,11 +539,6 @@ export async function createBooking({
 
     // --------------------------------------------------------
     // FETCH TESTS
-    // --------------------------------------------------------
-    //
-    // IMPORTANT:
-    // Prices always come from MongoDB.
-    // Never accept frontend test prices.
     // --------------------------------------------------------
 
     const tests =
@@ -1362,9 +1354,6 @@ export async function createBooking({
             couponError?.stack,
         }
       )
-
-      // Do not destroy booking because
-      // coupon logging failed.
     }
   }
 
@@ -1552,9 +1541,6 @@ export async function createBooking({
           invoiceError?.stack,
       }
     )
-
-    // Booking already exists.
-    // Invoice failure must not cancel booking.
   }
 
 

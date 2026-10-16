@@ -34,10 +34,24 @@ function useMounted() {
   return m
 }
 
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' })
-    .then((r) => r.json())
-    .then((j) => j.data)
+const fetcher = async (url) => {
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+  })
+
+  const json = await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      json?.message ||
+      json?.error ||
+      'Request failed'
+    )
+  }
+
+  return json?.data ?? json
+}
 
 const KF = `
   @keyframes bk-spin  { to { transform: rotate(360deg) } }
@@ -717,7 +731,52 @@ export default function HospitalAdminBookings() {
   if (search) qs.set('search', search)
 
   const { data, isLoading, mutate } = useSWR(`/api/bookings?${qs}`, fetcher)
-  const bookings = data?.bookings || []
+  const rawBookings =
+  Array.isArray(data?.bookings)
+    ? data.bookings
+    : []
+
+const bookings = rawBookings.map((booking) => ({
+  ...booking,
+
+  userName:
+    booking.userName ||
+    booking.user?.name ||
+    booking.patient?.name ||
+    'Patient',
+
+  userPhone:
+    booking.userPhone ||
+    booking.user?.phone ||
+    booking.patient?.phone ||
+    '',
+
+  userEmail:
+    booking.userEmail ||
+    booking.user?.email ||
+    booking.patient?.email ||
+    '',
+
+  hospitalName:
+    booking.hospitalName ||
+    booking.hospital?.name ||
+    '',
+
+  doctorName:
+    booking.doctorName ||
+    booking.doctor?.name ||
+    '',
+
+  labName:
+    booking.labName ||
+    booking.lab?.name ||
+    '',
+
+  tests:
+    Array.isArray(booking.tests)
+      ? booking.tests
+      : [],
+}))
   const totalPages = data?.pagination?.totalPages || 1
   const total = data?.pagination?.total || 0
 

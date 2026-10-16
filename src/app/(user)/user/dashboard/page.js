@@ -15,11 +15,24 @@ import {
   ArrowRight,
 } from 'lucide-react'
 
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' })
-    .then((r) => r.json())
-    .then((j) => j.data)
+const fetcher = async (url) => {
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+  })
 
+  const json = await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      json?.message ||
+      json?.error ||
+      'Failed to fetch bookings'
+    )
+  }
+
+  return json?.data || json
+}
 function useMounted() {
   const [m, setM] = useState(false)
   useEffect(() => { setM(true) }, [])
@@ -165,7 +178,52 @@ export default function UserDashboard() {
     mounted ? '/api/bookings?limit=3&filter=upcoming' : null,
     fetcher
   )
-  const bookings = data?.bookings || []
+  const rawBookings =
+  Array.isArray(data?.bookings)
+    ? data.bookings
+    : []
+
+const bookings = rawBookings.map((booking) => ({
+  ...booking,
+
+  userName:
+    booking.userName ||
+    booking.user?.name ||
+    booking.patient?.name ||
+    'Patient',
+
+  userPhone:
+    booking.userPhone ||
+    booking.user?.phone ||
+    booking.patient?.phone ||
+    '',
+
+  userEmail:
+    booking.userEmail ||
+    booking.user?.email ||
+    booking.patient?.email ||
+    '',
+
+  hospitalName:
+    booking.hospitalName ||
+    booking.hospital?.name ||
+    '',
+
+  doctorName:
+    booking.doctorName ||
+    booking.doctor?.name ||
+    '',
+
+  labName:
+    booking.labName ||
+    booking.lab?.name ||
+    '',
+
+  tests:
+    Array.isArray(booking.tests)
+      ? booking.tests
+      : [],
+}))
 
   const greeting = !mounted || !now
     ? 'Hello'

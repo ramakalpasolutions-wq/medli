@@ -176,10 +176,6 @@ export async function GET(request) {
       where.labId =
         lab.id
 
-      /*
-       * Lab admins should only see
-       * lab bookings.
-       */
       where.type =
         'lab'
     }
@@ -255,7 +251,6 @@ export async function GET(request) {
       role === 'super_admin'
     ) {
       // No entity restriction.
-      // Super admin can view all bookings.
     }
 
     // --------------------------------------------------------
@@ -266,13 +261,7 @@ export async function GET(request) {
       role ===
       'regional_manager'
     ) {
-      /*
-       * Leave unrestricted here temporarily.
-       *
-       * If your regional manager model contains
-       * regionId, we can restrict hospitals/labs
-       * by region separately.
-       */
+      // Leave unrestricted here temporarily.
     }
 
     // --------------------------------------------------------
@@ -298,9 +287,11 @@ export async function GET(request) {
       where.startTime = {}
 
       if (dateFrom) {
+        // ✅ FIX: Use +05:30 (IST) instead of Z (UTC)
+        // UTC midnight misses IST bookings from 00:00–05:29
         const startDate =
           new Date(
-            `${dateFrom}T00:00:00.000Z`
+            `${dateFrom}T00:00:00.000+05:30`
           )
 
         if (
@@ -314,9 +305,10 @@ export async function GET(request) {
       }
 
       if (dateTo) {
+        // ✅ FIX: Use +05:30 (IST) instead of Z (UTC)
         const endDate =
           new Date(
-            `${dateTo}T23:59:59.999Z`
+            `${dateTo}T23:59:59.999+05:30`
           )
 
         if (
@@ -444,10 +436,6 @@ export async function GET(request) {
             let tests =
               []
 
-            // ----------------------------------------------
-            // USER
-            // ----------------------------------------------
-
             if (
               booking.userId
             ) {
@@ -474,10 +462,6 @@ export async function GET(request) {
                 })
             }
 
-            // ----------------------------------------------
-            // HOSPITAL
-            // ----------------------------------------------
-
             if (
               booking.hospitalId
             ) {
@@ -501,10 +485,6 @@ export async function GET(request) {
                 })
             }
 
-            // ----------------------------------------------
-            // DOCTOR
-            // ----------------------------------------------
-
             if (
               booking.doctorId
             ) {
@@ -524,10 +504,6 @@ export async function GET(request) {
                   },
                 })
             }
-
-            // ----------------------------------------------
-            // LAB
-            // ----------------------------------------------
 
             if (
               booking.labId
@@ -557,10 +533,6 @@ export async function GET(request) {
                   },
                 })
             }
-
-            // ----------------------------------------------
-            // LAB TESTS
-            // ----------------------------------------------
 
             if (
               booking.type ===

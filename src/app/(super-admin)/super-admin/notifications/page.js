@@ -10,10 +10,24 @@ import Modal       from '@/components/ui/Modal'
 import { useToast } from '@/context/ToastContext'
 
 // ✅ Fetcher returns j.data = { notifications: [], pagination: {} }
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' })
-    .then((r) => r.json())
-    .then((j) => j.data)
+const fetcher = async (url) => {
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+  })
+
+  const json = await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      json?.message ||
+      json?.error ||
+      'Request failed'
+    )
+  }
+
+  return json?.data ?? json
+}
 
 const KF = `@keyframes nt-spin { to { transform: rotate(360deg) } }`
 

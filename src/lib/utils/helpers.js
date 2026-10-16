@@ -4,8 +4,16 @@ function randomSuffix(digits = 6) {
     .padStart(digits, '0')
 }
 
+// ✅ FIX: Use IST year instead of UTC year
+// On Vercel (UTC), between 00:00–05:29 IST the UTC year could be
+// the previous year (e.g. Jan 1 00:30 IST = Dec 31 19:00 UTC)
 function currentYear() {
-  return new Date().getFullYear()
+  return Number(
+    new Date().toLocaleString('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+    })
+  )
 }
 
 export function generateBookingId() {
@@ -43,16 +51,22 @@ export function formatNumber(amount) {
   return new Intl.NumberFormat('en-IN').format(Number(amount) || 0)
 }
 
+// ✅ FIX: Add explicit IST timezone so dates display correctly on Vercel
 export function formatDate(date, options = { dateStyle: 'medium' }) {
   if (!date) return '—'
-  return new Date(date).toLocaleDateString('en-IN', options)
+  return new Date(date).toLocaleDateString('en-IN', {
+    ...options,
+    timeZone: 'Asia/Kolkata',
+  })
 }
 
+// ✅ FIX: Add explicit IST timezone
 export function formatDateTime(date) {
   if (!date) return '—'
   return new Date(date).toLocaleString('en-IN', {
     dateStyle: 'medium',
     timeStyle: 'short',
+    timeZone: 'Asia/Kolkata',
   })
 }
 
@@ -120,14 +134,76 @@ export function buildPaginationMeta(total, page, limit) {
   }
 }
 
-export function getDateRange(preset, dateFrom, dateTo) {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+// ============================================================
+// ✅ IST DATE HELPERS (new)
+// ============================================================
 
-  const startOf = (d) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
-  const endOf = (d) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+/**
+ * Get a Date object representing "now" in IST.
+ * The returned Date's .getFullYear(), .getMonth(), .getDate(),
+ * .getHours(), .getMinutes() all return IST values.
+ */
+function istNow() {
+  return new Date(
+    new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+  )
+}
+
+/**
+ * Build a Date from IST date parts.
+ * Equivalent to new Date(y, m, d, h, min, s, ms) but in IST.
+ */
+function istDate(year, month, day, hours = 0, minutes = 0, seconds = 0, ms = 0) {
+  // Create the date string in IST and parse it with an explicit +05:30 offset
+  const y = String(year)
+  const mo = String(month + 1).padStart(2, '0')
+  const d = String(day).padStart(2, '0')
+  const h = String(hours).padStart(2, '0')
+  const mi = String(minutes).padStart(2, '0')
+  const s = String(seconds).padStart(2, '0')
+  const milli = String(ms).padStart(3, '0')
+  return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}.${milli}+05:30`)
+}
+
+/**
+ * Extract IST date string (YYYY-MM-DD) from any Date or ISO string.
+ * Safe on Vercel (UTC) or any server timezone.
+ */
+export function getIstDateString(dateInput) {
+  return new Date(dateInput).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+}
+
+/**
+ * Extract IST time string (HH:MM) from any Date or ISO string.
+ */
+export function getIstTimeString(dateInput) {
+  const d = new Date(
+    new Date(dateInput).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+  )
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+// ============================================================
+// ✅ FIX: getDateRange — all boundaries now use IST
+// ============================================================
+
+export function getDateRange(preset, dateFrom, dateTo) {
+  const now = istNow()
+  const today = istDate(now.getFullYear(), now.getMonth(), now.getDate())
+
+  const startOf = (d) => {
+    const ist = new Date(
+      d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+    )
+    return istDate(ist.getFullYear(), ist.getMonth(), ist.getDate(), 0, 0, 0, 0)
+  }
+
+  const endOf = (d) => {
+    const ist = new Date(
+      d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+    )
+    return istDate(ist.getFullYear(), ist.getMonth(), ist.getDate(), 23, 59, 59, 999)
+  }
 
   switch (preset) {
     case 'today':
@@ -153,24 +229,24 @@ export function getDateRange(preset, dateFrom, dateTo) {
       return { from: startOf(from), to: endOf(today) }
     }
     case 'thisMonth': {
-      const from = new Date(today.getFullYear(), today.getMonth(), 1)
+      const from = istDate(now.getFullYear(), now.getMonth(), 1)
       return { from: startOf(from), to: endOf(today) }
     }
     case 'lastMonth': {
-      const from = new Date(today.getFullYear(), today.getMonth() - 1, 1)
-      const to = new Date(today.getFullYear(), today.getMonth(), 0)
+      const from = istDate(now.getFullYear(), now.getMonth() - 1, 1)
+      const to = istDate(now.getFullYear(), now.getMonth(), 0)
       return { from: startOf(from), to: endOf(to) }
     }
     case 'last3Months': {
-      const from = new Date(today.getFullYear(), today.getMonth() - 2, 1)
+      const from = istDate(now.getFullYear(), now.getMonth() - 2, 1)
       return { from: startOf(from), to: endOf(today) }
     }
     case 'last6Months': {
-      const from = new Date(today.getFullYear(), today.getMonth() - 5, 1)
+      const from = istDate(now.getFullYear(), now.getMonth() - 5, 1)
       return { from: startOf(from), to: endOf(today) }
     }
     case 'thisYear': {
-      const from = new Date(today.getFullYear(), 0, 1)
+      const from = istDate(now.getFullYear(), 0, 1)
       return { from: startOf(from), to: endOf(today) }
     }
     case 'custom': {
@@ -186,34 +262,43 @@ export function getDateRange(preset, dateFrom, dateTo) {
   }
 }
 
+// ✅ FIX: Use IST date parts instead of UTC .getFullYear()/.getMonth()/.getDate()
 function formatLocalDateKey(date) {
+  const ist = new Date(
+    new Date(date).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+  )
   return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
+    ist.getFullYear(),
+    String(ist.getMonth() + 1).padStart(2, '0'),
+    String(ist.getDate()).padStart(2, '0'),
   ].join('-')
 }
 
 export function groupByDate(items, dateField = 'createdAt') {
   const map = {}
   for (const item of items) {
-    const d = new Date(item[dateField])
-    const key = formatLocalDateKey(d)
+    const key = formatLocalDateKey(item[dateField])
     if (!map[key]) map[key] = []
     map[key].push(item)
   }
   return map
 }
 
+// ✅ FIX: Cursor now iterates in IST dates
 export function buildChartData(bookings, from, to) {
   const grouped = groupByDate(bookings, 'createdAt')
   const result = []
 
-  const cursor = new Date(from)
-  cursor.setHours(0, 0, 0, 0)
+  // Parse "from" and "to" as IST dates
+  const fromIst = new Date(
+    new Date(from).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+  )
+  const toIst = new Date(
+    new Date(to).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+  )
 
-  const end = new Date(to)
-  end.setHours(0, 0, 0, 0)
+  const cursor = istDate(fromIst.getFullYear(), fromIst.getMonth(), fromIst.getDate())
+  const end = istDate(toIst.getFullYear(), toIst.getMonth(), toIst.getDate())
 
   while (cursor <= end) {
     const key = formatLocalDateKey(cursor)
@@ -278,6 +363,8 @@ export default {
   getPaginationParams,
   buildPaginationMeta,
   getDateRange,
+  getIstDateString,
+  getIstTimeString,
   groupByDate,
   buildChartData,
   haversineDistance,

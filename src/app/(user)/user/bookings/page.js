@@ -28,9 +28,24 @@ function useMounted() {
   return m
 }
 
-const fetcher = (url) =>
-  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
+const fetcher = async (url) => {
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+  })
 
+  const json = await response.json()
+
+  if (!response.ok) {
+    throw new Error(
+      json?.message ||
+      json?.error ||
+      'Failed to fetch bookings'
+    )
+  }
+
+  return json?.data || json
+}
 const KF = `
   @keyframes bk-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   @keyframes bk-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }

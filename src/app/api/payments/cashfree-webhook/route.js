@@ -1,7 +1,18 @@
+// src/app/api/payments/cashfree-webhook/route.js
+
 import crypto from 'crypto'
+
 import { prisma } from '@/lib/prisma'
 
+import {
+  queueBookingConfirmedWhatsapp,
+} from '@/lib/services/booking-notification.service'
+
 export const dynamic = 'force-dynamic'
+
+// ============================================================
+// VERIFY CASHFREE WEBHOOK SIGNATURE
+// ============================================================
 
 function verifyWebhookSignature({
   rawBody,
@@ -9,7 +20,8 @@ function verifyWebhookSignature({
   signature,
 }) {
   const secretKey =
-    process.env.CASHFREE_SECRET_KEY
+    process.env
+      .CASHFREE_SECRET_KEY
 
   if (
     !rawBody ||
@@ -30,14 +42,22 @@ function verifyWebhookSignature({
           'sha256',
           secretKey
         )
-        .update(signedPayload)
-        .digest('base64')
+        .update(
+          signedPayload
+        )
+        .digest(
+          'base64'
+        )
 
     const expectedBuffer =
-      Buffer.from(expectedSignature)
+      Buffer.from(
+        expectedSignature
+      )
 
     const receivedBuffer =
-      Buffer.from(signature)
+      Buffer.from(
+        signature
+      )
 
     if (
       expectedBuffer.length !==
@@ -60,34 +80,58 @@ function verifyWebhookSignature({
   }
 }
 
+// ============================================================
+// NORMALIZE PAYMENT METHOD
+// ============================================================
+
 function normalizePaymentMethod(
   paymentData
 ) {
   const method =
-    paymentData?.payment_group ||
-    paymentData?.payment_method ||
+    paymentData
+      ?.payment_group ||
+    paymentData
+      ?.payment_method ||
     null
 
   if (!method) {
     return null
   }
 
-  if (typeof method === 'string') {
+  if (
+    typeof method ===
+    'string'
+  ) {
     return method
   }
 
   try {
-    return JSON.stringify(method)
+    return JSON.stringify(
+      method
+    )
   } catch {
     return null
   }
 }
 
-export async function POST(request) {
+// ============================================================
+// POST
+// ============================================================
+
+export async function POST(
+  request
+) {
   try {
-    // ============================================================
+    // ========================================================
     // RAW BODY
-    // ============================================================
+    // ========================================================
+
+    /*
+     * IMPORTANT:
+     *
+     * Cashfree signature verification must use the exact
+     * raw body. Do not call request.json() before this.
+     */
 
     const rawBody =
       await request.text()
@@ -102,9 +146,9 @@ export async function POST(request) {
         'x-webhook-signature'
       )
 
-    // ============================================================
+    // ========================================================
     // VERIFY SIGNATURE
-    // ============================================================
+    // ========================================================
 
     const valid =
       verifyWebhookSignature({
@@ -121,6 +165,7 @@ export async function POST(request) {
       return Response.json(
         {
           success: false,
+
           message:
             'Invalid webhook signature',
         },
@@ -130,15 +175,17 @@ export async function POST(request) {
       )
     }
 
-    // ============================================================
+    // ========================================================
     // PARSE PAYLOAD
-    // ============================================================
+    // ========================================================
 
     let payload
 
     try {
       payload =
-        JSON.parse(rawBody)
+        JSON.parse(
+          rawBody
+        )
     } catch (error) {
       console.error(
         '[Cashfree Webhook] Invalid JSON:',
@@ -148,6 +195,7 @@ export async function POST(request) {
       return Response.json(
         {
           success: false,
+
           message:
             'Invalid JSON payload',
         },
@@ -157,40 +205,57 @@ export async function POST(request) {
       )
     }
 
+    // ========================================================
+    // CASHFREE PAYLOAD
+    // ========================================================
+
     const webhookType =
-      payload?.type || null
+      payload?.type ||
+      null
 
     const order =
-      payload?.data?.order || {}
+      payload?.data
+        ?.order ||
+      {}
 
     const paymentData =
-      payload?.data?.payment || {}
+      payload?.data
+        ?.payment ||
+      {}
 
     const orderId =
-      order?.order_id || null
+      order?.order_id ||
+      null
 
     const gatewayStatus =
       String(
-        paymentData?.payment_status ||
+        paymentData
+          ?.payment_status ||
           ''
       ).toUpperCase()
 
     console.log(
       '[Cashfree Webhook] Received:',
       {
-        type: webhookType,
+        type:
+          webhookType,
+
         orderId,
+
         paymentStatus:
-          gatewayStatus || null,
+          gatewayStatus ||
+          null,
+
         cfPaymentId:
-          paymentData?.cf_payment_id ||
+          paymentData
+            ?.cf_payment_id ||
           null,
       }
     )
 
-    // ============================================================
+    // ========================================================
     // ORDER ID
-    // ============================================================
+    // ========================================================
 
     if (!orderId) {
       console.warn(
@@ -203,9 +268,9 @@ export async function POST(request) {
       })
     }
 
-    // ============================================================
+    // ========================================================
     // FIND PAYMENT
-    // ============================================================
+    // ========================================================
 
     const payment =
       await prisma.payment.findFirst({
@@ -215,7 +280,8 @@ export async function POST(request) {
         },
 
         orderBy: {
-          createdAt: 'desc',
+          createdAt:
+            'desc',
         },
       })
 
@@ -225,20 +291,29 @@ export async function POST(request) {
         orderId
       )
 
+      /*
+       * Webhook is valid, but the order is not ours
+       * or local record isn't available.
+       *
+       * Return 200 so Cashfree doesn't continuously
+       * retry an unknown order.
+       */
+
       return Response.json({
         success: true,
         ignored: true,
       })
     }
 
-    // ============================================================
+    // ========================================================
     // FIND BOOKING
-    // ============================================================
+    // ========================================================
 
     const booking =
       await prisma.booking.findUnique({
         where: {
-          id: payment.bookingId,
+          id:
+            payment.bookingId,
         },
       })
 
@@ -254,14 +329,16 @@ export async function POST(request) {
       })
     }
 
-    // ============================================================
-    // CASHFREE DATA
-    // ============================================================
+    // ========================================================
+    // CASHFREE PAYMENT DETAILS
+    // ========================================================
 
     const cashfreePaymentId =
-      paymentData?.cf_payment_id
+      paymentData
+        ?.cf_payment_id
         ? String(
-            paymentData.cf_payment_id
+            paymentData
+              .cf_payment_id
           )
         : null
 
@@ -271,43 +348,56 @@ export async function POST(request) {
       )
 
     const bankReference =
-      paymentData?.bank_reference ||
+      paymentData
+        ?.bank_reference ||
       null
 
     const failureReason =
-      paymentData?.payment_message ||
-      paymentData?.error_details
+      paymentData
+        ?.payment_message ||
+      paymentData
+        ?.error_details
         ?.error_description ||
       null
 
     const paymentAmount =
       Number(
-        paymentData?.payment_amount ||
+        paymentData
+          ?.payment_amount ||
           0
       )
 
-    // ============================================================
+    // ========================================================
     // SUCCESS
-    // ============================================================
+    // ========================================================
 
     if (
-      gatewayStatus === 'SUCCESS'
+      gatewayStatus ===
+      'SUCCESS'
     ) {
+      // ======================================================
+      // AMOUNT VERIFICATION
+      // ======================================================
+
       const expectedAmount =
         Number(
           booking.totalAmount ||
-            payment.amount ||
-            0
+          payment.amount ||
+          0
         )
 
       if (
-        Number.isFinite(expectedAmount) &&
+        Number.isFinite(
+          expectedAmount
+        ) &&
         expectedAmount > 0 &&
-        Number.isFinite(paymentAmount) &&
+        Number.isFinite(
+          paymentAmount
+        ) &&
         paymentAmount > 0 &&
         Math.abs(
           expectedAmount -
-            paymentAmount
+          paymentAmount
         ) > 0.01
       ) {
         console.error(
@@ -321,7 +411,8 @@ export async function POST(request) {
 
         await prisma.payment.update({
           where: {
-            id: payment.id,
+            id:
+              payment.id,
           },
 
           data: {
@@ -338,30 +429,38 @@ export async function POST(request) {
           },
         })
 
-        // Return 200 because webhook itself
-        // was authentic. Do not confirm booking.
+        /*
+         * Webhook itself is authentic, so return 200.
+         * Booking MUST NOT be confirmed.
+         */
+
         return Response.json({
           success: true,
+
           ignored: true,
+
           reason:
             'amount_mismatch',
         })
       }
 
-      // ========================================================
+      // ======================================================
       // UPDATE PAYMENT
-      // ========================================================
+      // ======================================================
 
       await prisma.payment.update({
         where: {
-          id: payment.id,
+          id:
+            payment.id,
         },
 
         data: {
-          status: 'success',
+          status:
+            'success',
 
           cashfreeOrderStatus:
-            order?.order_status ||
+            order
+              ?.order_status ||
             'PAID',
 
           cashfreePaymentStatus:
@@ -387,39 +486,51 @@ export async function POST(request) {
         },
       })
 
-      // ========================================================
+      // ======================================================
       // UPDATE BOOKING
-      // ========================================================
+      // ======================================================
+
+      let updatedBooking =
+        booking
 
       if (
         booking.paymentStatus !==
           'paid' ||
         booking.status !==
-          'confirmed'
+          'confirmed' ||
+        booking.cashfreeOrderId !==
+          orderId ||
+        (
+          cashfreePaymentId &&
+          booking.cashfreePaymentId !==
+            cashfreePaymentId
+        )
       ) {
-        await prisma.booking.update({
-          where: {
-            id: booking.id,
-          },
+        updatedBooking =
+          await prisma.booking.update({
+            where: {
+              id:
+                booking.id,
+            },
 
-          data: {
-            paymentStatus:
-              'paid',
+            data: {
+              paymentStatus:
+                'paid',
 
-            status:
-              'confirmed',
+              status:
+                'confirmed',
 
-            cashfreeOrderId:
-              orderId,
+              cashfreeOrderId:
+                orderId,
 
-            cashfreePaymentId,
-          },
-        })
+              cashfreePaymentId,
+            },
+          })
       }
 
-      // ========================================================
-      // UPDATE INVOICE PAYMENT IDS
-      // ========================================================
+      // ======================================================
+      // UPDATE INVOICE
+      // ======================================================
 
       try {
         await prisma.invoice.updateMany({
@@ -433,6 +544,13 @@ export async function POST(request) {
               orderId,
 
             cashfreePaymentId,
+
+            paymentMethod:
+              paymentMethod ||
+              'Cashfree',
+
+            paymentMode:
+              'online',
           },
         })
       } catch (invoiceError) {
@@ -442,15 +560,51 @@ export async function POST(request) {
         )
       }
 
+      // ======================================================
+      // WHATSAPP BOOKING CONFIRMATION
+      // ======================================================
+
+      /*
+       * This queues:
+       *
+       * hospital / online:
+       *   patient
+       *   doctor
+       *   hospital
+       *
+       * lab:
+       *   patient
+       *   lab
+       *
+       * The queue uses a deterministic jobId, therefore
+       * /verify and this webhook won't intentionally create
+       * separate jobs for the same booking.
+       */
+
+      await queueBookingConfirmedWhatsapp(
+        updatedBooking.id
+      )
+
+      // ======================================================
+      // LOG
+      // ======================================================
+
       console.log(
         '[Cashfree Webhook] SUCCESS:',
         {
           orderId,
+
           bookingId:
-            booking.id,
+            updatedBooking.id,
+
           bookingRef:
-            booking.bookingId,
+            updatedBooking
+              .bookingId,
+
           cashfreePaymentId,
+
+          whatsappQueued:
+            true,
         }
       )
 
@@ -459,18 +613,22 @@ export async function POST(request) {
       })
     }
 
-    // ============================================================
+    // ========================================================
     // FAILED / USER DROPPED
-    // ============================================================
+    // ========================================================
 
     if (
-      gatewayStatus === 'FAILED' ||
+      gatewayStatus ===
+        'FAILED' ||
       gatewayStatus ===
         'USER_DROPPED'
     ) {
       /*
-       * Cashfree can send multiple webhook events.
-       * Never overwrite an already-successful payment.
+       * Cashfree can send multiple payment events for an
+       * order.
+       *
+       * NEVER turn a successfully paid booking back into
+       * failed/pending because of a later failed attempt.
        */
 
       if (
@@ -481,7 +639,8 @@ export async function POST(request) {
       ) {
         await prisma.payment.update({
           where: {
-            id: payment.id,
+            id:
+              payment.id,
           },
 
           data: {
@@ -489,7 +648,8 @@ export async function POST(request) {
               'failed',
 
             cashfreeOrderStatus:
-              order?.order_status ||
+              order
+                ?.order_status ||
               null,
 
             cashfreePaymentStatus:
@@ -518,11 +678,13 @@ export async function POST(request) {
         /*
          * Do not cancel the booking.
          *
-         * User may retry payment.
+         * Keep it available for payment retry.
          */
+
         await prisma.booking.update({
           where: {
-            id: booking.id,
+            id:
+              booking.id,
           },
 
           data: {
@@ -539,7 +701,9 @@ export async function POST(request) {
         '[Cashfree Webhook] FAILED:',
         {
           orderId,
+
           gatewayStatus,
+
           bookingId:
             booking.id,
         }
@@ -550,18 +714,27 @@ export async function POST(request) {
       })
     }
 
-    // ============================================================
+    // ========================================================
     // PENDING / OTHER
-    // ============================================================
+    // ========================================================
+
+    /*
+     * Do not modify Booking.status here.
+     *
+     * A pending webhook should not overwrite an already
+     * successful booking.
+     */
 
     await prisma.payment.update({
       where: {
-        id: payment.id,
+        id:
+          payment.id,
       },
 
       data: {
         cashfreeOrderStatus:
-          order?.order_status ||
+          order
+            ?.order_status ||
           null,
 
         cashfreePaymentStatus:
@@ -570,7 +743,8 @@ export async function POST(request) {
 
         cashfreePaymentId:
           cashfreePaymentId ||
-          payment.cashfreePaymentId ||
+          payment
+            .cashfreePaymentId ||
           null,
 
         webhookPayload:
@@ -593,19 +767,26 @@ export async function POST(request) {
     console.error(
       '[Cashfree Webhook] ERROR:',
       {
-        name: error?.name,
-        message: error?.message,
-        stack: error?.stack,
+        name:
+          error?.name,
+
+        message:
+          error?.message,
+
+        stack:
+          error?.stack,
       }
     )
 
     /*
-     * Return 500 here so Cashfree can retry
-     * processing if our database/server failed.
+     * Return 500 so Cashfree can retry when MEDLI
+     * genuinely failed to process an authentic webhook.
      */
+
     return Response.json(
       {
         success: false,
+
         message:
           'Webhook processing failed',
       },
