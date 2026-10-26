@@ -147,11 +147,19 @@ export async function POST(request) {
         select: { id: true, email: true, phone: true },
       })
 
-      if (existing) {
+          if (existing) {
+        // ✅ If a hospital_admin is adding a doctor and the user already exists,
+        // return the existing user so the doctor profile can be linked to them.
+        if (role === 'doctor' && user.role === 'hospital_admin') {
+          return successResponse(
+            existing,
+            'User already exists — linking doctor profile to existing account',
+            200
+          )
+        }
         const field = existing.email === cleanEmail ? 'email' : 'phone'
         return errorResponse(`User with this ${field} already exists`, 409)
       }
-
       // ── Verify hospital/lab exists & has no admin (for admin roles) ─
       if (role === 'hospital_admin' && hospitalId) {
         const hospital = await prisma.hospital.findUnique({

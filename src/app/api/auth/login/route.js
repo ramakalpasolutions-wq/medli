@@ -1,6 +1,4 @@
 // C:\Users\ASUS\medli2\src\app\api\auth\login\route.js
-// ✅ FIXED: hospital_admin, lab_admin, doctor cannot log in
-//           if their linked entity is inactive or unapproved.
 
 import { NextResponse }                              from 'next/server'
 import { prisma }                                    from '@/lib/prisma'
@@ -153,7 +151,7 @@ export async function POST(request) {
       if (user.role === 'doctor') {
         const doctor = await prisma.doctor.findFirst({
           where:  { userId: user.id },
-          select: { isActive: true, isVerified: true, name: true },
+          select: { id: true, isActive: true, isVerified: true, name: true },
         })
         if (!doctor) {
           return NextResponse.json(
@@ -167,11 +165,12 @@ export async function POST(request) {
             { status: 403 }
           )
         }
+        // ✅ Auto-verify doctor if not already verified
         if (!doctor.isVerified) {
-          return NextResponse.json(
-            { success: false, error: `Doctor profile for "${doctor.name}" is pending verification.` },
-            { status: 403 }
-          )
+          await prisma.doctor.update({
+            where: { id: doctor.id },
+            data:  { isVerified: true },
+          })
         }
       }
       // ── End entity status check ─────────────────────────────────────
