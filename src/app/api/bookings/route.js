@@ -75,6 +75,9 @@ export async function GET(request) {
         'paymentStatus'
       )
 
+    const scope =
+      searchParams.get('scope')
+
     const dateFrom =
       searchParams.get(
         'dateFrom'
@@ -139,7 +142,11 @@ export async function GET(request) {
     // NORMAL USER
     // --------------------------------------------------------
 
-    if (role === 'user') {
+    if (scope === 'mine') {
+      // Mobile "My Bookings" is scoped to the authenticated account even
+      // when that account also has an administrator role.
+      where.userId = userId
+    } else if (role === 'user') {
       where.userId = userId
     }
 
@@ -369,6 +376,9 @@ export async function GET(request) {
         paymentStatus:
           where.paymentStatus ||
           null,
+        scope:
+          scope ||
+          null,
         labId:
           where.labId ||
           null,
@@ -410,6 +420,14 @@ export async function GET(request) {
           where,
         }),
       ])
+
+    console.log(
+      '[GET /api/bookings] Results:',
+      {
+        count: bookings.length,
+        total,
+      }
+    )
 
     // ========================================================
     // ENRICH BOOKINGS
@@ -770,6 +788,12 @@ export async function POST(
 
             type:
               body.type,
+
+            patientName:
+              body.patientName || null,
+
+            patientAddress:
+              body.patientAddress || null,
 
             hospitalId:
               body.hospitalId ||

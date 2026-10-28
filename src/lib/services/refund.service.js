@@ -3,15 +3,10 @@
 import { prisma } from '../prisma.js'
 import { generateRefundNumber } from '../utils/helpers.js'
 import { emailQueue, smsQueue } from '../queues/setup.js'
+import { getCashfreeBaseUrl } from '../utils/cashfree.js'
 
 const CASHFREE_API_VERSION =
   process.env.CASHFREE_API_VERSION || '2025-01-01'
-
-function getCashfreeBaseUrl() {
-  return process.env.CASHFREE_ENV === 'production'
-    ? 'https://api.cashfree.com/pg'
-    : 'https://sandbox.cashfree.com/pg'
-}
 
 function getCashfreeHeaders(idempotencyKey = null) {
   if (!process.env.CASHFREE_APP_ID) {

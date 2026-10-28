@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth, getDashboardForRole } from '@/context/AuthContext'
+import { isUserProfileIncomplete } from '@/lib/utils/profileCompletion'
 import {
   User,
   Smartphone,
@@ -875,7 +876,12 @@ function RegisterContent() {
       if (json.success) {
         const { user: u, accessToken, refreshToken } = json.data
         await loginWithOtp(null, null, { user: u, accessToken, refreshToken })
-        router.replace(getDashboardForRole(u.role))
+        const destination = getDashboardForRole(u.role)
+        router.replace(
+          isUserProfileIncomplete(u)
+            ? `/auth/complete-profile?redirect=${encodeURIComponent(destination)}`
+            : destination
+        )
       } else {
         setError(json.error || 'Registration failed')
         if (json.code === 'PHONE_NOT_VERIFIED' || json.code === 'EMAIL_NOT_VERIFIED') {

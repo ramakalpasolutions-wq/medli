@@ -8,6 +8,7 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
+    "test:cashfree": "node --test src/lib/utils/cashfree.test.js",
     "worker": "node worker/index.js",
     "db:seed": "node prisma/seed.js",
     "db:indexes": "node prisma/createIndexes.js",

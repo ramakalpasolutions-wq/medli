@@ -1,9 +1,24 @@
 // Import lazily to avoid bundling BullMQ in client chunks
 import { smsQueue, emailQueue, pushQueue } from '@/lib/queues/setup'
 
+export async function queueBookingConfirmationEmail({ userId, bookingId }) {
+  if (!userId || !bookingId) return
+
+  try {
+    await emailQueue.add(
+      'booking_confirmed',
+      { userId, bookingId },
+      { jobId: `booking-confirmed-email-${bookingId}` },
+    )
+  } catch (error) {
+    // Email delivery must not change the payment/booking result.
+    console.error('[Booking confirmation email] Queue failed:', error?.message)
+  }
+}
+
 export async function notifyBookingConfirmed({ userId, bookingId, type }) {
   await smsQueue.add('booking_confirmed',  { userId, bookingId, type })
-  await emailQueue.add('booking_confirmed', { userId, bookingId, type })
+  await queueBookingConfirmationEmail({ userId, bookingId })
   await pushQueue.add('booking_confirmed',  { userId, bookingId, type })
 }
 

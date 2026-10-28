@@ -5,6 +5,7 @@ import {
   handleOptions,
 } from '@/lib/utils/apiResponse'
 import { cashfreeRequest } from '@/lib/utils/cashfree'
+import { queueBookingConfirmationEmail } from '@/lib/services/notification.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -249,6 +250,11 @@ export async function GET(request, context) {
             cashfreePaymentId,
           },
         })
+
+      await queueBookingConfirmationEmail({
+        userId: booking.userId,
+        bookingId: booking.bookingId,
+      })
 
       console.log(
         '[PAYMENT STATUS] Payment confirmed:',

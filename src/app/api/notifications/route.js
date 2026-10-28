@@ -17,9 +17,81 @@ export function OPTIONS() { return handleOptions() }
 export async function GET(request) {
   return verifyAuth(request, async (req, user) => {
     try {
-      checkRole(user, 'super_admin')
-
       const { searchParams } = new URL(request.url)
+
+      if (user.role !== 'super_admin') {
+        const userId = user.userId || user.id
+        if (!userId) return errorResponse('Unauthorized', 401)
+        const bookings = await prisma.booking.findMany({
+          where: { userId },
+          take: 50,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            paymentStatus: true,
+            startTime: true,
+            createdAt: true,
+            totalAmount: true,
+            collectionType: true,
+            meetLink: true,
+          },
+        })
+
+        const now = new Date()
+        const notifications = bookings.map((booking) => {
+          const isLab = booking.type === 'lab'
+          const isCancelled = booking.status === 'cancelled'
+          const isPending =
+            ['created', 'pending_payment'].includes(booking.status) ||
+            booking.paymentStatus === 'pending'
+          const isUpcoming =
+            booking.status === 'confirmed' && booking.startTime > now
+          const status = isCancelled
+            ? 'cancelled'
+            : isPending
+              ? 'pending'
+              : isUpcoming
+                ? 'upcoming'
+                : 'confirmed'
+          const dateLabel = booking.startTime.toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: 'numeric',
+            month: 'short',
+            hour: 'numeric',
+            minute: '2-digit',
+          })
+
+          return {
+            id: booking.id,
+            refId: booking.id,
+            type: isLab ? 'lab_order' : 'appointment',
+            title: isCancelled
+              ? 'Booking cancelled'
+              : isPending
+                ? 'Payment pending'
+                : isLab
+                  ? 'Lab booking confirmed'
+                  : 'Consultation confirmed',
+            body: `${isLab ? 'Lab test' : 'Consultation'} scheduled for ${dateLabel}.`,
+            status,
+            paymentStatus: booking.paymentStatus,
+            date: booking.startTime.toISOString(),
+            createdAt: booking.createdAt.toISOString(),
+            amount: booking.totalAmount,
+            meta: {
+              consultationType: booking.type,
+              visitType: booking.collectionType,
+              meetLink: booking.meetLink,
+            },
+          }
+        })
+
+        return successResponse({ notifications }, 'Notifications retrieved')
+      }
+
+      checkRole(user, 'super_admin')
       const status  = searchParams.get('status')  || ''
       const channel = searchParams.get('channel') || ''
 

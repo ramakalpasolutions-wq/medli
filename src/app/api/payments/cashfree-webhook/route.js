@@ -3,6 +3,7 @@
 import crypto from 'crypto'
 
 import { prisma } from '@/lib/prisma'
+import { queueBookingConfirmationEmail } from '@/lib/services/notification.service'
 
 import {
   queueBookingConfirmedWhatsapp,

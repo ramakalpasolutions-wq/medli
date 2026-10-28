@@ -433,6 +433,8 @@ model Booking {
   bookingId         String             @unique
   userId            String             @db.ObjectId
   type              BookingType
+  patientName       String?
+  patientAddress    String?
   hospitalId        String?            @db.ObjectId
   doctorId          String?            @db.ObjectId
   labId             String?            @db.ObjectId

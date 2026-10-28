@@ -1004,17 +1004,22 @@ export default function BookingDetailPage() {
         throw new Error(json.error || 'Failed to create payment order')
       }
 
-      const { orderId, paymentSessionId } = json.data || {}
+      const {
+        orderId,
+        paymentSessionId,
+        cashfreeEnvironment,
+      } = json.data || {}
 
       if (!orderId || !paymentSessionId) {
         throw new Error('Cashfree order/session information is missing')
       }
 
+      if (!['sandbox', 'production'].includes(cashfreeEnvironment)) {
+        throw new Error('Backend returned an invalid Cashfree environment')
+      }
+
       const cashfree = await load({
-        mode:
-          process.env.NEXT_PUBLIC_CASHFREE_MODE === 'production'
-            ? 'production'
-            : 'sandbox',
+        mode: cashfreeEnvironment,
       })
 
       const checkoutResult = await cashfree.checkout({

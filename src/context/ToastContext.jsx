@@ -38,7 +38,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ success, error, warning, info, dismiss }}>
       {children}
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-80 pointer-events-none">
+      <div className="fixed top-20 right-4 z-[1000] flex w-[calc(100vw-2rem)] max-w-80 flex-col gap-2 pointer-events-none">
         <AnimatePresence>
           {toasts.map((toast) => {
             const c = colors[toast.type] || colors.info

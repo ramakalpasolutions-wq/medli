@@ -791,6 +791,11 @@ export async function POST(request) {
         },
       })
 
+    await queueBookingConfirmationEmail({
+      userId: updatedBooking.userId,
+      bookingId: updatedBooking.bookingId,
+    })
+
     // ========================================================
     // WHATSAPP NOTIFICATION
     // ========================================================

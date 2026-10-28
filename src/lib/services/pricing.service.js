@@ -140,6 +140,15 @@ export async function calculateBookingPrice({
     throw new Error('Invalid booking type')
   }
 
+  // Hospital and online consultation bookings charge the consultation fee
+  // only. Lab bookings continue to use the lab's configured platform fee.
+  if (
+    bookingType === 'hospital' ||
+    bookingType === 'online'
+  ) {
+    platformFeePercent = 0
+  }
+
   if (
     !Number.isFinite(platformFeePercent) ||
     platformFeePercent < 0

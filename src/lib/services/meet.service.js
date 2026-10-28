@@ -1,4 +1,4 @@
-import { getCalendarClient } from '@/lib/utils/google'
+import { getCalendarClient } from '../utils/google.js'
 
 export async function createConsultationEvent({
   bookingId,

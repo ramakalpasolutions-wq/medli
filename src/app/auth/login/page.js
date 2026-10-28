@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth, getDashboardForRole } from '@/context/AuthContext'
+import { isUserProfileIncomplete } from '@/lib/utils/profileCompletion'
 import {
   Smartphone,
   Mail,
@@ -31,6 +32,12 @@ function getSafeRedirect(role, redirectParam) {
 
   const prefixes = allowed[role] || ['/']
   return prefixes.some((p) => redirectParam.startsWith(p)) ? redirectParam : defaultDash
+}
+
+function getPostLoginRedirect(user, redirectParam) {
+  const destination = getSafeRedirect(user.role, redirectParam)
+  if (!isUserProfileIncomplete(user)) return destination
+  return `/auth/complete-profile?redirect=${encodeURIComponent(destination)}`
 }
 
 const KF = `
@@ -435,7 +442,7 @@ function LoginContent() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace(getSafeRedirect(user.role, redirectParam))
+      router.replace(getPostLoginRedirect(user, redirectParam))
     }
   }, [user, authLoading, redirectParam, router])
 
@@ -500,7 +507,7 @@ function LoginContent() {
     try {
       const result = await loginWithOtp(phone.replace(/\D/g, ''), phoneOtp)
       if (result.success) {
-        router.replace(getSafeRedirect(result.user.role, redirectParam))
+        router.replace(getPostLoginRedirect(result.user, redirectParam))
       } else {
         setError(result.error || 'Invalid OTP')
         setPhoneOtp('')
@@ -534,7 +541,7 @@ function LoginContent() {
         if (typeof loginWithOtp === 'function') {
           await loginWithOtp(null, null, { user: u, accessToken, refreshToken })
         }
-        router.replace(getSafeRedirect(u.role, redirectParam))
+        router.replace(getPostLoginRedirect(u, redirectParam))
       } else {
         setError(json.error || 'Invalid OTP')
         setEmailOtp('')
@@ -561,7 +568,7 @@ function LoginContent() {
         password,
       })
       if (result.success) {
-        router.replace(getSafeRedirect(result.user.role, redirectParam))
+        router.replace(getPostLoginRedirect(result.user, redirectParam))
       } else {
         setError(result.error || 'Login failed')
       }

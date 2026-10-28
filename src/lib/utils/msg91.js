@@ -3,7 +3,7 @@
  */
 
 import axios from 'axios'
-import cache from '@/lib/cache'
+import cache from '../cache.js'
 
 const BASE_URL        = 'https://control.msg91.com/api/v5'
 const HTTP_TIMEOUT_MS = 12_000

@@ -4,6 +4,7 @@ const Redis = require('ioredis')
 const path = require('path')
 
 require('dotenv').config({ path: path.join(__dirname, '../.env.local') })
+require('dotenv').config({ path: path.join(__dirname, '../.env') })
 
 async function loadModules() {
   const { sendSMS } = await import('../src/lib/utils/msg91.js')

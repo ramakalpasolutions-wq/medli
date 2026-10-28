@@ -835,7 +835,7 @@ function NewBookingContent() {
 
   const toast = useToast()
 
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
 
   const mounted = useMounted()
 
@@ -856,6 +856,9 @@ function NewBookingContent() {
   const [patientType, setPatientType] = useState('myself')
 
   const [patientName, setPatientName] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [savingContact, setSavingContact] = useState(false)
 
   const [collectionType, setCollectionType] = useState('walk_in')
 
@@ -944,6 +947,60 @@ function NewBookingContent() {
 
 
   const todayStr = mounted ? new Date().toISOString().split('T')[0] : ''
+
+  const saveContactAndContinue = async () => {
+    if (patientType === 'family' && !patientName.trim()) {
+      toast.error('Enter the patient name')
+      return
+    }
+
+    const needsEmail = !user?.email?.trim()
+    const needsPhone = !user?.phone?.trim()
+    const email = needsEmail ? contactEmail.trim().toLowerCase() : user.email
+    const phone = needsPhone ? contactPhone.replace(/\D/g, '') : user.phone
+
+    if (needsEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Enter a valid email address for booking updates')
+      return
+    }
+
+    if (needsPhone && !/^[6-9]\d{9}$/.test(phone)) {
+      toast.error('Enter a valid 10-digit mobile number')
+      return
+    }
+
+    if (needsEmail || needsPhone) {
+      if (!user?.id) {
+        toast.error('Please sign in again before continuing')
+        return
+      }
+
+      setSavingContact(true)
+      try {
+        const response = await fetch(`/api/users/${user.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            ...(needsEmail ? { email } : {}),
+            ...(needsPhone ? { phone } : {}),
+          }),
+        })
+        const result = await response.json()
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || 'Could not save your contact details')
+        }
+        await refreshUser?.()
+      } catch (error) {
+        toast.error(error.message || 'Could not save your contact details')
+        return
+      } finally {
+        setSavingContact(false)
+      }
+    }
+
+    setStep(3)
+  }
 
 
 
@@ -1187,15 +1244,8 @@ function NewBookingContent() {
           orderJson?.data?.paymentSessionId
         ),
 
-      paymentSessionPrefix:
-        orderJson?.data?.paymentSessionId
-          ? String(
-              orderJson.data.paymentSessionId
-            ).slice(0, 20)
-          : null,
-
-      frontendMode:
-        process.env.NEXT_PUBLIC_CASHFREE_MODE,
+      cashfreeEnvironment:
+        orderJson?.data?.cashfreeEnvironment ?? null,
     })
 
     // ==========================================================
@@ -1234,6 +1284,7 @@ function NewBookingContent() {
       orderId,
       cashfreeOrderId,
       paymentSessionId,
+      cashfreeEnvironment,
     } = orderJson.data || {}
 
     const finalOrderId =
@@ -1299,7 +1350,11 @@ function NewBookingContent() {
     // 8. DETERMINE CASHFREE ENVIRONMENT
     // ==========================================================
 
-    const cashfreeMode = 'production'
+    if (!['sandbox', 'production'].includes(cashfreeEnvironment)) {
+      throw new Error('Backend returned an invalid Cashfree environment')
+    }
+
+    const cashfreeMode = cashfreeEnvironment
 
     console.log(
       '[Cashfree] Checkout configuration:',
@@ -1312,12 +1367,6 @@ function NewBookingContent() {
 
         hasPaymentSessionId:
           true,
-
-        paymentSessionPrefix:
-          cleanPaymentSessionId.slice(
-            0,
-            20
-          ),
       }
     )
 
@@ -2028,6 +2077,39 @@ function NewBookingContent() {
 
 
 
+                {(!user?.email?.trim() || !user?.phone?.trim()) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 18, padding: 14, borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>Contact details</p>
+                      <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>We’ll use these to send your booking confirmation and updates.</p>
+                    </div>
+                    {!user?.email?.trim() && (
+                      <NInput
+                        label="Email address"
+                        type="email"
+                        autoComplete="email"
+                        placeholder="you@example.com"
+                        value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
+                      />
+                    )}
+                    {!user?.phone?.trim() && (
+                      <NInput
+                        label="Mobile number"
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel-national"
+                        maxLength={10}
+                        placeholder="10-digit mobile number"
+                        value={contactPhone}
+                        onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      />
+                    )}
+                  </div>
+                )}
+
+
+
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
 
                   <PBtn variant="secondary" onClick={() => setStep(1)} style={{ flex: 1 }}>
@@ -2038,7 +2120,7 @@ function NewBookingContent() {
 
                   </PBtn>
 
-                  <PBtn onClick={() => setStep(3)} disabled={patientType === 'family' && !patientName.trim()} style={{ flex: 1 }}>
+                  <PBtn onClick={saveContactAndContinue} loading={savingContact} disabled={savingContact || (patientType === 'family' && !patientName.trim())} style={{ flex: 1 }}>
 
                     Continue
 

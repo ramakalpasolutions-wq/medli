@@ -8,11 +8,26 @@ const DEFAULT_CASHFREE_API_VERSION =
 // ENVIRONMENT
 // ============================================================
 
-export function getCashfreeEnvironment() {
-  return process.env.CASHFREE_ENV ===
-    'production'
-    ? 'production'
-    : 'sandbox'
+export function resolveCashfreeEnvironment(value) {
+  const environment = String(value || '').trim().toLowerCase()
+
+  if (environment === 'sandbox' || environment === 'production') {
+    return environment
+  }
+
+  throw new Error(
+    'CASHFREE_ENV must be explicitly set to sandbox or production'
+  )
+}
+
+
+export function cashfreeEnvironmentsMatch(requested, configured) {
+  try {
+    return resolveCashfreeEnvironment(requested) ===
+      resolveCashfreeEnvironment(configured)
+  } catch {
+    return false
+  }
 }
 
 
@@ -20,8 +35,13 @@ export function getCashfreeEnvironment() {
 // API BASE URL
 // ============================================================
 
-export function getCashfreeBaseUrl() {
-  return getCashfreeEnvironment() ===
+export function getCashfreeEnvironment() {
+  return resolveCashfreeEnvironment(process.env.CASHFREE_ENV)
+}
+
+
+export function getCashfreeBaseUrl(environment = getCashfreeEnvironment()) {
+  return resolveCashfreeEnvironment(environment) ===
     'production'
     ? 'https://api.cashfree.com/pg'
     : 'https://sandbox.cashfree.com/pg'
@@ -215,10 +235,11 @@ export async function cashfreeRequest(
     method = 'GET',
     body = null,
     headers = {},
+    environment = getCashfreeEnvironment(),
   } = {}
 ) {
   const baseUrl =
-    getCashfreeBaseUrl()
+    getCashfreeBaseUrl(environment)
 
 
   const cleanEndpoint =

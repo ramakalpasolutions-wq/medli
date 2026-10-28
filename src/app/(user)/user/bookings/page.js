@@ -409,7 +409,7 @@ export default function BookingsPage() {
   const mounted = useMounted()
 
   const { data, isLoading, mutate } = useSWR(
-    `/api/bookings?filter=${tab}&limit=50&userId=me`,
+    `/api/bookings?scope=mine&filter=${tab}&limit=50`,
     fetcher,
     {
       refreshInterval: 30_000,

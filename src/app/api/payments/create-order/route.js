@@ -7,6 +7,9 @@ import { verifyAuth } from '@/lib/middleware/auth.middleware'
 
 import {
   getCashfreeBaseUrl,
+  getCashfreeEnvironment,
+  cashfreeEnvironmentsMatch,
+  resolveCashfreeEnvironment,
   getCashfreeApiVersion,
   generateCashfreeOrderId,
   normalizeCashfreePhone,
@@ -35,6 +38,22 @@ export async function POST(request) {
         {
           status: 401,
         }
+      )
+    }
+
+    let cashfreeEnvironment
+    try {
+      cashfreeEnvironment = getCashfreeEnvironment()
+    } catch {
+      console.error(
+        '[Cashfree create-order] Invalid environment configuration'
+      )
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'CASHFREE_ENV must be explicitly set to sandbox or production',
+        },
+        { status: 503 }
       )
     }
 
@@ -154,6 +173,43 @@ export async function POST(request) {
           status: 400,
         }
       )
+    }
+
+    if (body?.cashfreeEnvironment !== undefined) {
+      let requestedEnvironment
+      try {
+        requestedEnvironment = resolveCashfreeEnvironment(
+          body.cashfreeEnvironment
+        )
+      } catch {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'cashfreeEnvironment must be sandbox or production',
+          },
+          { status: 400 }
+        )
+      }
+
+      if (!cashfreeEnvironmentsMatch(
+        requestedEnvironment,
+        cashfreeEnvironment
+      )) {
+        console.error(
+          '[Cashfree create-order] Client/backend environment mismatch',
+          {
+            clientEnvironment: requestedEnvironment,
+            backendEnvironment: cashfreeEnvironment,
+          }
+        )
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Cashfree environment mismatch. No order was created.',
+          },
+          { status: 409 }
+        )
+      }
     }
 
 
@@ -375,7 +431,7 @@ export async function POST(request) {
 
     const phone =
       normalizeCashfreePhone(
-        customer.phone
+        body?.phone || customer.phone
       )
 
 
@@ -465,7 +521,7 @@ export async function POST(request) {
           finalAmount,
 
         environment:
-          process.env.CASHFREE_ENV,
+          cashfreeEnvironment,
 
         callbackBaseUrl,
       }
@@ -556,14 +612,14 @@ export async function POST(request) {
     // ========================================================
 
     const cashfreeUrl =
-      `${getCashfreeBaseUrl()}/orders`
+      `${getCashfreeBaseUrl(cashfreeEnvironment)}/orders`
 
 
     console.log(
       '[Cashfree create-order] Sending request:',
       {
-        url:
-          cashfreeUrl,
+        endpointHost:
+          new URL(cashfreeUrl).host,
 
         orderId:
           cashfreeOrderId,
@@ -619,81 +675,33 @@ export async function POST(request) {
     // ========================================================
 
     let cashfreeData = null
+    try {
+      cashfreeData = await cashfreeResponse.json()
+    } catch {
+      console.error(
+        '[Cashfree create-order] Cashfree returned a non-JSON response',
+        { httpStatus: cashfreeResponse.status }
+      )
+    }
 
-
-  //  let cashfreeData = null
-
-try {
-  cashfreeData = await cashfreeResponse.json()
-} catch (parseError) {
-  console.error(
-    '[Cashfree create-order] Failed to parse Cashfree response:',
-    parseError
-  )
-
-  cashfreeData = null
-}
-
-// ========================================================
-// CASHFREE RESPONSE DEBUG
-// ========================================================
-
-// IMPORTANT:
-// Never log the complete payment_session_id.
-
-console.log(
-  '[Cashfree create-order] Cashfree response:',
-  {
-    httpStatus: cashfreeResponse.status,
-
-    ok: cashfreeResponse.ok,
-
-    orderId:
-      cashfreeData?.order_id || null,
-
-    cfOrderId:
-      cashfreeData?.cf_order_id != null
-        ? String(cashfreeData.cf_order_id)
-        : null,
-
-    orderStatus:
-      cashfreeData?.order_status || null,
-
-    orderAmount:
-      cashfreeData?.order_amount ?? null,
-
-    orderCurrency:
-      cashfreeData?.order_currency || null,
-
-    hasPaymentSessionId:
-      Boolean(
-        cashfreeData?.payment_session_id
-      ),
-
-    paymentSessionPrefix:
-      cashfreeData?.payment_session_id
-        ? String(
-            cashfreeData.payment_session_id
-          ).slice(0, 25)
-        : null,
-
-    paymentSessionLength:
-      cashfreeData?.payment_session_id
-        ? String(
-            cashfreeData.payment_session_id
-          ).length
-        : 0,
-
-    environment:
-      process.env.CASHFREE_ENV,
-
-    apiBaseUrl:
-      getCashfreeBaseUrl(),
-
-    apiVersion:
-      getCashfreeApiVersion(),
-  }
-)
+    console.log(
+      '[Cashfree create-order] Cashfree response:',
+      {
+        httpStatus: cashfreeResponse.status,
+        ok: cashfreeResponse.ok,
+        orderId: cashfreeData?.order_id || null,
+        cfOrderId: cashfreeData?.cf_order_id != null
+          ? String(cashfreeData.cf_order_id)
+          : null,
+        orderStatus: cashfreeData?.order_status || null,
+        orderAmount: cashfreeData?.order_amount ?? null,
+        orderCurrency: cashfreeData?.order_currency || null,
+        hasPaymentSessionId: Boolean(cashfreeData?.payment_session_id),
+        environment: cashfreeEnvironment,
+        apiHost: new URL(getCashfreeBaseUrl(cashfreeEnvironment)).host,
+        apiVersion: getCashfreeApiVersion(),
+      }
+    )
 
     // ========================================================
     // CASHFREE ERROR
@@ -711,8 +719,11 @@ console.log(
           statusText:
             cashfreeResponse.statusText,
 
-          response:
-            cashfreeData,
+          cashfreeCode:
+            cashfreeData?.code || null,
+
+          cashfreeType:
+            cashfreeData?.type || null,
         }
       )
 
@@ -726,8 +737,6 @@ console.log(
             cashfreeData?.type ||
             'Cashfree order creation failed',
 
-          cashfreeError:
-            cashfreeData,
         },
         {
           status:
@@ -744,15 +753,29 @@ console.log(
     // PAYMENT SESSION
     // ========================================================
 
-    const paymentSessionId =
-      cashfreeData
-        ?.payment_session_id
+    if (cashfreeData?.order_id !== cashfreeOrderId) {
+      console.error(
+        '[Cashfree create-order] Cashfree order ID did not match request',
+        { environment: cashfreeEnvironment }
+      )
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cashfree returned a different order ID',
+        },
+        { status: 502 }
+      )
+    }
+
+    const paymentSessionId = cashfreeData?.payment_session_id
 
 
     if (!paymentSessionId) {
       console.error(
-        '[Cashfree create-order] Missing payment_session_id:',
-        cashfreeData
+        '[Cashfree create-order] Missing payment_session_id',
+        {
+          environment: cashfreeEnvironment,
+        }
       )
 
       return NextResponse.json(
@@ -919,21 +942,8 @@ console.log(
     hasPaymentSessionId:
       Boolean(paymentSessionId),
 
-    paymentSessionPrefix:
-      paymentSessionId
-        ? String(paymentSessionId).slice(
-            0,
-            25
-          )
-        : null,
-
-    paymentSessionLength:
-      paymentSessionId
-        ? String(paymentSessionId).length
-        : 0,
-
     environment:
-      process.env.CASHFREE_ENV,
+      cashfreeEnvironment,
   }
 )
 
@@ -967,6 +977,8 @@ console.log(
           orderStatus:
             cashfreeOrderStatus,
 
+          cashfreeEnvironment,
+
           bookingId:
             booking.id,
 
@@ -991,8 +1003,6 @@ console.log(
         code:
           error?.code,
 
-        stack:
-          error?.stack,
       }
     )
 

@@ -98,6 +98,8 @@ export async function invalidateSlotCache(
 export async function createBooking({
   userId,
   type,
+  patientName = null,
+  patientAddress = null,
 
   hospitalId = null,
   doctorId = null,
@@ -831,18 +833,28 @@ export async function createBooking({
     type !== 'lab' &&
     doctorId
   ) {
+    // Unpaid bookings hold a slot only during the checkout window. This
+    // matches the availability API, which releases pending reservations
+    // after 15 minutes if payment never completes.
+    const reservationCutoff =
+      new Date(Date.now() - 15 * 60 * 1000)
+
     const conflict =
       await prisma.booking.findFirst({
         where: {
           doctorId,
 
-          status: {
-            in: [
-              'created',
-              'pending_payment',
-              'confirmed',
-            ],
-          },
+          OR: [
+            { status: 'confirmed' },
+            {
+              status: {
+                in: ['created', 'pending_payment'],
+              },
+              createdAt: {
+                gte: reservationCutoff,
+              },
+            },
+          ],
 
           startTime: {
             lt:
@@ -1111,6 +1123,16 @@ export async function createBooking({
           userId,
 
           type,
+
+          patientName:
+            typeof patientName === 'string'
+              ? patientName.trim() || null
+              : null,
+
+          patientAddress:
+            typeof patientAddress === 'string'
+              ? patientAddress.trim() || null
+              : null,
 
 
           // ------------------------------------------
