@@ -1441,6 +1441,13 @@ export default function BookingDetailPage() {
 
               <InfoRow label="Booking Type" value={typeLabel} />
 
+              {(booking.patientName || booking.patient?.name || booking.userName) && (
+                <InfoRow
+                  label="Patient"
+                  value={booking.patientName || booking.patient?.name || booking.userName}
+                />
+              )}
+
               <InfoRow label="Date" value={bookingDate} />
 
               <InfoRow label="Time" value={bookingEndTime ? `${bookingTime} – ${bookingEndTime}` : bookingTime} />

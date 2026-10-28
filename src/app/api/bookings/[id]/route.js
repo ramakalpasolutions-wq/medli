@@ -358,9 +358,9 @@ export async function GET(request, { params }) {
 
             select: {
               id: true,
-              fullName: true,
+              name: true,
               email: true,
-              mobile: true,
+              phone: true,
             },
           })
       } catch (error) {
@@ -441,18 +441,19 @@ export async function GET(request, { params }) {
     if (
       booking.type === 'lab' &&
       Array.isArray(
-        booking.labTestIds
+        booking.testIds
       ) &&
-      booking.labTestIds.length > 0
+      booking.testIds.length > 0
     ) {
       try {
         tests =
-          await prisma.labTest.findMany({
+          await prisma.test.findMany({
             where: {
               id: {
                 in:
-                  booking.labTestIds,
+                  booking.testIds,
               },
+              labId: booking.labId,
             },
           })
       } catch (error) {
@@ -478,12 +479,18 @@ export async function GET(request, { params }) {
         patient || null,
 
       userName:
-        patient?.fullName ||
+        patient?.name ||
+        booking.userName ||
+        '',
+
+      patientName:
+        booking.patientName ||
+        patient?.name ||
         booking.userName ||
         '',
 
       userPhone:
-        patient?.mobile ||
+        patient?.phone ||
         booking.userPhone ||
         '',
 
