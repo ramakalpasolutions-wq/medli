@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/middleware/auth.middleware'
 import { cashfreeRequest } from '@/lib/utils/cashfree'
+import { queueBookingConfirmationEmail } from '@/lib/services/notification.service'
 
 import {
   queueBookingConfirmedWhatsapp,

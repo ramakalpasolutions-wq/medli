@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "predev": "prisma generate",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
     "start": "next start",

@@ -17,94 +17,118 @@ export function OPTIONS() {
   return handleOptions()
 }
 
-/* ─── GET /api/doctors — List doctors for Super Admin / Hospital Admin ─── */
+/* ─── GET /api/doctors — Public listings and admin doctor management ─── */
 export async function GET(request) {
-  return verifyAuth(request, async (req, user) => {
-    try {
-      checkRole(user, 'super_admin', 'regional_manager', 'hospital_admin')
+  // Doctor listings are shown before sign-in. Admin users retain the full
+  // management view; regular users and guests only receive bookable doctors.
+  const user = await verifyAuth(request)
+  const adminRoles = ['super_admin', 'regional_manager', 'hospital_admin']
+  const isAdmin = adminRoles.includes(user?.role)
+  if (user && !isAdmin && user.role !== 'user') {
+    return errorResponse('Access denied. Doctor listings are unavailable for this role', 403)
+  }
 
-      const { searchParams } = new URL(request.url)
-      const search     = searchParams.get('search') || ''
-      const hospitalId = searchParams.get('hospitalId')
-      const isVerified = searchParams.get('isVerified')
-      const isActive   = searchParams.get('isActive')
+  try {
+    const { searchParams } = new URL(request.url)
+    const search     = searchParams.get('search') || ''
+    const hospitalId = searchParams.get('hospitalId')
+    const isVerified = searchParams.get('isVerified')
+    const isActive   = searchParams.get('isActive')
 
-      const { page, limit, skip, take } = getPaginationParams(
-        searchParams.get('page'),
-        searchParams.get('limit')
-      )
+    const { page, limit, skip, take } = getPaginationParams(
+      searchParams.get('page'),
+      searchParams.get('limit')
+    )
 
-      const where = {}
+    const where = {}
 
-      if (search) {
-        where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-        ]
-      }
-
-      if (hospitalId) {
-        where.hospitalId = hospitalId
-      }
-
-      // Hospital admins can only see doctors from their own hospital
-      if (user.role === 'hospital_admin') {
-        const hospital = await prisma.hospital.findFirst({
-          where: { adminUserId: user.id },
-          select: { id: true },
-        })
-        if (!hospital) {
-          return paginatedResponse([], buildPaginationMeta(0, page, limit), 'doctors')
-        }
-        where.hospitalId = hospital.id
-      }
-
-      if (isVerified === 'true' || isVerified === 'false') {
-        where.isVerified = isVerified === 'true'
-      }
-      if (isActive === 'true' || isActive === 'false') {
-        where.isActive = isActive === 'true'
-      }
-
-      const [doctors, total] = await Promise.all([
-        prisma.doctor.findMany({
-          where,
-          skip,
-          take,
-          orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            name: true,
-            specialization: true,
-            qualifications: true,
-            experience: true,
-            avatar: true,
-            consultationFee: true,
-            consultationTypes: true,
-            isVerified: true,
-            isActive: true,
-            rating: true,
-            hospitalId: true,
-            userId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        }),
-        prisma.doctor.count({ where }),
-      ])
-
-      return paginatedResponse(
-        doctors,
-        buildPaginationMeta(total, page, limit),
-        'doctors'
-      )
-    } catch (error) {
-      if (error.message?.includes('Access denied')) {
-        return errorResponse(error.message, 403)
-      }
-      console.error('[GET /api/doctors]', error)
-      return errorResponse('Failed to fetch doctors', 500)
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+      ]
     }
-  })
+
+    if (hospitalId) {
+      where.hospitalId = hospitalId
+    }
+
+    if (!isAdmin) {
+      where.isVerified = true
+      where.isActive = true
+
+      const hospitals = await prisma.hospital.findMany({
+        where: {
+          isApproved: true,
+          isActive: true,
+          ...(hospitalId ? { id: hospitalId } : {}),
+        },
+        select: { id: true },
+      })
+      const visibleHospitalIds = hospitals.map((hospital) => hospital.id)
+      if (hospitalId && visibleHospitalIds.length === 0) {
+        return paginatedResponse([], buildPaginationMeta(0, page, limit), 'doctors')
+      }
+      where.hospitalId = { in: visibleHospitalIds }
+    }
+
+    // Hospital admins can only see doctors from their own hospital
+    if (user?.role === 'hospital_admin') {
+      const hospital = await prisma.hospital.findFirst({
+        where: { adminUserId: user.id },
+        select: { id: true },
+      })
+      if (!hospital) {
+        return paginatedResponse([], buildPaginationMeta(0, page, limit), 'doctors')
+      }
+      where.hospitalId = hospital.id
+    }
+
+    if (isAdmin && (isVerified === 'true' || isVerified === 'false')) {
+      where.isVerified = isVerified === 'true'
+    }
+    if (isAdmin && (isActive === 'true' || isActive === 'false')) {
+      where.isActive = isActive === 'true'
+    }
+
+    const [doctors, total] = await Promise.all([
+      prisma.doctor.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          specialization: true,
+          qualifications: true,
+          experience: true,
+          avatar: true,
+          consultationFee: true,
+          consultationTypes: true,
+          isVerified: true,
+          isActive: true,
+          rating: true,
+          hospitalId: true,
+          ...(isAdmin ? { userId: true } : {}),
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.doctor.count({ where }),
+    ])
+
+    return paginatedResponse(
+      doctors,
+      buildPaginationMeta(total, page, limit),
+      'doctors'
+    )
+  } catch (error) {
+    if (error.message?.includes('Access denied')) {
+      return errorResponse(error.message, 403)
+    }
+    console.error('[GET /api/doctors]', error)
+    return errorResponse('Failed to fetch doctors', 500)
+  }
 }
 
 /* ─── POST /api/doctors — Create doctor (Auto-Verified) ──────────────── */
