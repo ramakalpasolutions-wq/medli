@@ -3,18 +3,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
-import AdminHeader from '@/components/admin/AdminHeader'
-import DataTable from '@/components/ui/DataTable'
-import Badge, { getStatusVariant } from '@/components/ui/Badge'
-import Modal from '@/components/ui/Modal'
-import { useToast } from '@/context/ToastContext'
 import {
   Search,
   RefreshCw,
   Eye,
   ChevronDown,
-  UserRound,
+  ChevronLeft,
+  ChevronRight,
   CalendarDays,
+  Clock3,
+  UserRound,
   Phone,
   Mail,
   Stethoscope,
@@ -22,11 +20,20 @@ import {
   Video,
   AlertTriangle,
   XCircle,
+  Building2,
 } from 'lucide-react'
 
+import AdminHeader from '@/components/admin/AdminHeader'
+import DataTable from '@/components/ui/DataTable'
+import Badge, { getStatusVariant } from '@/components/ui/Badge'
+import Modal from '@/components/ui/Modal'
+import { useToast } from '@/context/ToastContext'
+
 // ============================================================
-// STATUS CONSTANTS
+// CONFIGURATION
 // ============================================================
+
+const PAGE_SIZE = 20
 
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
@@ -39,12 +46,6 @@ const STATUS_FILTERS = [
   { value: 'refunded', label: 'Refunded' },
 ]
 
-const CANCELLABLE = new Set([
-  'created',
-  'pending_payment',
-  'confirmed',
-])
-
 const STATUS_LABELS = {
   created: 'Created',
   pending_payment: 'Pending Payment',
@@ -53,71 +54,437 @@ const STATUS_LABELS = {
   no_show: 'Not Attended',
   cancelled: 'Cancelled',
   refunded: 'Refunded',
+  paid: 'Paid',
+  pending: 'Pending',
+  failed: 'Failed',
+  partial_refund: 'Partial Refund',
 }
+
+const CANCELLABLE = new Set([
+  'created',
+  'pending_payment',
+  'confirmed',
+])
+
+// ============================================================
+// RESPONSIVE CSS
+// ============================================================
+
+const STYLES = `
+  .hab-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-x: clip;
+  }
+
+  .hab-page *,
+  .hab-page *::before,
+  .hab-page *::after {
+    box-sizing: border-box;
+  }
+
+  .hab-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .hab-search {
+    position: relative;
+    flex: 1 1 220px;
+    max-width: 340px;
+    min-width: 160px;
+  }
+
+  .hab-search input {
+    width: 100%;
+    padding: 11px 14px 11px 39px;
+    background: #fff;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    outline: none;
+    color: #1e293b;
+    font-size: 13px;
+    transition: all .2s ease;
+  }
+
+  .hab-search input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.10);
+  }
+
+  .hab-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .hab-filter {
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 650;
+    white-space: nowrap;
+    background: #f1f5f9;
+    color: #64748b;
+    transition: .18s;
+  }
+
+  .hab-filter:hover {
+    background: #e0e7ff;
+    color: #4f46e5;
+  }
+
+  .hab-filter.active {
+    background: linear-gradient(135deg,#6366f1,#8b5cf6);
+    color: #fff;
+  }
+
+  .hab-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .hab-icon-btn:hover {
+    background: #e0e7ff;
+    color: #4f46e5;
+  }
+
+  .hab-icon-btn:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+  }
+
+  /* Wide desktop table */
+
+  .hab-table-view {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .hab-table-scroll {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 18px;
+  }
+
+  .hab-table-inner {
+    min-width: 1220px;
+  }
+
+  .hab-table-inner table {
+    width: 100%;
+    min-width: 1220px;
+  }
+
+  .hab-table-inner th,
+  .hab-table-inner td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .hab-table-inner th:last-child,
+  .hab-table-inner td:last-child {
+    min-width: 250px;
+  }
+
+  .hab-cards-view {
+    display: none;
+  }
+
+  /* Status dropdown */
+
+  .hab-status-wrap {
+    min-width: 0;
+    width: 180px;
+    max-width: 100%;
+    position: relative;
+  }
+
+  .hab-status-select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    min-width: 0;
+    padding: 10px 30px 10px 11px;
+    border: 1.5px solid #c7d2fe;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 10px;
+    outline: none;
+    cursor: pointer;
+    text-overflow: ellipsis;
+  }
+
+  .hab-status-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+  }
+
+  .hab-status-select:disabled {
+    background: #f1f5f9;
+    color: #64748b;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+  }
+
+  .hab-status-arrow {
+    pointer-events: none;
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #64748b;
+  }
+
+  .hab-status-note {
+    display: block;
+    margin-top: 5px;
+    font-size: 10px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  /* Booking cards */
+
+  .hab-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 17px;
+    min-width: 0;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(15,23,42,.035);
+  }
+
+  .hab-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+
+  .hab-card-name {
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+
+  .hab-card-booking-id {
+    margin-top: 5px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #94a3b8;
+    overflow-wrap: anywhere;
+  }
+
+  .hab-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 13px 15px;
+  }
+
+  .hab-card-label {
+    display: block;
+    font-size: 10px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: .4px;
+    margin-bottom: 5px;
+  }
+
+  .hab-card-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    overflow-wrap: anywhere;
+  }
+
+  .hab-card-footer {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 16px;
+    padding-top: 14px;
+  }
+
+  .hab-card-footer .hab-status-wrap {
+    width: 100%;
+  }
+
+  .hab-card-footer .hab-action-area {
+    flex: 1 1 170px;
+    min-width: 0;
+  }
+
+  .hab-card-footer .hab-icon-btn {
+    min-height: 40px;
+  }
+
+  .hab-card-footer .hab-view-btn {
+    flex: 0 0 auto;
+  }
+
+  .hab-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 20px 0 5px;
+  }
+
+  /* Switch to responsive cards on laptop/tablet sizes */
+
+  @media (max-width: 1550px) {
+    .hab-table-view {
+      display: none;
+    }
+
+    .hab-cards-view {
+      display: grid;
+      grid-template-columns: repeat(2,minmax(0,1fr));
+      gap: 14px;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    .hab-cards-view {
+      grid-template-columns: minmax(0,1fr);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .hab-page {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .hab-toolbar {
+      gap: 9px;
+    }
+
+    .hab-search {
+      min-width: 0;
+      max-width: none;
+      flex-basis: 100%;
+    }
+
+    .hab-filters {
+      width: 100%;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 7px;
+      scrollbar-width: thin;
+    }
+
+    .hab-filter {
+      flex-shrink: 0;
+    }
+
+    .hab-card {
+      padding: 14px;
+    }
+
+    .hab-card-grid {
+      gap: 12px;
+    }
+
+    .hab-card-footer {
+      align-items: stretch;
+    }
+
+    .hab-card-footer .hab-action-area {
+      flex-basis: 100%;
+    }
+
+    .hab-card-footer .hab-view-btn {
+      width: 100%;
+    }
+  }
+`
+
+// ============================================================
+// HELPERS
+// ============================================================
 
 function statusLabel(status) {
   return (
     STATUS_LABELS[status] ||
-    String(status || 'Unknown').replaceAll('_', ' ')
+    String(status || 'Unknown')
+      .replaceAll('_', ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
   )
 }
 
-// Hospital Admin can manage appointment progress.
-// Payment status must be verified by the payment workflow.
+function money(value) {
+  return `₹${Number(value || 0).toLocaleString('en-IN', {
+    maximumFractionDigits: 2,
+  })}`
+}
+
+function formatDate(value, mounted, includeTime = true) {
+  if (!mounted || !value) return '—'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return date.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'medium',
+    ...(includeTime ? { timeStyle: 'short' } : {}),
+  })
+}
 
 function availableStatuses(booking) {
   if (booking.paymentStatus !== 'paid') {
     return []
   }
 
-  if (
-    ['created', 'pending_payment'].includes(
-      booking.status
-    )
-  ) {
-    return ['confirmed']
+  switch (booking.status) {
+    case 'created':
+    case 'pending_payment':
+      return ['confirmed']
+
+    case 'confirmed':
+      return ['completed', 'no_show']
+
+    default:
+      return []
   }
-
-  if (booking.status === 'confirmed') {
-    return ['completed', 'no_show']
-  }
-
-  return []
 }
-
-// ============================================================
-// FORMATTERS
-// ============================================================
-
-function rupees(value) {
-  return `₹${Number(value || 0).toLocaleString(
-    'en-IN',
-    {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }
-  )}`
-}
-
-function dateTime(value, mounted) {
-  if (!mounted || !value) return '—'
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return '—'
-  }
-
-  return date.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
-}
-
-// ============================================================
-// API FETCHER
-// ============================================================
 
 async function fetcher(url) {
   const response = await fetch(url, {
@@ -127,10 +494,7 @@ async function fetcher(url) {
 
   const json = await response.json()
 
-  if (
-    !response.ok ||
-    json?.success === false
-  ) {
+  if (!response.ok || json?.success === false) {
     throw new Error(
       json?.message ||
       json?.error ||
@@ -142,156 +506,65 @@ async function fetcher(url) {
 }
 
 // ============================================================
-// COMMON BUTTON
-// ============================================================
-
-function ActionButton({
-  children,
-  onClick,
-  disabled = false,
-  danger = false,
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        padding: '9px 13px',
-        borderRadius: 10,
-
-        background: danger
-          ? '#fff1f2'
-          : '#f1f5f9',
-
-        color: danger
-          ? '#dc2626'
-          : '#334155',
-
-        border: `1px solid ${
-          danger ? '#fecdd3' : '#e2e8f0'
-        }`,
-
-        fontWeight: 700,
-        fontSize: 12,
-
-        cursor: disabled
-          ? 'not-allowed'
-          : 'pointer',
-
-        opacity: disabled ? 0.55 : 1,
-      }}
-    >
-      {children}
-    </button>
-  )
-}
-
-// ============================================================
 // STATUS DROPDOWN
 // ============================================================
 
 function StatusDropdown({
   booking,
-  onSelect,
+  onChange,
   disabled = false,
+  fullWidth = false,
 }) {
   const allowed = availableStatuses(booking)
+  const canCancel = CANCELLABLE.has(booking.status)
+  const editable = allowed.length > 0 || canCancel
 
-  const canCancel = CANCELLABLE.has(
-    booking.status
-  )
-
-  const canChange =
-    allowed.length > 0 || canCancel
+  const current = booking.status || 'created'
 
   function handleChange(event) {
     event.stopPropagation()
 
-    const next = event.target.value
+    const target = event.currentTarget
+    const next = target.value
 
-    // Open confirmation instead of changing immediately.
+    // Keep current value until API confirmation succeeds.
+    target.value = current
 
-    if (
-      next !== booking.status &&
-      next
-    ) {
-      onSelect(booking, next)
-    }
+    if (!next || next === current) return
+
+    onChange(booking, next)
   }
 
   return (
     <div
-      style={{
-        minWidth: 156,
-        display: 'grid',
-        gap: 5,
-      }}
+      className="hab-status-wrap"
+      style={fullWidth ? { width: '100%' } : undefined}
     >
       <div style={{ position: 'relative' }}>
         <select
-          aria-label={`Update status for booking ${
+          className="hab-status-select"
+          aria-label={`Change booking status for ${
             booking.bookingId || booking.id
           }`}
-          value={booking.status}
-          onClick={(event) =>
-            event.stopPropagation()
-          }
+          value={current}
+          disabled={disabled || !editable}
+          onClick={(event) => event.stopPropagation()}
           onChange={handleChange}
-          disabled={disabled || !canChange}
-          style={{
-            width: '100%',
-
-            appearance: 'none',
-            WebkitAppearance: 'none',
-
-            border: '1px solid #c7d2fe',
-            borderRadius: 10,
-
-            background: canChange
-              ? '#eef2ff'
-              : '#f1f5f9',
-
-            color: canChange
-              ? '#4338ca'
-              : '#64748b',
-
-            padding: '9px 28px 9px 10px',
-            outlineColor: '#6366f1',
-
-            fontSize: 12,
-            fontWeight: 700,
-
-            cursor:
-              disabled || !canChange
-                ? 'not-allowed'
-                : 'pointer',
-          }}
         >
-          {/* Current Status */}
-          <option value={booking.status}>
-            {statusLabel(booking.status)} (Current)
+          <option value={current}>
+            {statusLabel(current)} (Current)
           </option>
 
-          {/* Available Status Updates */}
           {allowed.map((status) => (
-            <option
-              key={status}
-              value={status}
-            >
+            <option key={status} value={status}>
               {status === 'confirmed'
                 ? 'Confirm Booking'
                 : status === 'completed'
                   ? 'Mark Completed'
-                  : 'Mark Not Attended'}
+                  : 'Not Attended'}
             </option>
           ))}
 
-          {/* Cancellation */}
           {canCancel && (
             <option value="cancelled">
               Cancel Booking
@@ -301,38 +574,23 @@ function StatusDropdown({
 
         <ChevronDown
           size={14}
-          color="#64748b"
-          style={{
-            position: 'absolute',
-            right: 9,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            pointerEvents: 'none',
-          }}
+          className="hab-status-arrow"
         />
       </div>
 
-      {!canChange && (
-        <span
-          style={{
-            fontSize: 10,
-            color: '#94a3b8',
-          }}
-        >
+      {!editable && (
+        <span className="hab-status-note">
           No available status changes
         </span>
       )}
 
-      {[
-        'created',
-        'pending_payment',
-      ].includes(booking.status) &&
+      {['created', 'pending_payment'].includes(
+        current
+      ) &&
         booking.paymentStatus !== 'paid' && (
           <span
-            style={{
-              fontSize: 10,
-              color: '#b45309',
-            }}
+            className="hab-status-note"
+            style={{ color: '#b45309' }}
           >
             Awaiting verified payment
           </span>
@@ -342,14 +600,10 @@ function StatusDropdown({
 }
 
 // ============================================================
-// BOOKING DETAIL ROW
+// DETAIL ROW
 // ============================================================
 
-function DetailRow({
-  label,
-  value,
-  Icon,
-}) {
+function DetailRow({ label, value, Icon }) {
   if (
     value === undefined ||
     value === null ||
@@ -362,11 +616,10 @@ function DetailRow({
     <div
       style={{
         display: 'flex',
-        alignItems: 'flex-start',
         justifyContent: 'space-between',
+        alignItems: 'flex-start',
         gap: 12,
-
-        padding: '9px 0',
+        padding: '10px 0',
         borderBottom: '1px solid #f1f5f9',
       }}
     >
@@ -375,22 +628,23 @@ function DetailRow({
           display: 'inline-flex',
           alignItems: 'center',
           gap: 7,
-
-          fontSize: 12,
           color: '#64748b',
+          fontSize: 12,
+          flexShrink: 0,
         }}
       >
-        {Icon && <Icon size={13} />}
+        {Icon && <Icon size={14} />}
         {label}
       </span>
 
       <span
         style={{
           fontSize: 12,
-          color: '#1e293b',
-          fontWeight: 600,
+          fontWeight: 650,
+          color: '#0f172a',
           textAlign: 'right',
           overflowWrap: 'anywhere',
+          minWidth: 0,
         }}
       >
         {value}
@@ -400,38 +654,32 @@ function DetailRow({
 }
 
 // ============================================================
-// BOOKING DETAIL MODAL CONTENT
+// BOOKING DETAILS
 // ============================================================
 
 function BookingDetail({
   booking,
   mounted,
-  onSelect,
   saving,
+  onStatusChange,
 }) {
   return (
-    <div
-      style={{
-        display: 'grid',
-        gap: 15,
-      }}
-    >
-      {/* Booking Summary */}
-
+    <div style={{ display: 'grid', gap: 15 }}>
       <div
         style={{
+          padding: 16,
+          borderRadius: 14,
           background: '#f8fafc',
           border: '1px solid #e2e8f0',
-          padding: 15,
-          borderRadius: 14,
         }}
       >
         <div
           style={{
-            fontSize: 14,
-            color: '#0f172a',
+            fontSize: 15,
             fontWeight: 800,
             fontFamily: 'monospace',
+            overflowWrap: 'anywhere',
+            color: '#0f172a',
           }}
         >
           {booking.bookingId || booking.id}
@@ -440,15 +688,13 @@ function BookingDetail({
         <div
           style={{
             display: 'flex',
-            gap: 7,
+            gap: 8,
             flexWrap: 'wrap',
-            marginTop: 9,
+            marginTop: 10,
           }}
         >
           <Badge
-            variant={getStatusVariant(
-              booking.status
-            )}
+            variant={getStatusVariant(booking.status)}
             size="sm"
             dot
           >
@@ -462,9 +708,7 @@ function BookingDetail({
             size="sm"
             dot
           >
-            Payment: {statusLabel(
-              booking.paymentStatus
-            )}
+            {statusLabel(booking.paymentStatus)}
           </Badge>
 
           <Badge
@@ -477,35 +721,26 @@ function BookingDetail({
             }
             size="sm"
           >
-            {booking.type || '—'}
+            {booking.type}
           </Badge>
         </div>
       </div>
 
-      {/* Patient & Appointment */}
-
       <section
         style={{
           padding: 15,
-          border: '1px solid #e2e8f0',
           borderRadius: 14,
+          border: '1px solid #e2e8f0',
         }}
       >
         <h3
           style={{
-            display: 'flex',
-            gap: 7,
-            alignItems: 'center',
             fontSize: 13,
-            margin: '0 0 7px',
-            color: '#1e293b',
+            fontWeight: 800,
+            color: '#334155',
+            margin: '0 0 8px',
           }}
         >
-          <UserRound
-            size={16}
-            color="#6366f1"
-          />
-
           Patient & Appointment
         </h3>
 
@@ -530,6 +765,7 @@ function BookingDetail({
         <DetailRow
           label="Hospital"
           value={booking.hospitalName}
+          Icon={Building2}
         />
 
         <DetailRow
@@ -544,7 +780,7 @@ function BookingDetail({
 
         <DetailRow
           label="Appointment"
-          value={dateTime(
+          value={formatDate(
             booking.startTime,
             mounted
           )}
@@ -552,41 +788,38 @@ function BookingDetail({
         />
       </section>
 
-      {/* Payment Details */}
-
       <section
         style={{
           padding: 15,
-          border: '1px solid #e2e8f0',
           borderRadius: 14,
+          border: '1px solid #e2e8f0',
         }}
       >
         <h3
           style={{
-            display: 'flex',
-            gap: 7,
-            alignItems: 'center',
             fontSize: 13,
-            margin: '0 0 7px',
-            color: '#1e293b',
+            fontWeight: 800,
+            color: '#334155',
+            margin: '0 0 8px',
           }}
         >
-          <IndianRupee
-            size={16}
-            color="#059669"
-          />
-
-          Payment & Other Details
+          Payment Details
         </h3>
 
         <DetailRow
-          label="Base fee"
-          value={rupees(booking.baseFee)}
+          label="Payment Status"
+          value={statusLabel(booking.paymentStatus)}
         />
 
         <DetailRow
-          label="Total amount"
-          value={rupees(booking.totalAmount)}
+          label="Base Fee"
+          value={money(booking.baseFee)}
+          Icon={IndianRupee}
+        />
+
+        <DetailRow
+          label="Total Amount"
+          value={money(booking.totalAmount)}
         />
 
         <DetailRow
@@ -596,28 +829,19 @@ function BookingDetail({
 
         <DetailRow
           label="Discount"
-          value={rupees(
-            booking.couponDiscount
-          )}
+          value={money(booking.couponDiscount)}
         />
 
         <DetailRow
-          label="Doctor notes"
+          label="Doctor Notes"
           value={booking.doctorNotes}
         />
 
         <DetailRow
-          label="Cancellation reason"
+          label="Cancellation Reason"
           value={booking.cancellationReason}
         />
-
-        <DetailRow
-          label="Internal ID"
-          value={booking.id}
-        />
       </section>
-
-      {/* Online Consultation */}
 
       {booking.type === 'online' &&
         booking.meetLink && (
@@ -626,45 +850,38 @@ function BookingDetail({
             target="_blank"
             rel="noopener noreferrer"
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
               background: '#059669',
-              color: 'white',
-              borderRadius: 12,
+              color: '#fff',
               padding: 12,
-              textDecoration: 'none',
-              textAlign: 'center',
+              borderRadius: 12,
               fontSize: 13,
               fontWeight: 700,
+              textDecoration: 'none',
             }}
           >
-            <Video
-              size={15}
-              style={{
-                display: 'inline',
-                verticalAlign: '-3px',
-                marginRight: 6,
-              }}
-            />
-
+            <Video size={16} />
             Join Online Consultation
           </a>
         )}
 
-      {/* Status Update Dropdown */}
-
       <section
         style={{
           padding: 15,
-          borderRadius: 14,
           background: '#eef2ff',
           border: '1px solid #c7d2fe',
+          borderRadius: 14,
         }}
       >
         <h3
           style={{
-            margin: '0 0 10px',
             fontSize: 13,
             fontWeight: 800,
             color: '#3730a3',
+            margin: '0 0 12px',
           }}
         >
           Update Booking Status
@@ -672,8 +889,9 @@ function BookingDetail({
 
         <StatusDropdown
           booking={booking}
-          onSelect={onSelect}
           disabled={saving}
+          onChange={onStatusChange}
+          fullWidth
         />
       </section>
     </div>
@@ -681,26 +899,153 @@ function BookingDetail({
 }
 
 // ============================================================
-// MAIN HOSPITAL ADMIN BOOKINGS PAGE
+// MOBILE / TABLET BOOKING CARD
+// ============================================================
+
+function BookingCard({
+  booking,
+  mounted,
+  saving,
+  onStatusChange,
+  onView,
+}) {
+  return (
+    <article className="hab-card">
+      <div className="hab-card-header">
+        <div style={{ minWidth: 0 }}>
+          <div className="hab-card-name">
+            {booking.userName}
+          </div>
+
+          <div className="hab-card-booking-id">
+            {booking.bookingId || booking.id}
+          </div>
+        </div>
+
+        <Badge
+          variant={getStatusVariant(booking.status)}
+          size="sm"
+          dot
+        >
+          {statusLabel(booking.status)}
+        </Badge>
+      </div>
+
+      <div className="hab-card-grid">
+        <div>
+          <span className="hab-card-label">Doctor</span>
+          <span className="hab-card-value">
+            {booking.doctorName
+              ? `Dr. ${booking.doctorName}`
+              : '—'}
+          </span>
+        </div>
+
+        <div>
+          <span className="hab-card-label">Type</span>
+
+          <Badge
+            size="sm"
+            variant={
+              booking.type === 'lab'
+                ? 'success'
+                : booking.type === 'online'
+                  ? 'purple'
+                  : 'info'
+            }
+          >
+            {booking.type || '—'}
+          </Badge>
+        </div>
+
+        <div>
+          <span className="hab-card-label">
+            Payment
+          </span>
+
+          <Badge
+            size="sm"
+            variant={getStatusVariant(
+              booking.paymentStatus
+            )}
+            dot
+          >
+            {statusLabel(booking.paymentStatus)}
+          </Badge>
+        </div>
+
+        <div>
+          <span className="hab-card-label">
+            Amount
+          </span>
+
+          <span className="hab-card-value">
+            {money(booking.totalAmount)}
+          </span>
+        </div>
+
+        <div style={{ gridColumn: '1 / -1' }}>
+          <span className="hab-card-label">
+            Appointment Date
+          </span>
+
+          <span
+            className="hab-card-value"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <CalendarDays size={13} />
+
+            {formatDate(booking.startTime, mounted)}
+          </span>
+        </div>
+      </div>
+
+      <div className="hab-card-footer">
+        <div className="hab-action-area">
+          <span className="hab-card-label">
+            Update Status
+          </span>
+
+          <StatusDropdown
+            booking={booking}
+            disabled={saving}
+            onChange={onStatusChange}
+            fullWidth
+          />
+        </div>
+
+        <button
+          type="button"
+          className="hab-icon-btn hab-view-btn"
+          onClick={() => onView(booking)}
+          disabled={saving}
+        >
+          <Eye size={15} />
+          View Details
+        </button>
+      </div>
+    </article>
+  )
+}
+
+// ============================================================
+// MAIN PAGE
 // ============================================================
 
 export default function HospitalAdminBookings() {
   const toast = useToast()
 
-  const [mounted, setMounted] =
-    useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  const [page, setPage] =
-    useState(1)
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
 
-  const [search, setSearch] =
-    useState('')
-
-  const [statusFilter, setStatusFilter] =
-    useState('')
-
-  const [viewItem, setViewItem] =
-    useState(null)
+  const [viewItem, setViewItem] = useState(null)
 
   const [pendingChange, setPendingChange] =
     useState(null)
@@ -711,33 +1056,28 @@ export default function HospitalAdminBookings() {
   const [cancelReason, setCancelReason] =
     useState('Cancelled by hospital admin')
 
-  const [saving, setSaving] =
-    useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // ==========================================================
-  // BUILD BOOKINGS API QUERY
-  // ==========================================================
+  // ----------------------------------------------------------
+  // FETCH BOOKINGS
+  // ----------------------------------------------------------
 
-  const qs = new URLSearchParams({
+  const params = new URLSearchParams({
     page: String(page),
-    limit: '20',
+    limit: String(PAGE_SIZE),
   })
 
-  if (statusFilter) {
-    qs.set('status', statusFilter)
-  }
-
   if (search.trim()) {
-    qs.set('search', search.trim())
+    params.set('search', search.trim())
   }
 
-  // ==========================================================
-  // FETCH BOOKINGS
-  // ==========================================================
+  if (statusFilter) {
+    params.set('status', statusFilter)
+  }
 
   const {
     data,
@@ -745,44 +1085,36 @@ export default function HospitalAdminBookings() {
     isLoading,
     mutate,
   } = useSWR(
-    `/api/bookings?${qs.toString()}`,
+    `/api/bookings?${params.toString()}`,
     fetcher,
-    {
-      revalidateOnFocus: false,
-    }
+    { revalidateOnFocus: false }
   )
 
-  // ==========================================================
-  // NORMALIZE BOOKING DATA
-  // ==========================================================
-
   const bookings = useMemo(() => {
-    const list = Array.isArray(
-      data?.bookings
-    )
+    const raw = Array.isArray(data?.bookings)
       ? data.bookings
       : []
 
-    return list.map((booking) => ({
+    return raw.map((booking) => ({
       ...booking,
 
       userName:
         booking.patientName ||
         booking.userName ||
-        booking.patient?.name ||
         booking.user?.name ||
+        booking.patient?.name ||
         'Patient',
 
       userPhone:
         booking.userPhone ||
-        booking.patient?.phone ||
         booking.user?.phone ||
+        booking.patient?.phone ||
         '',
 
       userEmail:
         booking.userEmail ||
-        booking.patient?.email ||
         booking.user?.email ||
+        booking.patient?.email ||
         '',
 
       doctorName:
@@ -797,59 +1129,34 @@ export default function HospitalAdminBookings() {
     }))
   }, [data])
 
-  const total =
-    data?.pagination?.total ?? 0
+  const total = data?.pagination?.total ?? 0
 
   const totalPages = Math.max(
     1,
     data?.pagination?.totalPages || 1
   )
 
-  // ==========================================================
-  // SELECT STATUS FROM DROPDOWN
-  // ==========================================================
+  // ----------------------------------------------------------
+  // HANDLE STATUS DROPDOWN
+  // ----------------------------------------------------------
 
-  function requestStatus(
-    booking,
-    nextStatus
-  ) {
-    if (
-      saving ||
-      !booking ||
-      nextStatus === booking.status
-    ) {
-      return
-    }
+  function requestStatusChange(booking, nextStatus) {
+    if (saving || !booking) return
 
-    // Cancellation uses its own API.
+    if (nextStatus === booking.status) return
 
     if (nextStatus === 'cancelled') {
-      if (
-        !CANCELLABLE.has(booking.status)
-      ) {
-        return
-      }
+      if (!CANCELLABLE.has(booking.status)) return
 
       setViewItem(null)
-
-      setCancelReason(
-        'Cancelled by hospital admin'
-      )
-
       setCancelTarget(booking)
-
+      setCancelReason('Cancelled by hospital admin')
       return
     }
 
-    // Verify the transition is available.
+    const allowed = availableStatuses(booking)
 
-    if (
-      !availableStatuses(
-        booking
-      ).includes(nextStatus)
-    ) {
-      return
-    }
+    if (!allowed.includes(nextStatus)) return
 
     setViewItem(null)
 
@@ -859,27 +1166,17 @@ export default function HospitalAdminBookings() {
     })
   }
 
-  // ==========================================================
-  // SAVE BOOKING STATUS
-  // ==========================================================
+  // ----------------------------------------------------------
+  // SAVE STATUS
+  // ----------------------------------------------------------
 
-  async function confirmStatus() {
-    if (
-      saving ||
-      !pendingChange
-    ) {
-      return
-    }
+  async function confirmStatusUpdate() {
+    if (!pendingChange || saving) return
 
-    const {
-      booking,
-      nextStatus,
-    } = pendingChange
+    const { booking, nextStatus } = pendingChange
 
     if (
-      !availableStatuses(
-        booking
-      ).includes(nextStatus)
+      !availableStatuses(booking).includes(nextStatus)
     ) {
       return
     }
@@ -891,14 +1188,10 @@ export default function HospitalAdminBookings() {
         `/api/bookings/${booking.id}/status`,
         {
           method: 'PATCH',
-
           credentials: 'include',
-
           headers: {
-            'Content-Type':
-              'application/json',
+            'Content-Type': 'application/json',
           },
-
           body: JSON.stringify({
             status: nextStatus,
           }),
@@ -914,42 +1207,32 @@ export default function HospitalAdminBookings() {
         throw new Error(
           json?.message ||
           json?.error ||
-          'Booking status update failed'
+          'Failed to update booking status'
         )
       }
 
       toast.success(
-        `Booking marked ${statusLabel(
-          nextStatus
-        )}`
+        `Booking updated to ${statusLabel(nextStatus)}`
       )
 
       setPendingChange(null)
 
       await mutate()
-
     } catch (err) {
       toast.error(
-        err.message ||
-        'Could not update booking'
+        err.message || 'Status update failed'
       )
-
     } finally {
       setSaving(false)
     }
   }
 
-  // ==========================================================
+  // ----------------------------------------------------------
   // CANCEL BOOKING
-  // ==========================================================
+  // ----------------------------------------------------------
 
-  async function confirmCancel() {
-    if (
-      saving ||
-      !cancelTarget
-    ) {
-      return
-    }
+  async function confirmCancellation() {
+    if (!cancelTarget || saving) return
 
     setSaving(true)
 
@@ -958,14 +1241,10 @@ export default function HospitalAdminBookings() {
         `/api/bookings/${cancelTarget.id}/cancel`,
         {
           method: 'POST',
-
           credentials: 'include',
-
           headers: {
-            'Content-Type':
-              'application/json',
+            'Content-Type': 'application/json',
           },
-
           body: JSON.stringify({
             reason:
               cancelReason.trim() ||
@@ -974,8 +1253,7 @@ export default function HospitalAdminBookings() {
         }
       )
 
-      const json =
-        await response.json()
+      const json = await response.json()
 
       if (
         !response.ok ||
@@ -984,48 +1262,41 @@ export default function HospitalAdminBookings() {
         throw new Error(
           json?.message ||
           json?.error ||
-          'Booking cancellation failed'
+          'Failed to cancel booking'
         )
       }
 
-      toast.success(
-        'Booking cancelled successfully'
-      )
+      toast.success('Booking cancelled successfully')
 
       setCancelTarget(null)
 
       await mutate()
-
     } catch (err) {
       toast.error(
-        err.message ||
-        'Could not cancel booking'
+        err.message || 'Cancellation failed'
       )
-
     } finally {
       setSaving(false)
     }
   }
 
-  // ==========================================================
-  // BOOKINGS TABLE COLUMNS
-  // ==========================================================
+  // ----------------------------------------------------------
+  // TABLE COLUMNS
+  // ----------------------------------------------------------
 
   const columns = [
-    // Patient
-
     {
       key: 'userName',
       header: 'Patient',
 
       render: (value, booking) => (
-        <div>
+        <div style={{ minWidth: 150 }}>
           <p
             style={{
               margin: 0,
               color: '#1e293b',
-              fontSize: 13,
               fontWeight: 700,
+              fontSize: 13,
             }}
           >
             {value}
@@ -1034,8 +1305,8 @@ export default function HospitalAdminBookings() {
           <p
             style={{
               margin: '4px 0 0',
-              fontSize: 11,
               fontFamily: 'monospace',
+              fontSize: 11,
               color: '#94a3b8',
             }}
           >
@@ -1045,27 +1316,16 @@ export default function HospitalAdminBookings() {
       ),
     },
 
-    // Doctor
-
     {
       key: 'doctorName',
       header: 'Doctor',
 
       render: (value) => (
-        <span
-          style={{
-            fontSize: 12,
-            color: '#475569',
-          }}
-        >
-          {value
-            ? `Dr. ${value}`
-            : '—'}
+        <span style={{ fontSize: 12, color: '#475569' }}>
+          {value ? `Dr. ${value}` : '—'}
         </span>
       ),
     },
-
-    // Booking Type
 
     {
       key: 'type',
@@ -1087,8 +1347,6 @@ export default function HospitalAdminBookings() {
       ),
     },
 
-    // Payment Status
-
     {
       key: 'paymentStatus',
       header: 'Payment',
@@ -1096,17 +1354,13 @@ export default function HospitalAdminBookings() {
       render: (value) => (
         <Badge
           size="sm"
-          variant={
-            getStatusVariant(value)
-          }
           dot
+          variant={getStatusVariant(value)}
         >
           {statusLabel(value)}
         </Badge>
       ),
     },
-
-    // Current Booking Status
 
     {
       key: 'status',
@@ -1115,17 +1369,13 @@ export default function HospitalAdminBookings() {
       render: (value) => (
         <Badge
           size="sm"
-          variant={
-            getStatusVariant(value)
-          }
           dot
+          variant={getStatusVariant(value)}
         >
           {statusLabel(value)}
         </Badge>
       ),
     },
-
-    // Amount
 
     {
       key: 'totalAmount',
@@ -1139,12 +1389,10 @@ export default function HospitalAdminBookings() {
             color: '#334155',
           }}
         >
-          {rupees(value)}
+          {money(value)}
         </span>
       ),
     },
-
-    // Appointment Date
 
     {
       key: 'startTime',
@@ -1157,12 +1405,10 @@ export default function HospitalAdminBookings() {
             color: '#64748b',
           }}
         >
-          {dateTime(value, mounted)}
+          {formatDate(value, mounted)}
         </span>
       ),
     },
-
-    // Status Update & View
 
     {
       key: 'actions',
@@ -1172,205 +1418,285 @@ export default function HospitalAdminBookings() {
         <div
           style={{
             display: 'flex',
-            flexWrap: 'wrap',
             alignItems: 'center',
             gap: 8,
           }}
         >
           <StatusDropdown
             booking={booking}
-            onSelect={requestStatus}
             disabled={saving}
+            onChange={requestStatusChange}
           />
 
-          <ActionButton
-            onClick={() =>
-              setViewItem(booking)
-            }
+          <button
+            type="button"
+            className="hab-icon-btn"
             disabled={saving}
+            onClick={() => setViewItem(booking)}
           >
-            <Eye size={13} />
+            <Eye size={14} />
             View
-          </ActionButton>
+          </button>
         </div>
       ),
     },
   ]
 
-  // ==========================================================
-  // RENDER PAGE
-  // ==========================================================
+  // ----------------------------------------------------------
+  // UI
+  // ----------------------------------------------------------
 
   return (
     <>
-      {/* Header */}
+      <style>{STYLES}</style>
 
-      <AdminHeader
-        title="Bookings"
-        subtitle={`${total} booking${
-          total === 1 ? '' : 's'
-        } · ${
-          statusFilter
-            ? statusLabel(statusFilter)
-            : 'All'
-        }`}
-        breadcrumbs={[
-          { label: 'Hospital Admin' },
-          { label: 'Bookings' },
-        ]}
-      />
+      <div className="hab-page">
+        <AdminHeader
+          title="Bookings"
+          subtitle={`${total} booking${
+            total === 1 ? '' : 's'
+          } · ${
+            statusFilter
+              ? statusLabel(statusFilter)
+              : 'All'
+          }`}
+          breadcrumbs={[
+            { label: 'Hospital Admin' },
+            { label: 'Bookings' },
+          ]}
+        />
 
-      {/* Search & Filters */}
+        {/* Search and filters */}
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 9,
-          marginBottom: 20,
-        }}
-      >
-        {/* Search Input */}
+        <div className="hab-toolbar">
+          <div className="hab-search">
+            <Search
+              size={16}
+              color="#94a3b8"
+              style={{
+                position: 'absolute',
+                left: 12,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+              }}
+            />
 
-        <div
-          style={{
-            position: 'relative',
-            flex: '1 1 190px',
-            maxWidth: 320,
-          }}
-        >
-          <Search
-            size={16}
-            color="#94a3b8"
-            style={{
-              position: 'absolute',
-              left: 12,
-              top: 12,
-            }}
-          />
-
-          <input
-            type="search"
-            aria-label="Search bookings"
-            placeholder="Search booking ID…"
-            value={search}
-            onChange={(event) => {
-              setSearch(
-                event.target.value
-              )
-
-              setPage(1)
-            }}
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-
-              borderRadius: 12,
-              border: '1px solid #e2e8f0',
-
-              padding:
-                '10px 12px 10px 38px',
-
-              fontSize: 13,
-              outlineColor: '#6366f1',
-            }}
-          />
-        </div>
-
-        {/* Status Filters */}
-
-        {STATUS_FILTERS.map(
-          ({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                setStatusFilter(value)
+            <input
+              type="search"
+              placeholder="Search booking ID…"
+              aria-label="Search bookings"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
                 setPage(1)
               }}
-              style={{
-                border: 'none',
-                borderRadius: 10,
+            />
+          </div>
 
-                padding: '9px 12px',
+          <div className="hab-filters">
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                type="button"
+                key={filter.value}
+                className={`hab-filter ${
+                  statusFilter === filter.value
+                    ? 'active'
+                    : ''
+                }`}
+                onClick={() => {
+                  setStatusFilter(filter.value)
+                  setPage(1)
+                }}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
 
-                fontSize: 12,
-                fontWeight: 700,
+          <button
+            type="button"
+            className="hab-icon-btn"
+            onClick={() => mutate()}
+            disabled={saving}
+          >
+            <RefreshCw size={15} />
+            Refresh
+          </button>
+        </div>
 
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
+        {/* Error */}
 
-                color:
-                  statusFilter === value
-                    ? '#fff'
-                    : '#64748b',
-
-                background:
-                  statusFilter === value
-                    ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
-                    : '#f1f5f9',
-              }}
-            >
-              {label}
-            </button>
-          )
+        {error && (
+          <div
+            role="alert"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#fff1f2',
+              border: '1px solid #fecaca',
+              padding: 14,
+              borderRadius: 12,
+              marginBottom: 16,
+              color: '#b91c1c',
+              fontSize: 13,
+            }}
+          >
+            <AlertTriangle size={17} />
+            {error.message}
+          </div>
         )}
 
-        {/* Refresh */}
+        {/* ============================================
+            DESKTOP TABLE
+            ============================================ */}
 
-        <ActionButton
-          onClick={() => mutate()}
-          disabled={saving}
-        >
-          <RefreshCw size={15} />
-          Refresh
-        </ActionButton>
-      </div>
-
-      {/* API Error */}
-
-      {error && (
-        <div
-          role="alert"
-          style={{
-            padding: 14,
-            borderRadius: 12,
-
-            color: '#b91c1c',
-            background: '#fff1f2',
-
-            marginBottom: 14,
-
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <AlertTriangle size={16} />
-
-          {error.message}
+        <div className="hab-table-view">
+          <div className="hab-table-scroll">
+            <div className="hab-table-inner">
+              <DataTable
+                columns={columns}
+                data={bookings}
+                loading={isLoading}
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                emptyTitle="No bookings found"
+                emptyMessage={
+                  statusFilter
+                    ? `No ${statusLabel(statusFilter)} bookings`
+                    : 'No bookings yet'
+                }
+              />
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Bookings Table */}
+        {/* ============================================
+            RESPONSIVE BOOKING CARDS
+            ============================================ */}
 
-      <DataTable
-        columns={columns}
-        data={bookings}
-        loading={isLoading}
-        page={page}
-        totalPages={totalPages}
-        onPageChange={setPage}
-        emptyTitle="No bookings found"
-        emptyMessage={
-          statusFilter
-            ? `No ${statusLabel(
-                statusFilter
-              )} bookings`
-            : 'No bookings yet'
-        }
-      />
+        <div className="hab-cards-view">
+          {isLoading ? (
+            [1, 2, 3, 4].map((n) => (
+              <div
+                key={n}
+                className="hab-card"
+                style={{ minHeight: 200 }}
+              >
+                <div
+                  style={{
+                    background: '#f1f5f9',
+                    height: 20,
+                    width: '65%',
+                    borderRadius: 6,
+                    marginBottom: 20,
+                  }}
+                />
+
+                <div
+                  style={{
+                    background: '#f1f5f9',
+                    height: 100,
+                    borderRadius: 10,
+                  }}
+                />
+              </div>
+            ))
+          ) : bookings.length === 0 ? (
+            <div
+              className="hab-card"
+              style={{
+                gridColumn: '1 / -1',
+                textAlign: 'center',
+                padding: 40,
+              }}
+            >
+              <CalendarDays
+                size={32}
+                color="#94a3b8"
+              />
+
+              <h3
+                style={{
+                  margin: '12px 0 4px',
+                  fontSize: 15,
+                }}
+              >
+                No bookings found
+              </h3>
+
+              <p
+                style={{
+                  fontSize: 12,
+                  color: '#94a3b8',
+                }}
+              >
+                Try adjusting your filters.
+              </p>
+            </div>
+          ) : (
+            bookings.map((booking) => (
+              <BookingCard
+                key={booking.id}
+                booking={booking}
+                mounted={mounted}
+                saving={saving}
+                onView={setViewItem}
+                onStatusChange={requestStatusChange}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Responsive pagination */}
+
+        <div className="hab-cards-view">
+          <div
+            className="hab-pagination"
+            style={{ gridColumn: '1 / -1' }}
+          >
+            <button
+              type="button"
+              className="hab-icon-btn"
+              disabled={page <= 1 || isLoading}
+              onClick={() =>
+                setPage((p) => Math.max(1, p - 1))
+              }
+            >
+              <ChevronLeft size={15} />
+              Previous
+            </button>
+
+            <span
+              style={{
+                fontSize: 12,
+                color: '#64748b',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Page {page} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              className="hab-icon-btn"
+              disabled={
+                page >= totalPages || isLoading
+              }
+              onClick={() =>
+                setPage((p) =>
+                  Math.min(totalPages, p + 1)
+                )
+              }
+            >
+              Next
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* ============================================
           VIEW BOOKING MODAL
@@ -1378,20 +1704,16 @@ export default function HospitalAdminBookings() {
 
       <Modal
         open={!!viewItem}
-        onClose={() =>
-          setViewItem(null)
-        }
-        title={`Booking — ${
-          viewItem?.bookingId || ''
-        }`}
+        onClose={() => setViewItem(null)}
+        title={`Booking — ${viewItem?.bookingId || ''}`}
         size="md"
       >
         {viewItem && (
           <BookingDetail
             booking={viewItem}
             mounted={mounted}
-            onSelect={requestStatus}
             saving={saving}
+            onStatusChange={requestStatusChange}
           />
         )}
       </Modal>
@@ -1403,113 +1725,112 @@ export default function HospitalAdminBookings() {
       <Modal
         open={!!pendingChange}
         onClose={() => {
-          if (!saving) {
-            setPendingChange(null)
-          }
+          if (!saving) setPendingChange(null)
         }}
-        title="Confirm Booking Status Update"
+        title="Confirm Status Update"
         size="sm"
       >
         {pendingChange && (
-          <div
-            style={{
-              display: 'grid',
-              gap: 16,
-            }}
-          >
+          <div style={{ display: 'grid', gap: 15 }}>
             <div
               style={{
                 background: '#eef2ff',
-                borderRadius: 12,
-                padding: 14,
+                border: '1px solid #c7d2fe',
+                padding: 16,
+                borderRadius: 14,
               }}
             >
               <p
                 style={{
-                  margin: '0 0 8px',
-                  color: '#334155',
-                  fontSize: 13,
+                  fontSize: 12,
+                  color: '#64748b',
+                  margin: '0 0 9px',
                 }}
               >
-                Booking:{' '}
-
+                Booking{' '}
                 <strong>
-                  {pendingChange.booking
-                    .bookingId ||
-                    pendingChange.booking.id}
+                  {pendingChange.booking.bookingId}
                 </strong>
               </p>
 
-              <p
+              <div
                 style={{
-                  margin: 0,
-                  fontSize: 13,
-                  color: '#334155',
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8,
                 }}
               >
-                {statusLabel(
-                  pendingChange.booking
-                    .status
-                )}
+                <Badge
+                  variant={getStatusVariant(
+                    pendingChange.booking.status
+                  )}
+                  size="sm"
+                >
+                  {statusLabel(
+                    pendingChange.booking.status
+                  )}
+                </Badge>
 
-                {' → '}
+                <ChevronRight
+                  size={16}
+                  color="#6366f1"
+                />
 
-                <strong>
+                <Badge
+                  variant={getStatusVariant(
+                    pendingChange.nextStatus
+                  )}
+                  size="sm"
+                >
                   {statusLabel(
                     pendingChange.nextStatus
                   )}
-                </strong>
-              </p>
+                </Badge>
+              </div>
             </div>
 
             <p
               style={{
-                margin: 0,
                 color: '#64748b',
                 fontSize: 12,
                 lineHeight: 1.6,
+                margin: 0,
               }}
             >
-              This changes appointment status only.
-              Payment and settlement status remain unchanged.
+              This updates the appointment status only.
+              Payment and settlement details remain unchanged.
             </p>
 
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'flex-end',
-                flexWrap: 'wrap',
-                gap: 9,
+                gap: 10,
               }}
             >
-              <ActionButton
-                onClick={() =>
-                  setPendingChange(null)
-                }
+              <button
+                type="button"
+                className="hab-icon-btn"
                 disabled={saving}
+                onClick={() => setPendingChange(null)}
               >
                 Back
-              </ActionButton>
+              </button>
 
               <button
                 type="button"
                 disabled={saving}
-                onClick={confirmStatus}
+                onClick={confirmStatusUpdate}
                 style={{
-                  padding: '10px 15px',
-
+                  padding: '11px 16px',
                   border: 'none',
                   borderRadius: 10,
-
-                  background: '#6366f1',
-                  color: '#fff',
-
-                  fontSize: 13,
                   fontWeight: 700,
-
-                  cursor: saving
-                    ? 'wait'
-                    : 'pointer',
+                  fontSize: 13,
+                  color: '#fff',
+                  background: '#6366f1',
+                  cursor: saving ? 'wait' : 'pointer',
                 }}
               >
                 {saving
@@ -1528,67 +1849,55 @@ export default function HospitalAdminBookings() {
       <Modal
         open={!!cancelTarget}
         onClose={() => {
-          if (!saving) {
-            setCancelTarget(null)
-          }
+          if (!saving) setCancelTarget(null)
         }}
         title="Cancel Booking"
         size="sm"
       >
         {cancelTarget && (
-          <div
-            style={{
-              display: 'grid',
-              gap: 14,
-            }}
-          >
+          <div style={{ display: 'grid', gap: 15 }}>
             <p
               style={{
-                margin: 0,
-                color: '#334155',
                 fontSize: 13,
+                color: '#475569',
+                margin: 0,
+                lineHeight: 1.6,
               }}
             >
               Cancel booking{' '}
-
               <strong>
-                {cancelTarget.bookingId ||
-                  cancelTarget.id}
+                {cancelTarget.bookingId}
               </strong>
-
-              ? The existing cancellation policy will apply.
+              ? The existing refund and cancellation
+              policy will apply.
             </p>
 
             <label
               style={{
                 display: 'grid',
-                gap: 6,
-
-                color: '#334155',
+                gap: 7,
                 fontSize: 12,
                 fontWeight: 700,
+                color: '#334155',
               }}
             >
-              Reason for cancellation
+              Cancellation Reason
 
               <textarea
-                value={cancelReason}
-                onChange={(event) =>
-                  setCancelReason(
-                    event.target.value
-                  )
-                }
                 rows={3}
                 maxLength={400}
+                value={cancelReason}
+                onChange={(event) =>
+                  setCancelReason(event.target.value)
+                }
                 style={{
                   width: '100%',
-                  boxSizing: 'border-box',
-
                   borderRadius: 10,
                   border: '1px solid #cbd5e1',
-
-                  padding: 10,
+                  padding: 12,
                   fontFamily: 'inherit',
+                  fontSize: 13,
+                  resize: 'vertical',
                 }}
               />
             </label>
@@ -1597,30 +1906,41 @@ export default function HospitalAdminBookings() {
               style={{
                 display: 'flex',
                 justifyContent: 'flex-end',
-                flexWrap: 'wrap',
-                gap: 9,
+                gap: 10,
               }}
             >
-              <ActionButton
-                onClick={() =>
-                  setCancelTarget(null)
-                }
+              <button
+                type="button"
+                className="hab-icon-btn"
                 disabled={saving}
+                onClick={() => setCancelTarget(null)}
               >
                 Keep Booking
-              </ActionButton>
+              </button>
 
-              <ActionButton
-                onClick={confirmCancel}
+              <button
+                type="button"
                 disabled={saving}
-                danger
+                onClick={confirmCancellation}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '11px 15px',
+                  background: '#dc2626',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: saving ? 'wait' : 'pointer',
+                }}
               >
-                <XCircle size={14} />
-
+                <XCircle size={15} />
                 {saving
                   ? 'Cancelling…'
                   : 'Cancel Booking'}
-              </ActionButton>
+              </button>
             </div>
           </div>
         )}
