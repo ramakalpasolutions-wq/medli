@@ -17,8 +17,11 @@ import {
   ChevronRight,
   Menu,
   X,
+  MapPin,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useGeoLocation } from '@/hooks/useGeoLocation'
+import LocationPicker from '@/components/public/LocationPicker'
 
 function useMounted() {
   const [m, setM] = useState(false)
@@ -147,7 +150,9 @@ export default function Navbar() {
   const mounted = useMounted()
   const scrolled = useScrolled()
   const path = useActiveLink()
-
+  
+const geo = useGeoLocation()
+const [locationOpen, setLocationOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [drawerClosing, setDrawerClosing] = useState(false)
@@ -206,6 +211,53 @@ export default function Navbar() {
           }}
         >
           <Logo />
+          <button
+  type="button"
+  aria-label={`Change location. Current location: ${geo.address || 'Detecting location'}`}
+  onClick={() => setLocationOpen(true)}
+  title="Change location"
+  style={{
+    minWidth: 0,
+    maxWidth: 180,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    border: '1px solid #e0e7ff',
+    borderRadius: 12,
+    background: '#f8faff',
+    padding: '7px 9px',
+    color: '#6366f1',
+    cursor: 'pointer',
+    flexShrink: 1,
+  }}
+>
+  <MapPin
+    size={16}
+    strokeWidth={2.4}
+    style={{ flexShrink: 0 }}
+  />
+
+  <span
+    style={{
+      minWidth: 0,
+      overflow: 'hidden',
+      whiteSpace: 'nowrap',
+      textOverflow: 'ellipsis',
+      fontSize: 12,
+      fontWeight: 700,
+    }}
+  >
+    {geo.loading && !geo.address
+      ? 'Locating…'
+      : geo.address?.split(',')[0] ||
+        'Select location'}
+  </span>
+
+  <ChevronDown
+    size={13}
+    style={{ flexShrink: 0 }}
+  />
+</button>
 
           <div
             className="nb-desktop"
@@ -291,6 +343,10 @@ export default function Navbar() {
       </nav>
 
       <div style={{ height: 64, flexShrink: 0 }} />
+      <LocationPicker
+  open={locationOpen}
+  onClose={() => setLocationOpen(false)}
+/>
 
       {drawerOpen && (
         <MobileDrawer

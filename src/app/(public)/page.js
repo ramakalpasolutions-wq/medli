@@ -721,13 +721,9 @@ const nearbyLab  = nearbyLabResp?.labs       || []
     if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`)
   }
 
-  const handleAllowLocation = () => {
-    try { sessionStorage.removeItem('medli_geo') } catch {}
-    navigator.geolocation?.getCurrentPosition(
-      () => window.location.reload(),
-      () => alert('Please allow location access in your browser settings, then refresh the page.')
-    )
-  }
+  const handleAllowLocation = async () => {
+  await geo.detectCurrentLocation()
+}
 
   return (
     <>

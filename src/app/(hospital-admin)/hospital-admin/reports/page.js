@@ -136,18 +136,21 @@ export default function HospitalReportsPage() {
             icon={<IndianRupee size={18} strokeWidth={2.3} />}
             color="green"
           /> */}
-          <StatsCard
-            title="Total Bookings"
-            value={s.totalBookings || 0}
-            icon={<CalendarDays size={18} strokeWidth={2.3} />}
-            color="blue"
-          />
-          <StatsCard
-            title="Completed"
-            value={byStatus.find((st) => st.status === 'completed')?.count || 0}
-            icon={<CheckCircle2 size={18} strokeWidth={2.3} />}
-            color="purple"
-          />
+         <StatsCard
+  title="Total Bookings"
+  value={s.totalBookings || 0}
+  icon={CalendarDays}
+  color="blue"
+/>
+
+<StatsCard
+  title="Completed"
+  value={
+    byStatus.find((st) => st.status === 'completed')?.count || 0
+  }
+  icon={CheckCircle2}
+  color="purple"
+/>
         </div>
       )}
 

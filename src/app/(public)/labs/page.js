@@ -1,484 +1,816 @@
+
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from 'react'
 import dynamic from 'next/dynamic'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  FlaskConical,
+  Home,
+  LayoutGrid,
+  List,
+  Map,
+  MapPin,
+  Navigation,
+  Search,
+  X,
+} from 'lucide-react'
 import Navbar from '@/components/public/Navbar'
 import Footer from '@/components/public/Footer'
 import LabCard from '@/components/public/LabCard'
 import EmptyState from '@/components/ui/EmptyState'
 import { SkeletonCard } from '@/components/ui/Skeleton'
-import {
-  Search, MapPin, List, LayoutGrid, Map,
-  Home, Check, FlaskConical, X, Navigation, AlertTriangle,
-} from 'lucide-react'
+import { useGeoLocation } from '@/hooks/useGeoLocation'
+import LocationPicker from '@/components/public/LocationPicker'
 
-const LeafletMap = dynamic(() => import('@/components/maps/LeafletMap'), {
-  ssr: false,
-  loading: () => (
-    <div style={{
-      width: '100%', height: '100%', borderRadius: 20, minHeight: 300,
-      background: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
-      backgroundSize: '200% 100%', animation: 'shimmer 1.5s linear infinite',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-      <p style={{ fontSize: 12, color: '#94a3b8' }}>Loading map…</p>
-    </div>
-  ),
-})
+const LeafletMap = dynamic(
+  () => import('@/components/maps/LeafletMap'),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: 360,
+          background: '#ecfdf5',
+          borderRadius: 20,
+          padding: 24,
+        }}
+      >
+        Loading map…
+      </div>
+    ),
+  }
+)
 
-/* ─────────────────────────────────────────────
-   Fetchers
-───────────────────────────────────────────── */
+async function fetcher(url) {
+  const response = await fetch(url)
+  const json = await response.json()
 
-const listFetcher = (url) =>
-  fetch(url).then((r) => r.json()).then((j) => j.data)
+  if (!response.ok || json.success === false) {
+    throw new Error(
+      json.error ||
+      json.message ||
+      'Failed to load labs'
+    )
+  }
 
-const nearbyFetcher = async (url) => {
-  const res  = await fetch(url)
-  const json = await res.json()
-  if (!json.success && json.error) throw new Error(json.error)
-  const inner = json.data ?? {}
-  const labs  = inner.labs ?? (Array.isArray(json.data) ? json.data : [])
-  return { labs, total: inner.total ?? labs.length, source: inner.source }
+  const data = json.data ?? json
+
+  const labs = Array.isArray(data)
+    ? data
+    : (data.labs ?? [])
+
+  return {
+    labs,
+    total:
+      data.total ??
+      data.pagination?.total ??
+      labs.length,
+  }
 }
-
-/* ─────────────────────────────────────────────
-   Constants
-───────────────────────────────────────────── */
 
 const VIEWS = [
-  { key: 'list',  label: 'List',  Icon: List },
-  { key: 'split', label: 'Split', Icon: LayoutGrid },
-  { key: 'map',   label: 'Map',   Icon: Map },
+  { id: 'list', label: 'List', Icon: List },
+  { id: 'split', label: 'Split', Icon: LayoutGrid },
+  { id: 'map', label: 'Map', Icon: Map },
 ]
 
-/* ─────────────────────────────────────────────
-   Small UI components
-───────────────────────────────────────────── */
+const control = {
+  background: '#fff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  color: '#334155',
+  fontSize: 13,
+  padding: '10px 12px',
+  outlineColor: '#10b981',
+}
 
-function SearchInput({
-  value, onChange, placeholder,
-  InputIcon = Search,
-  focusColor = '#10b981',
-  focusRing  = 'rgba(16,185,129,0.12)',
+function LabItems({
+  labs,
+  loading,
+  error,
+  nearby,
+  selected,
+  onSelect,
+  onOpen,
+  compact = false,
 }) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={{ position: 'relative' }}>
-      <InputIcon
-        size={16} strokeWidth={2.2} color="#94a3b8"
-        style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-      />
-      <input
-        value={value}
-        onChange={onChange}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        placeholder={placeholder}
+  if (loading) {
+    return (
+      <div
         style={{
-          width: '100%', padding: '10px 14px 10px 38px',
-          fontSize: 13, fontFamily: 'inherit', borderRadius: 12,
-          border: `1.5px solid ${focused ? focusColor : '#e2e8f0'}`,
-          background: '#fff', color: '#0f172a', outline: 'none',
-          boxShadow: focused ? `0 0 0 3px ${focusRing}` : '0 1px 3px rgba(0,0,0,0.06)',
-          transition: 'all .15s ease', boxSizing: 'border-box',
+          display: 'grid',
+          gridTemplateColumns: compact
+            ? '1fr'
+            : 'repeat(auto-fill,minmax(280px,1fr))',
+          gap: 14,
         }}
+      >
+        {[1, 2, 3, 4].map((n) => (
+          <SkeletonCard key={n} />
+        ))}
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        style={{
+          padding: 20,
+          color: '#b91c1c',
+        }}
+      >
+        Could not load labs: {error.message}
+      </div>
+    )
+  }
+
+  if (!labs.length) {
+    return (
+      <EmptyState
+        title={
+          nearby
+            ? 'No labs within 15 km'
+            : 'No labs found'
+        }
+        message={
+          nearby
+            ? 'Choose another location or switch to all labs.'
+            : 'Try changing your search filters.'
+        }
       />
+    )
+  }
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: compact
+          ? '1fr'
+          : 'repeat(auto-fill,minmax(280px,1fr))',
+        gap: 14,
+        maxHeight: compact
+          ? 'calc(100vh - 240px)'
+          : undefined,
+        overflowY: compact
+          ? 'auto'
+          : undefined,
+        padding: 3,
+      }}
+    >
+      {labs.map((lab) => (
+        <div
+          key={lab.id}
+          onClick={() => onSelect(lab)}
+          style={{
+            borderRadius: 20,
+            outline:
+              selected?.id === lab.id
+                ? '2px solid #10b981'
+                : '2px solid transparent',
+            outlineOffset: 1,
+          }}
+        >
+          <LabCard
+            lab={lab}
+            onClick={() => onOpen(lab.id)}
+          />
+        </div>
+      ))}
     </div>
   )
 }
-
-function ViewToggle({ view, onChange }) {
-  return (
-    <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 12, padding: 3 }}>
-      {VIEWS.map((v) => {
-        const active = view === v.key
-        return (
-          <button
-            key={v.key}
-            onClick={() => onChange(v.key)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '7px 12px', borderRadius: 9,
-              fontSize: 12, fontWeight: active ? 600 : 500,
-              background: active ? '#fff' : 'transparent',
-              color: active ? '#0f172a' : '#64748b',
-              border: 'none', cursor: 'pointer',
-              boxShadow: active ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all .15s ease',
-            }}
-          >
-            <v.Icon size={14} strokeWidth={2.2} />
-            <span>{v.label}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function HomeToggle({ checked, onChange }) {
-  const [h, setH] = useState(false)
-  return (
-    <button
-      onClick={() => onChange(!checked)}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '9px 14px', borderRadius: 12,
-        border: `1.5px solid ${checked ? '#10b981' : h ? '#a7f3d0' : '#e2e8f0'}`,
-        background: checked ? 'rgba(16,185,129,0.08)' : h ? 'rgba(16,185,129,0.04)' : '#fff',
-        color: checked ? '#059669' : '#64748b',
-        fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all .15s ease',
-      }}
-    >
-      <Home size={16} strokeWidth={2.2} />
-      Home Collection
-      {checked && <Check size={14} strokeWidth={2.5} color="#10b981" />}
-    </button>
-  )
-}
-
-function NearMeBtn({ active, loading, onClick }) {
-  const [h, setH] = useState(false)
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      disabled={loading}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 7,
-        padding: '9px 14px', borderRadius: 12, border: 'none',
-        cursor: loading ? 'wait' : 'pointer',
-        fontSize: 13, fontWeight: 600,
-        background: active
-          ? 'linear-gradient(135deg,#10b981,#059669)'
-          : h ? '#d1fae5' : '#f1f5f9',
-        color: active ? '#fff' : '#059669',
-        boxShadow: active ? '0 4px 14px rgba(16,185,129,0.35)' : 'none',
-        transition: 'all .18s ease',
-      }}
-    >
-      {loading ? (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .8s linear infinite' }}>
-          <path d="M12 2a10 10 0 1 0 10 10" />
-        </svg>
-      ) : (
-        <Navigation size={15} strokeWidth={2.2} />
-      )}
-      {loading ? 'Locating…' : active ? 'Within 15 km' : 'Near Me'}
-      {active && <X size={13} strokeWidth={2.5} style={{ marginLeft: 2 }} />}
-    </button>
-  )
-}
-
-/* ─────────────────────────────────────────────
-   Main Page
-───────────────────────────────────────────── */
 
 export default function LabsPage() {
   const router = useRouter()
+  const geo = useGeoLocation()
 
-  const [search,     setSearch]     = useState('')
-  const [city,       setCity]       = useState('')
-  const [homeOnly,   setHomeOnly]   = useState(false)
-  const [selected,   setSelected]   = useState(null)
-  const [view,       setView]       = useState('list')
-
-  // Location state
-  const [userCoords, setUserCoords] = useState(null)
-  const [locLoading, setLocLoading] = useState(false)
-  const [locError,   setLocError]   = useState(null)
+  const [search, setSearch] = useState('')
+  const [city, setCity] = useState('')
+  const [homeOnly, setHomeOnly] = useState(false)
+  const [selected, setSelected] = useState(null)
+  const [view, setView] = useState('list')
   const [nearbyMode, setNearbyMode] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
-  /* ── Location: request and activate nearby mode ── */
-  const handleNearMe = useCallback(() => {
+  const lat = Number(geo.lat)
+  const lng = Number(geo.lng)
+
+  const hasCoords =
+    geo.lat !== null &&
+    geo.lng !== null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng)
+
+  // Restore saved view preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(
+        'medli_labs_view'
+      )
+
+      if (VIEWS.some((v) => v.id === saved)) {
+        setView(saved)
+      }
+    } catch {}
+  }, [])
+
+  const changeView = (next) => {
+    setView(next)
+
+    try {
+      localStorage.setItem(
+        'medli_labs_view',
+        next
+      )
+    } catch {}
+  }
+
+  // Apply manually selected or explicit GPS location
+  useEffect(() => {
+    if (
+      geo.lastAction !== 'user' ||
+      !geo.selectionId ||
+      !hasCoords
+    ) {
+      return
+    }
+
+    setNearbyMode(true)
+    setSearch('')
+    setCity('')
+    setSelected(null)
+  }, [
+    geo.selectionId,
+    geo.lastAction,
+    geo.lat,
+    geo.lng,
+    hasCoords,
+  ])
+
+  const toggleNearby = useCallback(() => {
     if (nearbyMode) {
       setNearbyMode(false)
       return
     }
 
-    if (!navigator.geolocation) {
-      setLocError('Geolocation not supported by your browser')
+    if (hasCoords) {
+      setNearbyMode(true)
+      setSearch('')
+      setCity('')
       return
     }
 
-    setLocLoading(true)
-    setLocError(null)
+    void geo.detectCurrentLocation()
+  }, [
+    nearbyMode,
+    hasCoords,
+    geo.detectCurrentLocation,
+  ])
 
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setUserCoords({ lat: coords.latitude, lng: coords.longitude })
-        setNearbyMode(true)
-        setLocLoading(false)
-        setSearch('')
-        setCity('')
-      },
-      (err) => {
-        setLocLoading(false)
-        setLocError(
-          err.code === 1 ? 'Location permission denied'
-          : err.code === 2 ? 'Location unavailable'
-          : 'Location request timed out'
-        )
-      },
-      { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
-    )
-  }, [nearbyMode])
+  // Search parameters
+  const params = new URLSearchParams({
+    limit: '50',
+    isApproved: 'true',
+  })
 
-  /* ── Data fetching ── */
-  const listQs = new URLSearchParams({ limit: 50, isApproved: 'true' })
-  if (search) listQs.set('search', search)
-  if (city)   listQs.set('city',   city)
+  if (search.trim()) {
+    params.set('search', search.trim())
+  }
 
-  const { data: listData, isLoading: listLoading } = useSWR(
-    !nearbyMode ? `/api/labs?${listQs}` : null,
-    listFetcher
-  )
+  if (city.trim()) {
+    params.set('city', city.trim())
+  }
 
-  const nearbyUrl = nearbyMode && userCoords
-    ? `/api/labs/nearby?lat=${userCoords.lat.toFixed(6)}&lng=${userCoords.lng.toFixed(6)}&radius=15000`
+  const listUrl = !nearbyMode
+    ? `/api/labs?${params}`
     : null
 
-  const { data: nearbyData, isLoading: nearbyLoading, error: nearbyError } = useSWR(
-    nearbyUrl,
-    nearbyFetcher,
-    { revalidateOnFocus: false }
+  const nearUrl =
+    nearbyMode && hasCoords
+      ? `/api/labs/nearby?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&radius=15000`
+      : null
+
+  // SWR automatically refetches when location changes
+  const list = useSWR(listUrl, fetcher, {
+    revalidateOnFocus: false,
+  })
+
+  const near = useSWR(nearUrl, fetcher, {
+    revalidateOnFocus: false,
+  })
+
+  const active = nearbyMode ? near : list
+
+  const allLabs = active.data?.labs ?? []
+
+  const labs = homeOnly
+    ? allLabs.filter(
+        (lab) => lab.homeCollection?.enabled
+      )
+    : allLabs
+
+  const total =
+    nearbyMode || homeOnly
+      ? labs.length
+      : (active.data?.total ?? labs.length)
+
+  const loading = nearbyMode
+    ? (!hasCoords && geo.loading) || near.isLoading
+    : list.isLoading
+
+  const error = active.error
+
+  const markers = useMemo(
+    () =>
+      labs
+        .filter(
+          (lab) =>
+            Array.isArray(
+              lab.location?.coordinates
+            ) &&
+            lab.location.coordinates.length === 2
+        )
+        .map((lab) => ({
+          id: lab.id,
+          name: lab.name,
+          lat: Number(
+            lab.location.coordinates[1]
+          ),
+          lng: Number(
+            lab.location.coordinates[0]
+          ),
+          address: [
+            lab.address?.city,
+            lab.address?.state,
+          ]
+            .filter(Boolean)
+            .join(', '),
+          href: `/labs/${lab.id}`,
+          color: '#10b981',
+          extra:
+            Number.isFinite(
+              Number(lab.distance)
+            ) &&
+            lab.distance !== null
+              ? `<p style="font-size:11px;color:#059669">${(
+                  Number(lab.distance) / 1000
+                ).toFixed(1)} km away</p>`
+              : '',
+        })),
+    [labs]
   )
 
-  const allLabs   = nearbyMode ? (nearbyData?.labs ?? []) : (listData?.labs || [])
-  const isLoading = nearbyMode ? nearbyLoading : listLoading
-  const total     = nearbyMode ? (nearbyData?.total ?? allLabs.length) : allLabs.length
+  const selectMarker = (item) => {
+    const found = labs.find(
+      (lab) => lab.id === item.id
+    )
 
-  // homeOnly filter applies on top of location filter
-  const labs = homeOnly ? allLabs.filter((l) => l.homeCollection?.enabled) : allLabs
+    setSelected((previous) =>
+      previous?.id === item.id
+        ? null
+        : (found ?? null)
+    )
+  }
 
-  /* ── Map markers ── */
-  const mapMarkers = useMemo(() =>
-    labs
-      .filter((l) => l.location?.coordinates?.length === 2)
-      .map((l) => ({
-        id:      l.id,
-        lat:     l.location.coordinates[1],
-        lng:     l.location.coordinates[0],
-        name:    l.name,
-        address: [l.address?.line1, l.address?.city, l.address?.state].filter(Boolean).join(', '),
-        rating:  l.rating?.average > 0 ? `${l.rating.average.toFixed(1)} (${l.rating.count})` : null,
-        color:   '#10b981',
-        href:    `/labs/${l.id}`,
-        extra: [
-          l.distance != null
-            ? `<p style="font-size:11px;color:#10b981;margin:0 0 4px;font-weight:600;">📍 ${(l.distance / 1000).toFixed(1)} km away</p>`
-            : '',
-          l.homeCollection?.enabled
-            ? `<p style="font-size:11px;color:#10b981;margin:0 0 4px;">Home Collection</p>`
-            : '',
-          (l.certifications || []).length > 0
-            ? `<p style="font-size:11px;color:#6b7280;margin:0 0 4px;">${l.certifications.join(' · ')}</p>`
-            : '',
-        ].join(''),
-      }))
-  , [labs])
-
-  const handleSelect = useCallback((item) => {
-    setSelected((prev) => prev?.id === item.id ? null : labs.find((x) => x.id === item.id))
-  }, [labs])
-
-  /* ─────────────────────────────────────────────
-     Render
-  ───────────────────────────────────────────── */
   return (
-    <>
-      <style>{`
-        @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
-        @keyframes spin     { to { transform: rotate(360deg) } }
-      `}</style>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#f8fafc',
+      }}
+    >
+      <Navbar />
 
-      <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-        <Navbar />
+      <LocationPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+      />
 
-        <div style={{
-          maxWidth: 1280, margin: '0 auto',
-          padding: 'clamp(80px,10vw,96px) clamp(16px,3vw,32px) 64px',
-        }}>
-          {/* Header */}
-          <div style={{
-            display: 'flex', flexWrap: 'wrap',
-            alignItems: 'center', justifyContent: 'space-between',
-            gap: 12, marginBottom: 20,
-          }}>
-            <div>
-              <h1 style={{
-                fontSize: 'clamp(20px,3vw,28px)', fontWeight: 800,
-                color: '#0f172a', margin: 0,
-                display: 'flex', alignItems: 'center', gap: 10,
-              }}>
-                <span style={{
-                  width: 34, height: 34, borderRadius: 10,
-                  background: '#dcfce7', display: 'inline-flex',
-                  alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  <FlaskConical size={18} strokeWidth={2.2} color="#16a34a" />
-                </span>
-                Diagnostic Labs
-              </h1>
-              <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
-                {isLoading
-                  ? 'Finding labs…'
-                  : nearbyMode
-                    ? `${labs.length} lab${labs.length !== 1 ? 's' : ''} within 15 km`
-                    : `${labs.length} lab${labs.length !== 1 ? 's' : ''} found`
-                }
-              </p>
-            </div>
-            <ViewToggle view={view} onChange={setView} />
+      <main
+        style={{
+          maxWidth: 1280,
+          margin: '0 auto',
+          padding:
+            'clamp(80px,10vw,96px) clamp(16px,3vw,32px) 64px',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          <div>
+            <h1
+              style={{
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                color: '#0f172a',
+                fontSize: 'clamp(20px,3vw,28px)',
+                fontWeight: 800,
+              }}
+            >
+              <FlaskConical
+                size={24}
+                color="#16a34a"
+              />
+
+              Diagnostic Labs
+            </h1>
+
+            <p
+              style={{
+                fontSize: 13,
+                color: '#94a3b8',
+                margin: '5px 0 0',
+              }}
+            >
+              {loading
+                ? 'Finding labs…'
+                : `${total} lab${
+                    total === 1 ? '' : 's'
+                  } ${
+                    nearbyMode
+                      ? 'within 15 km'
+                      : 'found'
+                  }`}
+            </p>
           </div>
 
-          {/* Filters */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20, alignItems: 'center' }}>
-            {!nearbyMode && (
-              <>
-                <div style={{ flex: 1, minWidth: 160, maxWidth: 280 }}>
-                  <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search labs…" />
-                </div>
-                <div style={{ width: 120 }}>
-                  <SearchInput value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" InputIcon={MapPin} />
-                </div>
-              </>
+          {/* View switcher */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 3,
+              padding: 3,
+              background: '#f1f5f9',
+              borderRadius: 12,
+            }}
+          >
+            {VIEWS.map(
+              ({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => changeView(id)}
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    alignItems: 'center',
+                    padding: '8px 11px',
+                    border: 'none',
+                    borderRadius: 9,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight:
+                      view === id ? 700 : 500,
+                    color:
+                      view === id
+                        ? '#0f172a'
+                        : '#64748b',
+                    background:
+                      view === id
+                        ? '#fff'
+                        : 'transparent',
+                  }}
+                >
+                  <Icon size={14} />
+                  {label}
+                </button>
+              )
             )}
+          </div>
+        </div>
 
-            <HomeToggle checked={homeOnly} onChange={setHomeOnly} />
-
-            <NearMeBtn active={nearbyMode} loading={locLoading} onClick={handleNearMe} />
-
-            {!nearbyMode && (search || city || homeOnly) && (
-              <button
-                onClick={() => { setSearch(''); setCity(''); setHomeOnly(false) }}
+        {/* Filters */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 18,
+          }}
+        >
+          {!nearbyMode && (
+            <>
+              <div
                 style={{
-                  padding: '10px 16px', borderRadius: 12,
-                  border: '1.5px solid #fca5a5', background: '#fff1f2',
-                  color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 6,
+                  flex: 1,
+                  minWidth: 180,
+                  maxWidth: 300,
+                  position: 'relative',
                 }}
               >
-                <X size={14} strokeWidth={2.5} />
+                <Search
+                  size={15}
+                  color="#94a3b8"
+                  style={{
+                    position: 'absolute',
+                    left: 12,
+                    top: 13,
+                  }}
+                />
+
+                <input
+                  aria-label="Search labs"
+                  value={search}
+                  onChange={(e) =>
+                    setSearch(e.target.value)
+                  }
+                  placeholder="Search labs…"
+                  style={{
+                    ...control,
+                    width: '100%',
+                    paddingLeft: 35,
+                  }}
+                />
+              </div>
+
+              <input
+                aria-label="Filter labs by city"
+                value={city}
+                onChange={(e) =>
+                  setCity(e.target.value)
+                }
+                placeholder="City"
+                style={{
+                  ...control,
+                  width: 130,
+                }}
+              />
+            </>
+          )}
+
+          {/* Home collection filter */}
+          <button
+            type="button"
+            onClick={() =>
+              setHomeOnly((value) => !value)
+            }
+            style={{
+              ...control,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              cursor: 'pointer',
+              background: homeOnly
+                ? '#ecfdf5'
+                : '#fff',
+              borderColor: homeOnly
+                ? '#6ee7b7'
+                : '#e2e8f0',
+              color: homeOnly
+                ? '#059669'
+                : '#64748b',
+            }}
+          >
+            <Home size={15} />
+
+            Home Collection
+
+            {homeOnly && <Check size={14} />}
+          </button>
+
+          {/* Manual location selector */}
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            style={{
+              ...control,
+              display: 'flex',
+              gap: 7,
+              alignItems: 'center',
+              background: '#ecfdf5',
+              borderColor: '#a7f3d0',
+              color: '#059669',
+              cursor: 'pointer',
+              fontWeight: 700,
+              maxWidth: '100%',
+            }}
+          >
+            <MapPin size={15} />
+
+            <span
+              style={{
+                maxWidth: 160,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {geo.address?.split(',')[0] ||
+                'Choose location'}
+            </span>
+
+            <ChevronDown size={14} />
+          </button>
+
+          {/* Nearby toggle */}
+          <button
+            type="button"
+            onClick={toggleNearby}
+            disabled={
+              geo.loading && !hasCoords
+            }
+            style={{
+              ...control,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              cursor: 'pointer',
+              fontWeight: 700,
+              background: nearbyMode
+                ? 'linear-gradient(135deg,#10b981,#059669)'
+                : '#ecfdf5',
+              color: nearbyMode
+                ? '#fff'
+                : '#059669',
+              borderColor: '#a7f3d0',
+            }}
+          >
+            <Navigation size={15} />
+
+            {nearbyMode
+              ? 'Within 15 km'
+              : 'Near Selected Location'}
+
+            {nearbyMode && <X size={13} />}
+          </button>
+
+          {!nearbyMode &&
+            (search || city || homeOnly) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('')
+                  setCity('')
+                  setHomeOnly(false)
+                }}
+                style={{
+                  ...control,
+                  cursor: 'pointer',
+                  color: '#ef4444',
+                }}
+              >
                 Clear
               </button>
             )}
+        </div>
+
+        {/* Location banner */}
+        {nearbyMode && (
+          <div
+            style={{
+              padding: '11px 15px',
+              borderRadius: 12,
+              background: '#ecfdf5',
+              color: '#047857',
+              display: 'flex',
+              gap: 9,
+              alignItems: 'center',
+              marginBottom: 15,
+              fontSize: 13,
+            }}
+          >
+            <Navigation size={15} />
+
+            Showing labs within 15 km of{' '}
+            {geo.address ||
+              'your selected location'}.
           </div>
+        )}
 
-          {/* Location error */}
-          {locError && (
-            <div style={{
-              marginBottom: 16, padding: '10px 16px', borderRadius: 12,
-              background: '#fff1f2', border: '1px solid #fecaca',
-              color: '#dc2626', fontSize: 13,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <AlertTriangle size={16} strokeWidth={2.2} />
-              {locError}
-            </div>
+        {geo.error && nearbyMode && (
+          <div
+            role="status"
+            style={{
+              padding: '12px 0',
+              color: '#b45309',
+              fontSize: 13,
+            }}
+          >
+            <AlertTriangle
+              size={15}
+              style={{ display: 'inline' }}
+            />{' '}
+            {geo.error}
+          </div>
+        )}
+
+        {nearbyMode &&
+          !hasCoords &&
+          !geo.loading && (
+            <p style={{ color: '#b91c1c' }}>
+              Select a location to search nearby
+              labs.
+            </p>
           )}
 
-          {/* Nearby info banner */}
-          {nearbyMode && !isLoading && (
-            <div style={{
-              marginBottom: 16, padding: '10px 16px', borderRadius: 12,
-              background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)',
-              color: '#059669', fontSize: 13, fontWeight: 500,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <Navigation size={15} strokeWidth={2.2} />
-              Showing labs within 15 km of your current location, sorted by distance.
-            </div>
-          )}
+        {/* List view */}
+        {view === 'list' && (
+          <LabItems
+            labs={labs}
+            loading={loading}
+            error={error}
+            nearby={nearbyMode}
+            selected={selected}
+            onSelect={setSelected}
+            onOpen={(id) =>
+              router.push(`/labs/${id}`)
+            }
+          />
+        )}
 
-          {/* List view */}
-          {view === 'list' && (
-            isLoading ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
-                {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
-              </div>
-            ) : !labs.length ? (
-              <EmptyState
-                title={nearbyMode ? 'No labs within 15 km' : 'No labs found'}
-                message={nearbyMode ? 'Try expanding your search or check a different location'
-                  : homeOnly ? 'No home collection labs in this area' : 'Try adjusting your search'}
-              />
+        {/* Map view */}
+        {view === 'map' && (
+          <div
+            style={{
+              borderRadius: 20,
+              overflow: 'hidden',
+              minHeight: 400,
+              height: 'calc(100vh - 220px)',
+            }}
+          >
+            {error ? (
+              <p role="alert">
+                {error.message}
+              </p>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}>
-                {labs.map((l) => (
-                  <LabCard key={l.id} lab={l} onClick={() => router.push(`/labs/${l.id}`)} />
-                ))}
-              </div>
-            )
-          )}
-
-          {/* Map view */}
-          {view === 'map' && (
-            <div style={{ borderRadius: 20, overflow: 'hidden', height: 'calc(100vh - 220px)', minHeight: 400 }}>
               <LeafletMap
-                markers={mapMarkers}
+                markers={markers}
                 selected={selected}
-                onSelect={handleSelect}
+                onSelect={selectMarker}
+                height="100%"
+                accentColor="#10b981"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Split view */}
+        {view === 'split' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit,minmax(300px,1fr))',
+              gap: 16,
+            }}
+          >
+            <LabItems
+              labs={labs}
+              loading={loading}
+              error={error}
+              nearby={nearbyMode}
+              selected={selected}
+              onSelect={setSelected}
+              onOpen={(id) =>
+                router.push(`/labs/${id}`)
+              }
+              compact
+            />
+
+            <div
+              style={{
+                borderRadius: 20,
+                overflow: 'hidden',
+                height: 460,
+              }}
+            >
+              <LeafletMap
+                markers={markers}
+                selected={selected}
+                onSelect={selectMarker}
                 height="100%"
                 accentColor="#10b981"
               />
             </div>
-          )}
+          </div>
+        )}
+      </main>
 
-          {/* Split view */}
-          {view === 'split' && (
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-              <div style={{ width: '100%', maxWidth: 420, flexShrink: 0 }}>
-                {isLoading ? (
-                  <div style={{ display: 'grid', gap: 12 }}>
-                    {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
-                  </div>
-                ) : !labs.length ? (
-                  <EmptyState
-                    title={nearbyMode ? 'No labs within 15 km' : 'No labs found'}
-                    message={homeOnly ? 'No home collection labs in this area' : 'Try adjusting your search'}
-                  />
-                ) : (
-                  <div style={{ display: 'grid', gap: 12, maxHeight: 'calc(100vh - 240px)', overflowY: 'auto', paddingRight: 4 }}>
-                    {labs.map((l) => (
-                      <div
-                        key={l.id}
-                        onClick={() => setSelected((p) => (p?.id === l.id ? null : l))}
-                        style={{
-                          borderRadius: 20, cursor: 'pointer',
-                          outline: selected?.id === l.id ? '2.5px solid #10b981' : '2.5px solid transparent',
-                          outlineOffset: 2, transition: 'outline .15s ease',
-                        }}
-                      >
-                        <LabCard lab={l} onClick={() => router.push(`/labs/${l.id}`)} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ flex: 1, minWidth: 320, borderRadius: 20, overflow: 'hidden', height: 'clamp(320px,50vw,calc(100vh - 240px))', minHeight: 320 }}>
-                <LeafletMap
-                  markers={mapMarkers}
-                  selected={selected}
-                  onSelect={handleSelect}
-                  height="100%"
-                  accentColor="#10b981"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <Footer />
-      </div>
-    </>
+      <Footer />
+    </div>
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-
+import { useState, useEffect, isValidElement } from 'react'
 function useCountUp(target, duration = 1000) {
   const [count, setCount] = useState(0)
 
@@ -60,8 +59,13 @@ export default function StatsCard({
       ? `${prefix}${animatedCount.toLocaleString('en-IN')}${suffix}`
       : (value ?? '—')
 
-  const isRenderableIcon = typeof Icon === 'function' || typeof Icon === 'object'
+const isIconElement = isValidElement(Icon)
 
+const isIconComponent =
+  typeof Icon === 'function' ||
+  (Icon !== null &&
+    typeof Icon === 'object' &&
+    Icon.$$typeof !== undefined)
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -103,8 +107,11 @@ export default function StatsCard({
             transform: hover ? 'scale(1.1)' : 'scale(1)',
           }}
         >
-          {isRenderableIcon ? <Icon size={20} /> : null}
-        </div>
+{isIconElement ? (
+  Icon
+) : isIconComponent ? (
+  <Icon size={20} />
+) : null}        </div>
 
         {trend !== undefined && (
           <div

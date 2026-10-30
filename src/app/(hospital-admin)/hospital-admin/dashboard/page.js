@@ -1,864 +1,1111 @@
+
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { useRouter } from 'next/navigation'
 import AdminHeader from '@/components/admin/AdminHeader'
-import StatsCard from '@/components/ui/StatsCard'
 import Badge, { getStatusVariant } from '@/components/ui/Badge'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/context/ToastContext'
 import {
-  CalendarDays,
-  CheckCircle2,
-  PartyPopper,
-  Video,
-  IndianRupee,
-  User,
-  Check,
-  X,
-  Building2,
-  Star,
-  ChevronRight,
-  Stethoscope,
-  TicketPercent,
-  FileText,
-  Ban,
+  CalendarDays, CheckCircle2, PartyPopper, Video, IndianRupee,
+  User, Check, X, Building2, Star, ChevronRight, Stethoscope,
+  TicketPercent, FileText, Ban,
 } from 'lucide-react'
 
-function useMounted() {
-  const [m, setM] = useState(false)
-  useEffect(() => {
-    setM(true)
-  }, [])
-  return m
-}
-
 const fetcher = async (url) => {
-  const response = await fetch(url, {
+  const res = await fetch(url, {
     credentials: 'include',
     cache: 'no-store',
   })
 
-  const json = await response.json()
+  const json = await res.json()
 
-  if (!response.ok) {
+  if (!res.ok || json?.success === false) {
     throw new Error(
       json?.message ||
       json?.error ||
-      'Request failed'
+      `Request failed (${res.status})`
     )
   }
 
   return json?.data ?? json
 }
 
-const KF = `
-  @keyframes had-spin { to { transform: rotate(360deg) } }
-  @keyframes had-in   { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-  @keyframes had-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-`
+function indiaDate() {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
 
-function SkeletonCard({ height = 80 }) {
-  return (
-    <div
-      style={{
-        height,
-        borderRadius: 20,
-        backgroundImage: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
-        backgroundSize: '200% 100%',
-        animation: 'had-shimmer 1.5s linear infinite',
-      }}
-    />
-  )
+  const get = (type) => parts.find((p) => p.type === type)?.value
+  return `${get('year')}-${get('month')}-${get('day')}`
 }
 
-function ABtn({ children, onClick, variant = 'primary', icon }) {
-  const [h, setH] = useState(false)
-  const Icon = icon
+const rupees = (number) =>
+  `₹${Number(number || 0).toLocaleString('en-IN')}`
 
-  const V = {
-    primary: {
-      base: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-      hov: 'linear-gradient(135deg,#7c3aed,#6d28d9)',
-      color: '#fff',
-    },
-    danger: {
-      base: 'rgba(239,68,68,0.08)',
-      hov: 'rgba(239,68,68,0.14)',
-      color: '#ef4444',
-      border: '1px solid rgba(239,68,68,0.2)',
-    },
-  }
-
-  const s = V[variant] || V.primary
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '7px 12px',
-        borderRadius: 10,
-        border: s.border || 'none',
-        background: h ? s.hov : s.base,
-        color: s.color,
-        fontSize: 12,
-        fontWeight: 600,
-        cursor: 'pointer',
-        transition: 'all .15s ease',
-      }}
-    >
-      {Icon && <Icon size={14} strokeWidth={2.4} />}
-      {children}
-    </button>
-  )
+const palette = {
+  blue: {
+    bg: '#eff6ff',
+    border: '#bfdbfe',
+    icon: '#2563eb',
+    label: '#1e40af',
+  },
+  green: {
+    bg: '#f0fdf4',
+    border: '#bbf7d0',
+    icon: '#16a34a',
+    label: '#15803d',
+  },
+  purple: {
+    bg: '#f5f3ff',
+    border: '#ddd6fe',
+    icon: '#7c3aed',
+    label: '#6d28d9',
+  },
+  orange: {
+    bg: '#fff7ed',
+    border: '#fed7aa',
+    icon: '#ea580c',
+    label: '#c2410c',
+  },
 }
 
-function JoinBtn({ meetLink }) {
-  const [h, setH] = useState(false)
-
-  return (
-    <button
-      onClick={() => window.open(meetLink, '_blank')}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '7px 12px',
-        borderRadius: 10,
-        border: 'none',
-        background: h
-          ? 'linear-gradient(135deg,#059669,#047857)'
-          : 'linear-gradient(135deg,#10b981,#059669)',
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: 700,
-        cursor: 'pointer',
-        boxShadow: '0 3px 10px rgba(16,185,129,0.35)',
-        transition: 'all .15s ease',
-      }}
-    >
-      <Video size={14} strokeWidth={2.4} />
-      JOIN MEET
-    </button>
-  )
-}
-
-function BookingRow({ b, mounted, now, onComplete, onNoShow }) {
-  const [h, setH] = useState(false)
-  const diffMins = mounted && now ? (new Date(b.startTime) - now) / 60_000 : null
-  const showJoin =
-    b.type === 'online' &&
-    b.meetLink &&
-    diffMins !== null &&
-    diffMins <= 15 &&
-    diffMins >= -30
-
-  const fmtTime =
-    mounted && b.startTime
-      ? new Date(b.startTime).toLocaleTimeString('en-IN', {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '—'
-
-  const fmtDate =
-    mounted && b.startTime
-      ? new Date(b.startTime).toLocaleDateString('en-IN', {
-          dateStyle: 'medium',
-        })
-      : '—'
-
-  return (
-    <div
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        padding: 16,
-        borderRadius: 16,
-        background: h ? '#fafafa' : '#fff',
-        border: `1px solid ${h ? '#e0e7ff' : '#f1f5f9'}`,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        transition: 'all .15s ease',
-        animation: 'had-in .2s ease',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 10,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <p
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: '#1e293b',
-              margin: '0 0 2px',
-              fontFamily: 'monospace',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {b.bookingId}
-          </p>
-
-          <p style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, margin: '0 0 2px' }}>
-            {fmtTime}
-            <span style={{ color: '#94a3b8', fontWeight: 400, marginLeft: 6 }}>{fmtDate}</span>
-          </p>
-
-          {b.userName && (
-            <p
-              style={{
-                fontSize: 12,
-                color: '#475569',
-                margin: '0 0 6px',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              <User size={13} strokeWidth={2.2} />
-              {b.userName}
-            </p>
-          )}
-
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <Badge
-              variant={b.type === 'lab' ? 'success' : b.type === 'online' ? 'purple' : 'info'}
-              size="sm"
-            >
-              {b.type}
-            </Badge>
-
-            <Badge variant={getStatusVariant(b.status)} size="sm" dot>
-              {b.status?.replace(/_/g, ' ')}
-            </Badge>
-
-            {b.totalAmount > 0 && (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#16a34a',
-                  background: '#f0fdf4',
-                  borderRadius: 100,
-                  padding: '2px 8px',
-                  border: '1px solid #bbf7d0',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                <IndianRupee size={11} strokeWidth={2.5} />
-                {Number(b.totalAmount).toLocaleString('en-IN')}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
-          {mounted && showJoin && <JoinBtn meetLink={b.meetLink} />}
-
-          {b.status === 'confirmed' && (
-            <>
-              <ABtn variant="primary" icon={Check} onClick={() => onComplete(b.id)}>
-                Complete
-              </ABtn>
-              <ABtn variant="danger" icon={X} onClick={() => onNoShow(b.id)}>
-                Not-Attended
-              </ABtn>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function QuickStat({ icon: Icon, label, value, color }) {
-  const COLORS = {
-    blue: { bg: '#eff6ff', border: '#bfdbfe', icon: '#2563eb', text: '#1e40af' },
-    green: { bg: '#f0fdf4', border: '#bbf7d0', icon: '#16a34a', text: '#15803d' },
-    purple: { bg: '#f5f3ff', border: '#ddd6fe', icon: '#7c3aed', text: '#6d28d9' },
-    orange: { bg: '#fff7ed', border: '#fed7aa', icon: '#ea580c', text: '#c2410c' },
-  }
-
-  const c = COLORS[color] || COLORS.blue
+function QuickStat({ icon: Icon, label, value, color = 'blue' }) {
+  const c = palette[color]
 
   return (
     <div
       style={{
         background: c.bg,
+        border: `1px solid ${c.border}`,
         borderRadius: 16,
         padding: '16px 18px',
-        border: `1px solid ${c.border}`,
-        animation: 'had-in .3s ease',
+        minWidth: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 9,
+          alignItems: 'center',
+          marginBottom: 10,
+        }}
+      >
         <span
           style={{
+            display: 'grid',
+            placeItems: 'center',
             width: 32,
             height: 32,
+            background: '#ffffffcc',
             borderRadius: 10,
-            background: 'rgba(255,255,255,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             color: c.icon,
           }}
         >
           <Icon size={18} strokeWidth={2.3} />
         </span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: c.text }}>{label}</span>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: c.label,
+          }}
+        >
+          {label}
+        </span>
       </div>
 
-      <p style={{ fontSize: 28, fontWeight: 900, color: c.icon, margin: 0, lineHeight: 1 }}>
+      <div
+        style={{
+          fontSize: 28,
+          fontWeight: 900,
+          color: c.icon,
+          lineHeight: 1.1,
+        }}
+      >
         {value}
-      </p>
+      </div>
     </div>
   )
 }
 
-function QuickActionBtn({ icon: Icon, label, href, router }) {
+function Panel({ title, children, extraHeader }) {
   return (
-    <button
-      onClick={() => router.push(href)}
+    <section
       style={{
-        padding: '10px 14px',
-        borderRadius: 12,
+        background: '#fff',
         border: '1px solid #f1f5f9',
-        background: '#f8fafc',
-        color: '#374151',
-        fontSize: 13,
-        fontWeight: 500,
-        cursor: 'pointer',
-        textAlign: 'left',
-        transition: 'all .13s ease',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = '#eff6ff'
-        e.currentTarget.style.borderColor = '#bfdbfe'
-        e.currentTarget.style.color = '#1d4ed8'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = '#f8fafc'
-        e.currentTarget.style.borderColor = '#f1f5f9'
-        e.currentTarget.style.color = '#374151'
+        borderRadius: 20,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        padding: 20,
+        minWidth: 0,
       }}
     >
-      <Icon size={16} strokeWidth={2.1} />
-      <span>{label}</span>
-    </button>
+      {title && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 14,
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: '.5px',
+              textTransform: 'uppercase',
+              color: '#94a3b8',
+            }}
+          >
+            {title}
+          </h3>
+          {extraHeader}
+        </div>
+      )}
+      {children}
+    </section>
   )
 }
+
+function ErrorMessage({ error, title }) {
+  if (!error) return null
+
+  return (
+    <div
+      role="alert"
+      style={{
+        padding: 14,
+        marginBottom: 16,
+        border: '1px solid #fecaca',
+        background: '#fef2f2',
+        color: '#b91c1c',
+        borderRadius: 12,
+        fontSize: 13,
+      }}
+    >
+      <strong>{title}:</strong> {error.message}
+    </div>
+  )
+}
+
+function SkeletonStats() {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit,minmax(165px,1fr))',
+        gap: 14,
+        marginBottom: 24,
+      }}
+    >
+      {[1, 2, 3, 4, 5].map((n) => (
+        <div
+          key={n}
+          style={{
+            height: 94,
+            background: '#f1f5f9',
+            borderRadius: 16,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+const actionStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  border: 'none',
+  borderRadius: 10,
+  padding: '8px 11px',
+  cursor: 'pointer',
+  fontWeight: 700,
+  fontSize: 12,
+}
+
+function BookingRow({ booking, now, onStatusChange }) {
+  const [busy, setBusy] = useState(false)
+  const starts = booking.startTime
+    ? new Date(booking.startTime)
+    : null
+
+  const time = starts
+    ? starts.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—'
+
+  const date = starts
+    ? starts.toLocaleDateString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        dateStyle: 'medium',
+      })
+    : '—'
+
+  const diffMinutes =
+    starts && now
+      ? (starts.getTime() - now.getTime()) / 60000
+      : null
+
+  const joinAllowed =
+    booking.type === 'online' &&
+    booking.meetLink &&
+    diffMinutes !== null &&
+    diffMinutes <= 15 &&
+    diffMinutes >= -30
+
+  const changeStatus = async (status) => {
+    setBusy(true)
+    try {
+      await onStatusChange(booking.id, status)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        padding: 15,
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 14,
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 800,
+            color: '#1e293b',
+            fontFamily: 'monospace',
+          }}
+        >
+          {booking.bookingId || booking.id}
+        </div>
+
+        <div
+          style={{
+            fontSize: 12,
+            color: '#6366f1',
+            margin: '4px 0',
+          }}
+        >
+          {time} · {date}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            alignItems: 'center',
+            fontSize: 12,
+          }}
+        >
+          <Badge size="sm" variant="info">
+            {booking.type}
+          </Badge>
+
+          <Badge
+            size="sm"
+            variant={getStatusVariant(booking.status)}
+          >
+            {booking.status?.replace(/_/g, ' ')}
+          </Badge>
+
+          {booking.patient?.name ||
+          booking.user?.name ||
+          booking.userName ? (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+                color: '#64748b',
+              }}
+            >
+              <User size={12} />
+              {booking.patient?.name ||
+                booking.user?.name ||
+                booking.userName}
+            </span>
+          ) : null}
+
+          {Number(booking.totalAmount) > 0 && (
+            <span
+              style={{
+                color: '#16a34a',
+                fontWeight: 700,
+              }}
+            >
+              {rupees(booking.totalAmount)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        {joinAllowed && (
+          <button
+            onClick={() =>
+              window.open(
+                booking.meetLink,
+                '_blank',
+                'noopener,noreferrer'
+              )
+            }
+            style={{
+              ...actionStyle,
+              background: '#10b981',
+              color: '#fff',
+            }}
+          >
+            <Video size={14} /> Join Meet
+          </button>
+        )}
+
+        {booking.status === 'confirmed' && (
+          <>
+            <button
+              disabled={busy}
+              onClick={() => changeStatus('completed')}
+              style={{
+                ...actionStyle,
+                background: '#6366f1',
+                color: '#fff',
+              }}
+            >
+              <Check size={14} /> Complete
+            </button>
+
+            <button
+              disabled={busy}
+              onClick={() => changeStatus('no_show')}
+              style={{
+                ...actionStyle,
+                background: '#fee2e2',
+                color: '#b91c1c',
+              }}
+            >
+              <X size={14} /> Not Attended
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const quickActions = [
+  {
+    label: 'View All Bookings',
+    href: '/hospital-admin/bookings',
+    icon: CalendarDays,
+  },
+  {
+    label: 'Manage Doctors',
+    href: '/hospital-admin/doctors',
+    icon: Stethoscope,
+  },
+  {
+    label: 'Hospital Coupons',
+    href: '/hospital-admin/coupons',
+    icon: TicketPercent,
+  },
+  {
+    label: 'Settlements',
+    href: '/hospital-admin/settlements',
+    icon: IndianRupee,
+  },
+  {
+    label: 'Invoices',
+    href: '/hospital-admin/invoices',
+    icon: FileText,
+  },
+  {
+    label: 'Analytics',
+    href: '/hospital-admin/reports',
+    icon: CheckCircle2,
+  },
+  {
+    label: 'Doctor Unavailability',
+    href: '/hospital-admin/doctor-unavailability',
+    icon: Ban,
+  },
+  {
+    label: 'Settings',
+    href: '/hospital-admin/settings',
+    icon: CheckCircle2,
+  },
+]
 
 export default function HospitalAdminDashboard() {
   const { user } = useAuth()
   const toast = useToast()
   const router = useRouter()
-  const mounted = useMounted()
-
   const [now, setNow] = useState(null)
 
   useEffect(() => {
     setNow(new Date())
-    const t = setInterval(() => setNow(new Date()), 30_000)
-    return () => clearInterval(t)
+    const timer = setInterval(
+      () => setNow(new Date()),
+      30_000
+    )
+    return () => clearInterval(timer)
   }, [])
 
-  const greeting =
-    mounted && now
-      ? now.getHours() < 12
-        ? 'Good morning'
-        : now.getHours() < 17
-          ? 'Good afternoon'
-          : 'Good evening'
-      : 'Hello'
+  const todayKey = now ? indiaDate() : null
 
-  const todayStr = mounted ? new Date().toISOString().split('T')[0] : ''
+  const {
+    data: stats,
+    error: statsError,
+    isLoading: statsLoading,
+    mutate: refreshStats,
+  } = useSWR(
+    '/api/hospital-admin/dashboard',
+    fetcher,
+    { refreshInterval: 30_000 }
+  )
 
-  const { data: bookingsData, isLoading: bookingsLoading, mutate } = useSWR(
-    mounted && todayStr
-      ? `/api/bookings?limit=50&dateFrom=${todayStr}&dateTo=${todayStr}`
+  const {
+    data: bookingsData,
+    error: bookingsError,
+    isLoading: bookingsLoading,
+    mutate: refreshBookings,
+  } = useSWR(
+    todayKey
+      ? `/api/bookings?limit=50&dateFrom=${todayKey}&dateTo=${todayKey}`
       : null,
+    fetcher,
+    { refreshInterval: 30_000 }
+  )
+
+  const {
+    data: hospitalData,
+    error: hospitalError,
+  } = useSWR(
+    '/api/hospitals?adminOnly=true',
     fetcher
   )
 
-  const { data: hospitalData } = useSWR('/api/hospitals?adminOnly=true', fetcher)
+  const {
+    data: pendingData,
+    error: pendingError,
+    mutate: refreshPending,
+  } = useSWR(
+    '/api/settlements/pending',
+    fetcher
+  )
+
   const hospital = hospitalData?.hospitals?.[0]
 
-  const { data: pendingData } = useSWR('/api/settlements/pending', fetcher)
   const myPending = hospital
-    ? (pendingData?.hospitals || []).find((h) => h.id === hospital.id)
+    ? (pendingData?.hospitals || []).find(
+        (h) => h.id === hospital.id
+      )
     : null
 
   const bookings = bookingsData?.bookings || []
+  const daily = stats?.today || {}
+  const overall = stats?.overall || {}
 
-  const totalToday = bookings.length
-  const onlineConsults = bookings.filter((b) => b.type === 'online').length
-  const confirmed = bookings.filter((b) => b.status === 'confirmed').length
-  const completed = bookings.filter((b) => b.status === 'completed').length
+  const hour = now?.getHours()
 
-  const todayRevenue = bookings
-    .filter((b) => b.paymentStatus === 'paid')
-    .reduce((s, b) => s + Number(b.totalAmount || 0), 0)
+  const greeting =
+    hour === undefined
+      ? 'Hello'
+      : hour < 12
+        ? 'Good morning'
+        : hour < 17
+          ? 'Good afternoon'
+          : 'Good evening'
 
   const updateStatus = async (id, status) => {
     try {
-      const res = await fetch(`/api/bookings/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status }),
-      })
+      const res = await fetch(
+        `/api/bookings/${id}/status`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status }),
+        }
+      )
+
       const json = await res.json()
 
-      if (json.success) {
-        toast.success(`Marked as ${status.replace('_', ' ')}`)
-      } else {
-        toast.error(json.error || 'Failed to update')
+      if (!res.ok || json?.success === false) {
+        throw new Error(
+          json?.message ||
+          json?.error ||
+          'Failed to update booking'
+        )
       }
 
-      mutate()
-    } catch {
-      toast.error('Failed to update status')
+      toast.success(
+        `Marked as ${status.replace('_', ' ')}`
+      )
+
+      await Promise.all([
+        refreshBookings(),
+        refreshStats(),
+        refreshPending(),
+      ])
+    } catch (error) {
+      toast.error(
+        error.message || 'Failed to update booking'
+      )
     }
   }
 
   return (
     <>
-      <style>{KF}</style>
-
       <AdminHeader
         title={`${greeting}${user?.name ? `, ${user.name.split(' ')[0]}` : ''} 👋`}
-        subtitle={hospital ? `Managing ${hospital.name}` : 'Hospital management overview'}
-        breadcrumbs={[{ label: 'Hospital Admin' }, { label: 'Dashboard' }]}
+        subtitle={
+          hospital
+            ? `Managing ${hospital.name}`
+            : 'Hospital management overview'
+        }
+        breadcrumbs={[
+          { label: 'Hospital Admin' },
+          { label: 'Dashboard' },
+        ]}
       />
 
-      {bookingsLoading ? (
+      <ErrorMessage
+        error={statsError}
+        title="Statistics API failed"
+      />
+      <ErrorMessage
+        error={bookingsError}
+        title="Today's bookings API failed"
+      />
+      <ErrorMessage
+        error={hospitalError}
+        title="Hospital details API failed"
+      />
+      <ErrorMessage
+        error={pendingError}
+        title="Pending settlements API failed"
+      />
+
+      {statsLoading ? (
+        <SkeletonStats />
+      ) : !statsError && (
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gridTemplateColumns:
+              'repeat(auto-fit,minmax(165px,1fr))',
             gap: 14,
             marginBottom: 24,
           }}
         >
-          {[1, 2, 3, 4, 5].map((i) => (
-            <SkeletonCard key={i} height={90} />
-          ))}
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-            gap: 14,
-            marginBottom: 24,
-          }}
-        >
-          <QuickStat icon={CalendarDays} label="Today's Bookings" value={totalToday} color="blue" />
-          <QuickStat icon={CheckCircle2} label="Confirmed" value={confirmed} color="purple" />
-          <QuickStat icon={PartyPopper} label="Completed" value={completed} color="green" />
-          <QuickStat icon={Video} label="Online Consults" value={onlineConsults} color="blue" />
+          {/* <QuickStat
+            icon={CalendarDays}
+            label="Today's Bookings"
+            value={daily.bookings ?? 0}
+            color="blue"
+          /> */}
+          {/* <QuickStat
+            icon={CheckCircle2}
+            label="Confirmed"
+            value={daily.confirmed ?? 0}
+            color="purple"
+          /> */}
+          {/* <QuickStat
+            icon={PartyPopper}
+            label="Completed"
+            value={daily.completed ?? 0}
+            color="green"
+          />
+          <QuickStat
+            icon={Video}
+            label="Online Consults"
+            value={daily.online ?? 0}
+            color="blue"
+          />
           <QuickStat
             icon={IndianRupee}
-            label="Today's Revenue"
-            value={`₹${todayRevenue.toLocaleString('en-IN')}`}
+            label="Today's Paid Value"
+            value={rupees(daily.paidAmount)}
             color="orange"
-          />
+          /> */}
+        </div>
+      )}
+
+      {!statsLoading && !statsError && (
+        <div style={{ marginBottom: 22 }}>
+          <h2
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              color: '#1e293b',
+              margin: '0 0 12px',
+            }}
+          >
+            Overall Hospital Statistics
+          </h2>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit,minmax(165px,1fr))',
+              gap: 14,
+            }}
+          >
+            <QuickStat
+              icon={CalendarDays}
+              label="All Bookings"
+              value={overall.bookings ?? 0}
+              color="blue"
+            />
+            <QuickStat
+              icon={CheckCircle2}
+              label="All Confirmed"
+              value={overall.confirmed ?? 0}
+              color="purple"
+            />
+            <QuickStat
+              icon={PartyPopper}
+              label="All Completed"
+              value={overall.completed ?? 0}
+              color="green"
+            />
+            <QuickStat
+              icon={Video}
+              label="All Online Consults"
+              value={overall.online ?? 0}
+              color="blue"
+            />
+            <QuickStat
+              icon={IndianRupee}
+              label="Total Paid Value"
+              value={rupees(overall.paidAmount)}
+              color="orange"
+            />
+          </div>
         </div>
       )}
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gridTemplateColumns:
+            'repeat(auto-fit,minmax(280px,1fr))',
           gap: 16,
           marginBottom: 20,
+          alignItems: 'stretch',
         }}
       >
         {hospital && (
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: 20,
-              border: '1px solid #f1f5f9',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-              padding: 20,
-            }}
-          >
-            <p
+          <Panel title="Hospital Info">
+            <div
               style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#94a3b8',
-                margin: '0 0 12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 14,
               }}
             >
-              Hospital Info
-            </p>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <div
+              <span
                 style={{
                   width: 44,
                   height: 44,
                   borderRadius: 12,
-                  overflow: 'hidden',
-                  flexShrink: 0,
-                  background: 'linear-gradient(135deg,#dbeafe,#c7d2fe)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  background: '#dbeafe',
                   color: '#2563eb',
+                  display: 'grid',
+                  placeItems: 'center',
+                  overflow: 'hidden',
                 }}
               >
                 {hospital.images?.logo ? (
                   <img
                     src={hospital.images.logo}
                     alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
                   />
                 ) : (
-                  <Building2 size={22} strokeWidth={2.1} />
+                  <Building2 size={22} />
                 )}
-              </div>
+              </span>
 
-              <div style={{ minWidth: 0 }}>
-                <p
+              <div>
+                <div
                   style={{
                     fontSize: 14,
-                    fontWeight: 700,
+                    fontWeight: 800,
                     color: '#0f172a',
-                    margin: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
                   }}
                 >
                   {hospital.name}
-                </p>
-                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: '#94a3b8',
+                  }}
+                >
                   {hospital.address?.city || '—'}
-                </p>
+                </div>
               </div>
             </div>
-
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              <Badge variant={hospital.isApproved ? 'success' : 'warning'} size="sm" dot>
-                {hospital.isApproved ? 'Approved' : 'Pending Approval'}
-              </Badge>
-              <Badge variant={hospital.isActive ? 'success' : 'neutral'} size="sm">
-                {hospital.isActive ? 'Active' : 'Inactive'}
-              </Badge>
-            </div>
-
-            {hospital.departments?.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                {hospital.departments.slice(0, 4).map((d) => (
-                  <span
-                    key={d}
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 500,
-                      padding: '3px 8px',
-                      borderRadius: 100,
-                      background: 'rgba(99,102,241,0.08)',
-                      color: '#6366f1',
-                    }}
-                  >
-                    {d}
-                  </span>
-                ))}
-
-                {hospital.departments.length > 4 && (
-                  <span style={{ fontSize: 10, color: '#94a3b8', padding: '3px 0' }}>
-                    +{hospital.departments.length - 4} more
-                  </span>
-                )}
-              </div>
-            )}
-
-            {hospital.rating?.average > 0 && (
-              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Star size={14} strokeWidth={2.2} fill="#fbbf24" color="#f59e0b" />
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#92400e' }}>
-                  {hospital.rating.average.toFixed(1)}
-                </span>
-                <span style={{ fontSize: 11, color: '#94a3b8' }}>
-                  ({hospital.rating.count} reviews)
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {myPending && (
-          <div
-            style={{
-              backgroundImage: 'linear-gradient(135deg,rgba(99,102,241,0.06),rgba(139,92,246,0.04))',
-              border: '1px solid rgba(99,102,241,0.12)',
-              borderRadius: 20,
-              padding: 20,
-            }}
-          >
-            <p
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: '#6366f1',
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                margin: '0 0 12px',
-              }}
-            >
-              Pending Settlement
-            </p>
 
             <div
               style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                marginBottom: 12,
+              }}
+            >
+              <Badge
+                size="sm"
+                dot
+                variant={
+                  hospital.isApproved
+                    ? 'success'
+                    : 'warning'
+                }
+              >
+                {hospital.isApproved
+                  ? 'Approved'
+                  : 'Pending Approval'}
+              </Badge>
+
+              <Badge
+                size="sm"
+                variant={
+                  hospital.isActive
+                    ? 'success'
+                    : 'neutral'
+                }
+              >
+                {hospital.isActive
+                  ? 'Active'
+                  : 'Inactive'}
+              </Badge>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 5,
+              }}
+            >
+              {(hospital.departments || [])
+                .slice(0, 4)
+                .map((dept) => (
+                  <span
+                    key={dept}
+                    style={{
+                      fontSize: 10,
+                      padding: '3px 8px',
+                      background: '#eef2ff',
+                      color: '#6366f1',
+                      borderRadius: 50,
+                    }}
+                  >
+                    {dept}
+                  </span>
+                ))}
+
+              {(hospital.departments || []).length > 4 && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: '#94a3b8',
+                  }}
+                >
+                  +{hospital.departments.length - 4} more
+                </span>
+              )}
+            </div>
+
+            {hospital.rating?.average > 0 && (
+              <p
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: 13,
+                  color: '#92400e',
+                }}
+              >
+                <Star size={14} fill="#fbbf24" />
+                {Number(
+                  hospital.rating.average
+                ).toFixed(1)}
+                {' '}
+                ({hospital.rating.count || 0} reviews)
+              </p>
+            )}
+          </Panel>
+        )}
+
+        {myPending && (
+          <Panel title="Pending Settlement">
+            <div
+              style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                gridTemplateColumns: '1fr 1fr',
                 gap: 10,
               }}
             >
-              {[
-                { label: 'Bookings', value: String(myPending.totalBookings || 0) },
-                {
-                  label: 'You Get',
-                  value: `₹${Number(myPending.netSettlementAmount || 0).toLocaleString('en-IN')}`,
-                  green: true,
-                },
-              ].map((s) => (
+              <div
+                style={{
+                  background: '#f8fafc',
+                  borderRadius: 12,
+                  padding: 12,
+                }}
+              >
                 <div
-                  key={s.label}
                   style={{
-                    background: 'rgba(255,255,255,0.7)',
-                    borderRadius: 12,
-                    padding: '10px 12px',
-                    border: s.green ? '1.5px solid rgba(16,185,129,0.25)' : 'none',
+                    color: '#64748b',
+                    fontSize: 11,
                   }}
                 >
-                  <p style={{ fontSize: 10, color: s.green ? '#059669' : '#64748b', margin: '0 0 3px' }}>
-                    {s.label}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 800,
-                      color: s.green ? '#047857' : '#1e293b',
-                      margin: 0,
-                    }}
-                  >
-                    {s.value}
-                  </p>
+                  Bookings
                 </div>
-              ))}
+                <strong>
+                  {myPending.totalBookings || 0}
+                </strong>
+              </div>
+
+              <div
+                style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: 12,
+                  padding: 12,
+                }}
+              >
+                <div
+                  style={{
+                    color: '#059669',
+                    fontSize: 11,
+                  }}
+                >
+                  You Get
+                </div>
+                <strong style={{ color: '#047857' }}>
+                  {rupees(
+                    myPending.netSettlementAmount
+                  )}
+                </strong>
+              </div>
             </div>
 
             <button
-              onClick={() => router.push('/hospital-admin/settlements')}
+              onClick={() =>
+                router.push(
+                  '/hospital-admin/settlements'
+                )
+              }
               style={{
-                marginTop: 14,
-                width: '100%',
-                padding: '9px',
-                borderRadius: 12,
-                border: 'none',
-                background: 'rgba(99,102,241,0.08)',
-                color: '#6366f1',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
+                ...actionStyle,
                 display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'center',
-                gap: 6,
+                width: '100%',
+                marginTop: 14,
+                background: '#e0e7ff',
+                color: '#6366f1',
               }}
             >
-              View Settlements <ChevronRight size={14} strokeWidth={2.4} />
+              View Settlements
+              <ChevronRight size={14} />
             </button>
-          </div>
+          </Panel>
         )}
 
-        <div
-          style={{
-            background: '#fff',
-            borderRadius: 20,
-            border: '1px solid #f1f5f9',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            padding: 20,
-          }}
-        >
-          <p
+        <Panel title="Quick Actions">
+          <div
             style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: '#94a3b8',
-              margin: '0 0 12px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
             }}
           >
-            Quick Actions
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              { label: 'View All Bookings', href: '/hospital-admin/bookings', icon: CalendarDays },
-              { label: 'Manage Doctors', href: '/hospital-admin/doctors', icon: Stethoscope },
-              { label: 'Hospital Coupons', href: '/hospital-admin/coupons', icon: TicketPercent },
-              { label: 'Settlements', href: '/hospital-admin/settlements', icon: IndianRupee },
-              { label: 'Invoices', href: '/hospital-admin/invoices', icon: FileText },
-              { label: 'Analytics', href: '/hospital-admin/reports', icon: CheckCircle2 },
-              { label: 'Doctor Unavailability', href: '/hospital-admin/doctor-unavailability', icon: Ban },
-              { label: 'Settings', href: '/hospital-admin/settings', icon: CheckCircle2 },
-            ].map((item) => (
-              <QuickActionBtn
-                key={item.href}
-                icon={item.icon}
-                label={item.label}
-                href={item.href}
-                router={router}
-              />
-            ))}
+            {quickActions.map(
+              ({ icon: Icon, label, href }) => (
+                <button
+                  key={href}
+                  onClick={() => router.push(href)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    border: '1px solid #f1f5f9',
+                    padding: '11px 14px',
+                    borderRadius: 12,
+                    width: '100%',
+                    background: '#f8fafc',
+                    cursor: 'pointer',
+                    color: '#374151',
+                    fontSize: 13,
+                    textAlign: 'left',
+                  }}
+                >
+                  <Icon
+                    size={16}
+                    strokeWidth={2}
+                  />
+                  {label}
+                </button>
+              )
+            )}
           </div>
-        </div>
+        </Panel>
       </div>
 
-      <div
-        style={{
-          background: '#fff',
-          borderRadius: 20,
-          border: '1px solid #f1f5f9',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '14px 20px',
-            borderBottom: '1px solid #f8fafc',
-          }}
-        >
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-            Today&apos;s Schedule
-            {bookings.length > 0 && (
-              <span
-                style={{
-                  marginLeft: 8,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  background: '#eff6ff',
-                  color: '#2563eb',
-                  padding: '2px 8px',
-                  borderRadius: 100,
-                  border: '1px solid #bfdbfe',
-                }}
-              >
-                {bookings.length}
-              </span>
-            )}
-          </h3>
-
+      <Panel
+        title="Today's Schedule"
+        extraHeader={
           <button
-            onClick={() => router.push('/hospital-admin/bookings')}
+            onClick={() =>
+              router.push(
+                '/hospital-admin/bookings'
+              )
+            }
             style={{
-              background: 'none',
               border: 'none',
+              background: 'transparent',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              color: '#6366f1',
+              fontWeight: 700,
               cursor: 'pointer',
               fontSize: 12,
-              fontWeight: 600,
-              color: '#6366f1',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#4f46e5'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#6366f1'
             }}
           >
-            View all <ChevronRight size={14} strokeWidth={2.4} />
+            View all
+            <ChevronRight size={14} />
           </button>
-        </div>
+        }
+      >
+        {bookingsLoading ? (
+          <div
+            style={{
+              color: '#94a3b8',
+              textAlign: 'center',
+              padding: 30,
+            }}
+          >
+            Loading appointments…
+          </div>
+        ) : bookingsError ? (
+          <div
+            style={{
+              color: '#b91c1c',
+              textAlign: 'center',
+              padding: 30,
+            }}
+          >
+            Unable to show today's appointments.
+          </div>
+        ) : bookings.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '40px 16px',
+              color: '#94a3b8',
+            }}
+          >
+            <CalendarDays
+              size={30}
+              style={{
+                margin: '0 auto 12px',
+              }}
+            />
 
-        <div style={{ padding: 16 }}>
-          {bookingsLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[1, 2, 3].map((i) => (
-                <SkeletonCard key={i} height={90} />
-              ))}
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+              }}
+            >
+              No appointments today
             </div>
-          ) : !bookings.length ? (
-            <div style={{ textAlign: 'center', padding: '36px 16px' }}>
-              <div
+
+            <div
+              style={{
+                marginTop: 5,
+                fontSize: 12,
+              }}
+            >
+              Appointments scheduled for today
+              will appear here.
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            {bookings.map((booking) => (
+              <BookingRow
+                key={booking.id}
+                booking={booking}
+                now={now}
+                onStatusChange={updateStatus}
+              />
+            ))}
+
+            {(bookingsData?.pagination?.total || 0) >
+              bookings.length && (
+              <p
                 style={{
-                  width: 56,
-                  height: 56,
-                  margin: '0 auto 12px',
-                  borderRadius: 16,
-                  background: '#f8fafc',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#94a3b8',
+                  color: '#64748b',
+                  fontSize: 12,
                 }}
               >
-                <CalendarDays size={28} strokeWidth={2} />
-              </div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', margin: 0 }}>
-                No appointments today
+                Showing {bookings.length} of{' '}
+                {bookingsData.pagination.total}{' '}
+                appointments. Select View all for
+                the complete list.
               </p>
-              <p style={{ fontSize: 12, color: '#cbd5e1', margin: '4px 0 0' }}>
-                New bookings will appear here in real-time
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {bookings.map((b) => (
-                <BookingRow
-                  key={b.id}
-                  b={b}
-                  mounted={mounted}
-                  now={now}
-                  onComplete={(id) => updateStatus(id, 'completed')}
-                  onNoShow={(id) => updateStatus(id, 'no_show')}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+          </div>
+        )}
+      </Panel>
     </>
   )
 }
