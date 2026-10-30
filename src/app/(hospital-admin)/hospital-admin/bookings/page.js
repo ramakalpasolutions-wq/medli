@@ -1,6 +1,7 @@
+
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import AdminHeader from '@/components/admin/AdminHeader'
 import DataTable from '@/components/ui/DataTable'
@@ -8,879 +9,346 @@ import Badge, { getStatusVariant } from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
 import { useToast } from '@/context/ToastContext'
 import {
-  Search,
-  RefreshCw,
-  Eye,
-  TriangleAlert,
-  CheckCircle2,
-  PartyPopper,
-  XCircle,
-  Clock3,
-  Ban,
-  CircleDot,
-  CalendarDays,
-  Phone,
-  Video,
-  IndianRupee,
-  FileText,
-  UserRound,
+  Search, RefreshCw, Eye, CheckCircle2, PartyPopper,
+  XCircle, Ban, Video, UserRound, AlertTriangle, Check, X,
 } from 'lucide-react'
-
-function useMounted() {
-  const [m, setM] = useState(false)
-  useEffect(() => {
-    setM(true)
-  }, [])
-  return m
-}
 
 const fetcher = async (url) => {
   const response = await fetch(url, {
     credentials: 'include',
     cache: 'no-store',
   })
-
   const json = await response.json()
-
-  if (!response.ok) {
-    throw new Error(
-      json?.message ||
-      json?.error ||
-      'Request failed'
-    )
+  if (!response.ok || json?.success === false) {
+    throw new Error(json?.message || json?.error || 'Request failed')
   }
-
   return json?.data ?? json
 }
 
-const KF = `
-  @keyframes bk-spin  { to { transform: rotate(360deg) } }
-  @keyframes modal-in { from{opacity:0;transform:scale(.95) translateY(12px)} to{opacity:1;transform:scale(1) translateY(0)} }
-`
-
-function FilterPill({ label, active, onClick }) {
-  const [h, setH] = useState(false)
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        padding: '8px 12px',
-        borderRadius: 10,
-        border: 'none',
-        fontSize: 12,
-        fontWeight: 500,
-        cursor: 'pointer',
-        flexShrink: 0,
-        background: active
-          ? 'linear-gradient(135deg,#6366f1,#8b5cf6)'
-          : h
-            ? '#e2e8f0'
-            : '#f1f5f9',
-        color: active ? '#fff' : '#64748b',
-        boxShadow: active ? '0 2px 8px rgba(99,102,241,0.3)' : 'none',
-        transition: 'all .15s ease',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
-
-function SearchInput({ value, onChange }) {
-  const [focused, setFocused] = useState(false)
-
-  return (
-    <div style={{ position: 'relative', flex: 1, minWidth: 180, maxWidth: 320 }}>
-      <span
-        style={{
-          position: 'absolute',
-          left: 12,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          pointerEvents: 'none',
-          color: '#94a3b8',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Search size={16} strokeWidth={2.2} />
-      </span>
-
-      <input
-        value={value}
-        onChange={onChange}
-        placeholder="Search bookings…"
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          width: '100%',
-          padding: '10px 14px 10px 38px',
-          fontSize: 13,
-          fontFamily: 'inherit',
-          borderRadius: 12,
-          boxSizing: 'border-box',
-          border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
-          background: '#fff',
-          color: '#0f172a',
-          outline: 'none',
-          boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.12)' : '0 1px 3px rgba(0,0,0,0.06)',
-          transition: 'all .15s ease',
-        }}
-      />
-    </div>
-  )
-}
-
-function RefreshBtn({ onClick }) {
-  const [h, setH] = useState(false)
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        width: 38,
-        height: 38,
-        borderRadius: 10,
-        border: 'none',
-        background: h ? '#e2e8f0' : '#f1f5f9',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'background .15s ease',
-        flexShrink: 0,
-        color: '#475569',
-      }}
-    >
-      <RefreshCw size={16} strokeWidth={2.2} />
-    </button>
-  )
-}
-
-function ViewBtn({ onClick }) {
-  const [h, setH] = useState(false)
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        padding: '4px 9px',
-        borderRadius: 7,
-        border: 'none',
-        background: h ? 'rgba(99,102,241,0.1)' : 'transparent',
-        color: '#6366f1',
-        fontSize: 11,
-        fontWeight: 600,
-        cursor: 'pointer',
-        transition: 'background .13s ease',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 4,
-      }}
-    >
-      <Eye size={13} strokeWidth={2.2} />
-      View
-    </button>
-  )
-}
-
-function RowCancelBtn({ onClick }) {
-  const [h, setH] = useState(false)
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        padding: '4px 8px',
-        borderRadius: 7,
-        border: 'none',
-        cursor: 'pointer',
-        background: h ? 'rgba(239,68,68,0.1)' : 'transparent',
-        color: h ? '#ef4444' : '#f87171',
-        transition: 'all .12s ease',
-      }}
-    >
-      Cancel
-    </button>
-  )
-}
-
-function CancelModal({ open, onClose, onConfirm, loading }) {
-  useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : ''
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [open])
-
-  if (!open) return null
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
-      <style>{`@keyframes modal-in2{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}`}</style>
-
-      <div
-        onClick={onClose}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(4px)',
-        }}
-      />
-
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: 380,
-          background: '#fff',
-          borderRadius: 20,
-          padding: 24,
-          boxShadow: '0 24px 80px rgba(0,0,0,0.2)',
-          animation: 'modal-in2 .22s ease',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              margin: '0 auto 12px',
-              borderRadius: '50%',
-              background: '#fff7ed',
-              color: '#ea580c',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <TriangleAlert size={28} strokeWidth={2.2} />
-          </div>
-
-          <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
-            Cancel Booking?
-          </h3>
-
-          <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>
-            A refund will be calculated based on the cancellation policy.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={onClose}
-            disabled={loading}
-            style={{
-              flex: 1,
-              padding: '11px',
-              borderRadius: 12,
-              border: '1.5px solid #e2e8f0',
-              background: '#fff',
-              color: '#475569',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Keep
-          </button>
-
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            style={{
-              flex: 1,
-              padding: '11px',
-              borderRadius: 12,
-              border: 'none',
-              background: loading ? '#e2e8f0' : 'linear-gradient(135deg,#ef4444,#dc2626)',
-              color: loading ? '#94a3b8' : '#fff',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-            }}
-          >
-            {loading && (
-              <span
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: '50%',
-                  border: '2px solid rgba(255,255,255,0.4)',
-                  borderTopColor: '#fff',
-                  animation: 'bk-spin .7s linear infinite',
-                  display: 'inline-block',
-                }}
-              />
-            )}
-            Cancel Booking
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BookingDetail({ b, mounted }) {
-  const fmtRs = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
-
-  const statusIcon = {
-    confirmed: CheckCircle2,
-    completed: PartyPopper,
-    cancelled: XCircle,
-    pending_payment: Clock3,
-    no_show: Ban,
-    refunded: IndianRupee,
-    created: CircleDot,
-  }
-
-  const StatusIcon = statusIcon[b.status] || CalendarDays
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div
-        style={{
-          padding: '14px 16px',
-          borderRadius: 14,
-          flexWrap: 'wrap',
-          background:
-            b.status === 'completed' || b.status === 'confirmed'
-              ? '#f0fdf4'
-              : b.status === 'cancelled'
-                ? '#fff1f2'
-                : '#fffbeb',
-          border: `1px solid ${
-            b.status === 'completed' || b.status === 'confirmed'
-              ? '#bbf7d0'
-              : b.status === 'cancelled'
-                ? '#fecaca'
-                : '#fde68a'
-          }`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            background: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color:
-              b.status === 'completed' || b.status === 'confirmed'
-                ? '#16a34a'
-                : b.status === 'cancelled'
-                  ? '#dc2626'
-                  : '#ca8a04',
-          }}
-        >
-          <StatusIcon size={24} strokeWidth={2.2} />
-        </div>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p
-            style={{
-              fontSize: 14,
-              fontWeight: 800,
-              color: '#1e293b',
-              margin: 0,
-              fontFamily: 'monospace',
-            }}
-          >
-            {b.bookingId}
-          </p>
-
-          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-            <Badge variant={getStatusVariant(b.status)} size="sm" dot>
-              {b.status?.replace(/_/g, ' ')}
-            </Badge>
-            <Badge variant={b.type === 'lab' ? 'success' : b.type === 'online' ? 'purple' : 'info'} size="sm">
-              {b.type}
-            </Badge>
-          </div>
-        </div>
-      </div>
-
-      {(b.userName || b.userPhone) && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 16px',
-            background: '#f8fafc',
-            borderRadius: 14,
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              flexShrink: 0,
-              background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-            }}
-          >
-            <UserRound size={18} strokeWidth={2.2} />
-          </div>
-
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>
-              {b.userName || 'Unknown Patient'}
-            </p>
-            {b.userPhone && (
-              <p
-                style={{
-                  fontSize: 12,
-                  color: '#64748b',
-                  margin: '2px 0 0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                }}
-              >
-                <Phone size={12} strokeWidth={2.2} />
-                +91 {b.userPhone}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-          gap: 10,
-        }}
-      >
-        {[
-          { label: 'Base Fee', value: fmtRs(b.baseFee) },
-          // { label: 'Platform Fee', value: fmtRs(b.platformFee) },
-          // { label: 'GST', value: fmtRs(b.gst) },
-          // { label: 'Total', value: fmtRs(b.totalAmount), bold: true },
-        ].map((r) => (
-          <div
-            key={r.label}
-            style={{
-              padding: '10px 12px',
-              textAlign: 'center',
-              background: r.bold ? '#f0fdf4' : '#f8fafc',
-              borderRadius: 12,
-              border: `1px solid ${r.bold ? '#bbf7d0' : '#f1f5f9'}`,
-            }}
-          >
-            <p style={{ fontSize: 10, color: r.bold ? '#16a34a' : '#94a3b8', margin: '0 0 3px' }}>
-              {r.label}
-            </p>
-            <p
-              style={{
-                fontSize: r.bold ? 16 : 14,
-                fontWeight: r.bold ? 800 : 600,
-                color: r.bold ? '#15803d' : '#1e293b',
-                margin: 0,
-              }}
-            >
-              {r.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 16px',
-          background: '#f8fafc',
-          borderRadius: 12,
-          border: '1px solid #e2e8f0',
-        }}
-      >
-        <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500 }}>Payment Status</span>
-        <Badge variant={getStatusVariant(b.paymentStatus)} size="sm" dot>
-          {b.paymentStatus?.replace(/_/g, ' ')}
-        </Badge>
-      </div>
-
-      <div
-        style={{
-          background: '#f8fafc',
-          borderRadius: 14,
-          border: '1px solid #e2e8f0',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          style={{
-            padding: '10px 16px',
-            background: '#f1f5f9',
-            borderBottom: '1px solid #e2e8f0',
-          }}
-        >
-          <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', margin: 0 }}>Booking Details</p>
-        </div>
-
-        {[
-          {
-            l: 'Date & Time',
-            v:
-              mounted && b.startTime
-                ? new Date(b.startTime).toLocaleString('en-IN', {
-                    dateStyle: 'long',
-                    timeStyle: 'short',
-                  })
-                : '—',
-          },
-          { l: 'Doctor', v: b.doctorName ? `Dr. ${b.doctorName}` : '—' },
-          { l: 'Coupon Code', v: b.couponCode || '—' },
-          { l: 'Coupon Disc.', v: b.couponDiscount > 0 ? fmtRs(b.couponDiscount) : '—' },
-          // { l: 'Platform Fee%', v: `${b.platformFeePercent || 0}%` },
-          // { l: 'Is Settled', v: b.isSettled ? '✓ Yes' : 'No' },
-          { l: 'Meet Link', v: b.meetLink ? 'Available' : '—' },
-        ]
-          .filter((r) => r.v && r.v !== '—')
-          .map((row) => (
-            <div
-              key={row.l}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '9px 16px',
-                borderBottom: '1px solid #f8fafc',
-                flexWrap: 'wrap',
-                gap: 4,
-              }}
-            >
-              <span style={{ fontSize: 12, color: '#64748b' }}>{row.l}</span>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#1e293b',
-                  wordBreak: 'break-word',
-                  textAlign: 'right',
-                }}
-              >
-                {row.v}
-              </span>
-            </div>
-          ))}
-      </div>
-
-      {b.cancellationReason && (
-        <div
-          style={{
-            background: '#fff1f2',
-            border: '1px solid #fecaca',
-            borderRadius: 12,
-            padding: '12px 16px',
-          }}
-        >
-          <p style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', margin: '0 0 4px' }}>
-            Cancellation Reason
-          </p>
-          <p style={{ fontSize: 13, color: '#991b1b', margin: 0 }}>{b.cancellationReason}</p>
-        </div>
-      )}
-
-      {b.doctorNotes && (
-        <div
-          style={{
-            background: '#f0f9ff',
-            border: '1px solid #bae6fd',
-            borderRadius: 12,
-            padding: '12px 16px',
-          }}
-        >
-          <p style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', margin: '0 0 4px' }}>
-            Doctor Notes
-          </p>
-          <p style={{ fontSize: 13, color: '#0c4a6e', margin: 0, lineHeight: 1.6 }}>
-            {b.doctorNotes}
-          </p>
-        </div>
-      )}
-
-      {b.meetLink && b.type === 'online' && (
-        <a
-          href={b.meetLink}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: '12px',
-            borderRadius: 12,
-            background: 'linear-gradient(135deg,#10b981,#059669)',
-            color: '#fff',
-            textDecoration: 'none',
-            fontWeight: 700,
-            fontSize: 14,
-            boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
-          }}
-        >
-          <Video size={16} strokeWidth={2.3} />
-          Join Meet Link
-        </a>
-      )}
-
-      <div
-        style={{
-          padding: '10px 14px',
-          background: '#f8fafc',
-          borderRadius: 12,
-          border: '1px solid #e2e8f0',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 5,
-        }}
-      >
-        {[
-          { l: 'Booking ID', v: b.bookingId },
-          { l: 'Internal ID', v: b.id },
-          { l: 'User ID', v: b.userId },
-        ].map((r) => (
-          <div
-            key={r.l}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>{r.l}</span>
-            <span
-              style={{
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: '#64748b',
-                wordBreak: 'break-all',
-                textAlign: 'right',
-                maxWidth: '60%',
-              }}
-            >
-              {r.v}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-const STATUS_FILTERS = [
+const FILTERS = [
   { key: '', label: 'All' },
+  { key: 'created', label: 'Created' },
+  { key: 'pending_payment', label: 'Pending Payment' },
   { key: 'confirmed', label: 'Confirmed' },
   { key: 'completed', label: 'Completed' },
-  { key: 'cancelled', label: 'Cancelled' },
-  { key: 'pending_payment', label: 'Pending' },
   { key: 'no_show', label: 'Not Attended' },
+  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'refunded', label: 'Refunded' },
 ]
+
+const STATUS_INFO = {
+  confirmed: { label: 'Confirm Booking', Icon: CheckCircle2, color: '#4f46e5', bg: '#eef2ff' },
+  completed: { label: 'Mark Completed', Icon: PartyPopper, color: '#047857', bg: '#ecfdf5' },
+  no_show: { label: 'Not Attended', Icon: Ban, color: '#b45309', bg: '#fffbeb' },
+}
+
+const CANCELABLE = new Set(['created', 'pending_payment', 'confirmed'])
+
+function allowedStatusChanges(booking) {
+  if (
+    (booking.status === 'created' || booking.status === 'pending_payment') &&
+    booking.paymentStatus === 'paid'
+  ) {
+    return ['confirmed']
+  }
+  if (booking.status === 'confirmed') return ['completed', 'no_show']
+  return []
+}
+
+const prettyStatus = (status) =>
+  status === 'no_show'
+    ? 'Not Attended'
+    : String(status || 'Unknown').replaceAll('_', ' ').replace(/\b\w/g, (x) => x.toUpperCase())
+
+const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`
+
+function Button({ children, onClick, disabled, tone = 'neutral', small = false }) {
+  const TONES = {
+    neutral: { background: '#f1f5f9', color: '#334155' },
+    primary: { background: '#6366f1', color: '#fff' },
+    success: { background: '#059669', color: '#fff' },
+    danger: { background: '#fee2e2', color: '#b91c1c' },
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        gap: 5, border: 'none', borderRadius: 9,
+        padding: small ? '6px 9px' : '10px 14px',
+        fontSize: small ? 11 : 13, fontWeight: 700,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
+        whiteSpace: 'nowrap', ...TONES[tone],
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function StatusActions({ booking, busy, onRequest, onCancel, compact = false }) {
+  const changes = allowedStatusChanges(booking)
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      {changes.map((status) => {
+        const { Icon, label, color, bg } = STATUS_INFO[status]
+        return (
+          <button
+            key={status}
+            type="button"
+            disabled={busy}
+            onClick={() => onRequest(booking, status)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              fontWeight: 700, fontSize: compact ? 11 : 12,
+              padding: compact ? '6px 8px' : '9px 11px',
+              background: bg, color, border: `1px solid ${color}22`,
+              borderRadius: 9, cursor: busy ? 'wait' : 'pointer',
+              opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap',
+            }}
+          >
+            <Icon size={compact ? 12 : 14} />
+            {label}
+          </button>
+        )
+      })}
+      {CANCELABLE.has(booking.status) && (
+        <Button small={compact} tone="danger" disabled={busy} onClick={() => onCancel(booking)}>
+          <X size={13} /> Cancel
+        </Button>
+      )}
+      {changes.length === 0 && !CANCELABLE.has(booking.status) && (
+        <span style={{ fontSize: 11, color: '#94a3b8' }}>No further actions</span>
+      )}
+      {changes.length === 0 && booking.paymentStatus !== 'paid' &&
+        ['created', 'pending_payment'].includes(booking.status) && (
+          <span style={{ fontSize: 11, color: '#b45309' }}>Awaiting payment</span>
+        )}
+    </div>
+  )
+}
+
+function DetailLine({ label, value }) {
+  if (value === null || value === undefined || value === '') return null
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+      <span style={{ color: '#64748b', fontSize: 12 }}>{label}</span>
+      <span style={{ fontSize: 12, color: '#0f172a', fontWeight: 650, textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</span>
+    </div>
+  )
+}
+
+function BookingDetail({ booking, onStatus, onCancel, busy }) {
+  const date = booking.startTime
+    ? new Date(booking.startTime).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata', dateStyle: 'long', timeStyle: 'short',
+      })
+    : 'Not scheduled'
+
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <div style={{ padding: 16, background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+        <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>{booking.bookingId || booking.id}</div>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 10 }}>
+          <Badge variant={getStatusVariant(booking.status)} size="sm" dot>{prettyStatus(booking.status)}</Badge>
+          <Badge variant={getStatusVariant(booking.paymentStatus)} size="sm" dot>
+            Payment: {prettyStatus(booking.paymentStatus)}
+          </Badge>
+          <Badge variant={booking.type === 'lab' ? 'success' : booking.type === 'online' ? 'purple' : 'info'} size="sm">
+            {booking.type}
+          </Badge>
+        </div>
+      </div>
+
+      <div style={{ padding: 16, borderRadius: 14, border: '1px solid #e2e8f0' }}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 800, color: '#334155' }}>
+          <UserRound size={15} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }} />Patient Information
+        </h3>
+        <DetailLine label="Patient" value={booking.userName} />
+        <DetailLine label="Phone" value={booking.userPhone} />
+        <DetailLine label="Email" value={booking.userEmail} />
+        <DetailLine label="Doctor" value={booking.doctorName ? `Dr. ${booking.doctorName}` : '—'} />
+        <DetailLine label="Hospital" value={booking.hospitalName} />
+        <DetailLine label="Appointment" value={date} />
+      </div>
+
+      <div style={{ padding: 16, borderRadius: 14, border: '1px solid #e2e8f0' }}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 800, color: '#334155' }}>Payment & Booking</h3>
+        <DetailLine label="Base fee" value={money(booking.baseFee)} />
+        <DetailLine label="Total amount" value={money(booking.totalAmount)} />
+        <DetailLine label="Coupon" value={booking.couponCode || '—'} />
+        <DetailLine label="Discount" value={money(booking.couponDiscount)} />
+        <DetailLine label="Booking ID" value={booking.bookingId} />
+        <DetailLine label="Doctor notes" value={booking.doctorNotes} />
+        <DetailLine label="Cancellation reason" value={booking.cancellationReason} />
+      </div>
+
+      {booking.type === 'online' && booking.meetLink && (
+        <a href={booking.meetLink} target="_blank" rel="noopener noreferrer" style={{
+          textAlign: 'center', textDecoration: 'none', padding: 12,
+          background: '#059669', color: '#fff', fontWeight: 700, borderRadius: 12,
+        }}><Video size={16} style={{ display: 'inline', verticalAlign: '-3px' }} /> Join Meet</a>
+      )}
+
+      <div style={{ padding: 16, background: '#f8fafc', borderRadius: 14 }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 800 }}>Update Booking Status</h3>
+        <StatusActions booking={booking} busy={busy} onRequest={onStatus} onCancel={onCancel} />
+      </div>
+    </div>
+  )
+}
 
 export default function HospitalAdminBookings() {
   const toast = useToast()
-  const mounted = useMounted()
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelling, setCancelling] = useState(false)
-  const [targetId, setTargetId] = useState(null)
   const [viewItem, setViewItem] = useState(null)
+  const [pendingChange, setPendingChange] = useState(null)
+  const [cancelTarget, setCancelTarget] = useState(null)
+  const [cancelReason, setCancelReason] = useState('Cancelled by hospital admin')
+  const [saving, setSaving] = useState(false)
 
-  const qs = new URLSearchParams({ page, limit: 20 })
-  if (statusFilter) qs.set('status', statusFilter)
-  if (search) qs.set('search', search)
+  const query = new URLSearchParams({ page: String(page), limit: '20' })
+  if (statusFilter) query.set('status', statusFilter)
+  if (search.trim()) query.set('search', search.trim())
 
-  const { data, isLoading, mutate } = useSWR(`/api/bookings?${qs}`, fetcher)
-  const rawBookings =
-  Array.isArray(data?.bookings)
-    ? data.bookings
-    : []
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/bookings?${query.toString()}`,
+    fetcher,
+    { revalidateOnFocus: false }
+  )
 
-const bookings = rawBookings.map((booking) => ({
-  ...booking,
+  const bookings = useMemo(() =>
+    (Array.isArray(data?.bookings) ? data.bookings : []).map((b) => ({
+      ...b,
+      userName: b.userName || b.patient?.name || b.user?.name || b.patientName || 'Patient',
+      userPhone: b.userPhone || b.patient?.phone || b.user?.phone || '',
+      userEmail: b.userEmail || b.patient?.email || b.user?.email || '',
+      hospitalName: b.hospitalName || b.hospital?.name || '',
+      doctorName: b.doctorName || b.doctor?.name || '',
+    })),
+    [data]
+  )
 
-  userName:
-    booking.userName ||
-    booking.user?.name ||
-    booking.patient?.name ||
-    'Patient',
-
-  userPhone:
-    booking.userPhone ||
-    booking.user?.phone ||
-    booking.patient?.phone ||
-    '',
-
-  userEmail:
-    booking.userEmail ||
-    booking.user?.email ||
-    booking.patient?.email ||
-    '',
-
-  hospitalName:
-    booking.hospitalName ||
-    booking.hospital?.name ||
-    '',
-
-  doctorName:
-    booking.doctorName ||
-    booking.doctor?.name ||
-    '',
-
-  labName:
-    booking.labName ||
-    booking.lab?.name ||
-    '',
-
-  tests:
-    Array.isArray(booking.tests)
-      ? booking.tests
-      : [],
-}))
+  const total = data?.pagination?.total ?? 0
   const totalPages = data?.pagination?.totalPages || 1
-  const total = data?.pagination?.total || 0
 
-  const handleCancel = async () => {
-    setCancelling(true)
+  const askStatus = (booking, status) => {
+    if (!allowedStatusChanges(booking).includes(status)) return
+    setViewItem(null)
+    setPendingChange({ booking, status })
+  }
+
+  const askCancel = (booking) => {
+    if (!CANCELABLE.has(booking.status)) return
+    setViewItem(null)
+    setCancelTarget(booking)
+    setCancelReason('Cancelled by hospital admin')
+  }
+
+  async function saveStatus() {
+    if (!pendingChange || saving) return
+    const { booking, status } = pendingChange
+    if (!allowedStatusChanges(booking).includes(status)) return
+
+    setSaving(true)
     try {
-      const res = await fetch(`/api/bookings/${targetId}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(`/api/bookings/${booking.id}/status`, {
+        method: 'PATCH',
         credentials: 'include',
-        body: JSON.stringify({ reason: 'Cancelled by hospital admin' }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
       })
-      const json = await res.json()
-      json.success ? toast.success('Booking cancelled') : toast.error(json.error)
-      mutate()
-    } catch {
-      toast.error('Failed to cancel')
+      const json = await response.json()
+      if (!response.ok || json?.success === false) {
+        throw new Error(json?.message || json?.error || 'Status update failed')
+      }
+      toast.success(`Booking marked ${prettyStatus(status)}`)
+      setPendingChange(null)
+      await mutate()
+    } catch (err) {
+      toast.error(err.message || 'Unable to update booking status')
     } finally {
-      setCancelling(false)
-      setCancelOpen(false)
-      setTargetId(null)
+      setSaving(false)
     }
   }
 
-  const CANCELLABLE = ['created', 'confirmed', 'pending_payment']
+  async function cancelBooking() {
+    if (!cancelTarget || saving) return
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/bookings/${cancelTarget.id}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: cancelReason.trim() || 'Cancelled by hospital admin' }),
+      })
+      const json = await response.json()
+      if (!response.ok || json?.success === false) {
+        throw new Error(json?.message || json?.error || 'Cancellation failed')
+      }
+      toast.success('Booking cancelled successfully')
+      setCancelTarget(null)
+      await mutate()
+    } catch (err) {
+      toast.error(err.message || 'Unable to cancel booking')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const columns = [
     {
-      key: 'userName',
-      header: 'Patient',
-      render: (v, row) => (
+      key: 'userName', header: 'Patient',
+      render: (name, b) => (
         <div>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', margin: 0 }}>
-            {v || 'Unknown'}
-          </p>
-          <p style={{ fontSize: 11, fontFamily: 'monospace', color: '#94a3b8', margin: '2px 0 0' }}>
-            {row.bookingId}
-          </p>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{name || 'Unknown'}</p>
+          <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{b.bookingId}</p>
         </div>
       ),
     },
     {
-      key: 'doctorName',
-      header: 'Doctor',
-      render: (v) =>
-        v ? (
-          <span style={{ fontSize: 13, color: '#475569' }}>Dr. {v}</span>
-        ) : (
-          <span style={{ fontSize: 12, color: '#cbd5e1' }}>—</span>
-        ),
+      key: 'doctorName', header: 'Doctor',
+      render: (value) => <span style={{ fontSize: 12, color: '#475569' }}>{value ? `Dr. ${value}` : '—'}</span>,
     },
     {
-      key: 'type',
-      header: 'Type',
-      render: (v) => (
-        <Badge variant={v === 'lab' ? 'success' : v === 'online' ? 'purple' : 'info'} size="sm">
-          {v}
-        </Badge>
+      key: 'type', header: 'Type',
+      render: (value) => <Badge size="sm" variant={value === 'online' ? 'purple' : value === 'lab' ? 'success' : 'info'}>{value || '—'}</Badge>,
+    },
+    {
+      key: 'status', header: 'Status',
+      render: (value, b) => (
+        <div style={{ display: 'grid', gap: 5, justifyItems: 'start' }}>
+          <Badge variant={getStatusVariant(value)} size="sm" dot>{prettyStatus(value)}</Badge>
+          {b.paymentStatus !== 'paid' && ['created', 'pending_payment'].includes(value) && (
+            <span style={{ fontSize: 10, color: '#b45309' }}>Payment pending</span>
+          )}
+        </div>
       ),
     },
     {
-      key: 'status',
-      header: 'Status',
-      render: (v) => (
-        <Badge variant={getStatusVariant(v)} size="sm" dot>
-          {v?.replace(/_/g, ' ')}
-        </Badge>
-      ),
+      key: 'totalAmount', header: 'Amount',
+      render: (value) => <span style={{ fontWeight: 700, color: '#334155', fontSize: 12 }}>{money(value)}</span>,
     },
     {
-      key: 'totalAmount',
-      header: 'Amount',
-      render: (v) => (
-        <span style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>
-          ₹{Number(v || 0).toLocaleString('en-IN')}
+      key: 'startTime', header: 'Appointment',
+      render: (value) => (
+        <span style={{ fontSize: 12, color: '#64748b' }}>
+          {value ? new Date(value).toLocaleDateString('en-IN', { dateStyle: 'medium', timeZone: 'Asia/Kolkata' }) : '—'}
         </span>
       ),
     },
     {
-      key: 'startTime',
-      header: 'Date',
-      render: (v) =>
-        mounted ? (
-          <span style={{ fontSize: 12, color: '#64748b' }}>
-            {new Date(v).toLocaleDateString('en-IN', { dateStyle: 'medium' })}
-          </span>
-        ) : (
-          '—'
-        ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      render: (_, row) => (
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <ViewBtn onClick={() => setViewItem(row)} />
-          {CANCELLABLE.includes(row.status) && (
-            <RowCancelBtn
-              onClick={() => {
-                setTargetId(row.id)
-                setCancelOpen(true)
-              }}
-            />
-          )}
+      key: 'actions', header: 'Status / Actions',
+      render: (_, b) => (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', minWidth: 160 }}>
+          <Button small onClick={() => setViewItem(b)}><Eye size={13} /> View</Button>
+          <StatusActions booking={b} busy={saving} compact onRequest={askStatus} onCancel={askCancel} />
         </div>
       ),
     },
@@ -888,37 +356,44 @@ const bookings = rawBookings.map((booking) => ({
 
   return (
     <>
-      <style>{KF}</style>
-
       <AdminHeader
         title="Bookings"
-        subtitle={`${total} booking${total !== 1 ? 's' : ''} · ${statusFilter || 'All'}`}
+        subtitle={`${total} booking${total === 1 ? '' : 's'} · ${statusFilter ? prettyStatus(statusFilter) : 'All'}`}
         breadcrumbs={[{ label: 'Hospital Admin' }, { label: 'Bookings' }]}
       />
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
-        <SearchInput
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
-          }}
-        />
-
-        {STATUS_FILTERS.map((f) => (
-          <FilterPill
-            key={f.key}
-            label={f.label}
-            active={statusFilter === f.key}
-            onClick={() => {
-              setStatusFilter(f.key)
-              setPage(1)
-            }}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginBottom: 20, alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 170, maxWidth: 320 }}>
+          <Search size={16} style={{ position: 'absolute', top: 11, left: 12, color: '#94a3b8' }} />
+          <input
+            aria-label="Search bookings"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            placeholder="Search booking IDs…"
+            style={{ width: '100%', boxSizing: 'border-box', borderRadius: 12, padding: '10px 12px 10px 38px', border: '1px solid #e2e8f0', outlineColor: '#6366f1', fontSize: 13 }}
           />
+        </div>
+        {FILTERS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => { setStatusFilter(key); setPage(1) }}
+            style={{
+              padding: '9px 12px', border: 'none', borderRadius: 10,
+              color: statusFilter === key ? '#fff' : '#64748b',
+              background: statusFilter === key ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#f1f5f9',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}
+          >{label}</button>
         ))}
-
-        <RefreshBtn onClick={() => mutate()} />
+        <Button onClick={() => mutate()}><RefreshCw size={15} /> Refresh</Button>
       </div>
+
+      {error && (
+        <div role="alert" style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#b91c1c', background: '#fef2f2', padding: 14, borderRadius: 12, marginBottom: 16 }}>
+          <AlertTriangle size={18} /> Failed to load bookings: {error.message}
+        </div>
+      )}
 
       <DataTable
         columns={columns}
@@ -928,7 +403,7 @@ const bookings = rawBookings.map((booking) => ({
         totalPages={totalPages}
         onPageChange={setPage}
         emptyTitle="No bookings found"
-        emptyMessage={statusFilter ? `No ${statusFilter.replace(/_/g, ' ')} bookings` : 'No bookings yet'}
+        emptyMessage={statusFilter ? `No ${prettyStatus(statusFilter)} bookings` : 'No bookings yet'}
       />
 
       <Modal
@@ -937,18 +412,65 @@ const bookings = rawBookings.map((booking) => ({
         title={`Booking — ${viewItem?.bookingId || ''}`}
         size="md"
       >
-        {viewItem && <BookingDetail b={viewItem} mounted={mounted} />}
+        {viewItem && <BookingDetail booking={viewItem} onStatus={askStatus} onCancel={askCancel} busy={saving} />}
       </Modal>
 
-      <CancelModal
-        open={cancelOpen}
-        onClose={() => {
-          setCancelOpen(false)
-          setTargetId(null)
-        }}
-        onConfirm={handleCancel}
-        loading={cancelling}
-      />
+      <Modal
+        open={!!pendingChange}
+        onClose={() => { if (!saving) setPendingChange(null) }}
+        title="Confirm Status Change"
+        size="sm"
+      >
+        {pendingChange && (
+          <div style={{ display: 'grid', gap: 16 }}>
+            <p style={{ margin: 0, fontSize: 14, color: '#475569', lineHeight: 1.6 }}>
+              Change booking <strong>{pendingChange.booking.bookingId}</strong> from{' '}
+              <strong>{prettyStatus(pendingChange.booking.status)}</strong> to{' '}
+              <strong>{prettyStatus(pendingChange.status)}</strong>?
+            </p>
+            <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+              This updates appointment status only. Payment and settlement status are not modified.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <Button disabled={saving} onClick={() => setPendingChange(null)}>Back</Button>
+              <Button disabled={saving} tone="primary" onClick={saveStatus}>
+                <Check size={15} /> {saving ? 'Updating…' : 'Confirm Update'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!cancelTarget}
+        onClose={() => { if (!saving) setCancelTarget(null) }}
+        title="Cancel Booking"
+        size="sm"
+      >
+        {cancelTarget && (
+          <div style={{ display: 'grid', gap: 14 }}>
+            <p style={{ margin: 0, fontSize: 13, color: '#475569' }}>
+              Cancel <strong>{cancelTarget.bookingId}</strong>? Refunds follow the existing cancellation policy.
+            </p>
+            <label style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 700, color: '#334155' }}>
+              Cancellation reason
+              <textarea
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                maxLength={400}
+                style={{ width: '100%', resize: 'vertical', border: '1px solid #cbd5e1', padding: 10, borderRadius: 10, boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <Button disabled={saving} onClick={() => setCancelTarget(null)}>Keep Booking</Button>
+              <Button disabled={saving} tone="danger" onClick={cancelBooking}>
+                <XCircle size={15} /> {saving ? 'Cancelling…' : 'Cancel Booking'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   )
 }
