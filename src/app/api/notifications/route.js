@@ -39,8 +39,21 @@ export async function GET(request) {
           },
         })
 
+        const dismissed = await prisma.notificationDismissal.findMany({
+          where: {
+            userId,
+            bookingId: { in: bookings.map((booking) => booking.id) },
+          },
+          select: { bookingId: true },
+        })
+        const dismissedBookingIds = new Set(
+          dismissed.map((item) => item.bookingId)
+        )
+
         const now = new Date()
-        const notifications = bookings.map((booking) => {
+        const notifications = bookings.filter(
+          (booking) => !dismissedBookingIds.has(booking.id)
+        ).map((booking) => {
           const isLab = booking.type === 'lab'
           const isCancelled = booking.status === 'cancelled'
           const isPending =
@@ -126,6 +139,43 @@ export async function GET(request) {
       }
       console.error('[GET /api/notifications]', error)
       return errorResponse('Internal server error', 500)
+    }
+  })
+}
+
+export async function DELETE(request) {
+  return verifyAuth(request, async (req, user) => {
+    try {
+      if (user.role === 'super_admin') {
+        return errorResponse('This action is only available for user notifications', 403)
+      }
+
+      const userId = user.userId || user.id
+      if (!userId) return errorResponse('Unauthorized', 401)
+
+      const bookings = await prisma.booking.findMany({
+        where: { userId },
+        select: { id: true },
+      })
+
+      await Promise.all(
+        bookings.map(async (booking) => {
+          const existing = await prisma.notificationDismissal.findFirst({
+            where: { userId, bookingId: booking.id },
+            select: { id: true },
+          })
+          if (!existing) {
+            await prisma.notificationDismissal.create({
+              data: { userId, bookingId: booking.id },
+            })
+          }
+        })
+      )
+
+      return successResponse({ deletedCount: bookings.length }, 'Notifications cleared')
+    } catch (error) {
+      console.error('[DELETE /api/notifications]', error)
+      return errorResponse('Could not clear notifications', 500)
     }
   })
 }

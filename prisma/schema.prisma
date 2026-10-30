@@ -783,6 +783,15 @@ model NotificationLog {
   @@map("notification_logs")
 }
 
+model NotificationDismissal {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  bookingId String   @db.ObjectId
+  createdAt DateTime @default(now())
+
+  @@map("notification_dismissals")
+}
+
 model AuditLog {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   actorId    String?  @db.ObjectId
