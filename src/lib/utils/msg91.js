@@ -23,6 +23,12 @@ const SENDER_ID   = () => env('MSG91_SENDER_ID')
 const IS_BYPASS   = () => env('MSG91_BYPASS') === 'true'
 const IS_PROD     = () => env('NODE_ENV')     === 'production'
 
+// Play Store review / demo account — fixed OTP, no SMS sent.
+// Set REVIEW_PHONE=off to disable.
+const REVIEW_PHONE = () => env('REVIEW_PHONE') || '9876543210'
+const REVIEW_OTP   = () => env('REVIEW_OTP')   || '123456'
+const isReviewPhone = (p) => REVIEW_PHONE() !== 'off' && raw10(p) === REVIEW_PHONE()
+
 function formatPhone(phone) {
   const digits = String(phone || '').replace(/\D/g, '')
   if (digits.length === 12 && digits.startsWith('91')) return digits
@@ -92,6 +98,11 @@ export async function sendOtp(phone) {
     return { success: false, error: 'Invalid phone number' }
   }
 
+  if (isReviewPhone(formatted)) {
+    log('info', 'Review account OTP (no SMS)', { phone: raw10(formatted) })
+    return { success: true }
+  }
+
   if (await cache.get(cooldownKey(formatted))) {
     return { success: false, error: 'Please wait before requesting another OTP' }
   }
@@ -159,6 +170,8 @@ export async function verifyOtp(phone, otp) {
   const otpClean = String(otp || '').replace(/\D/g, '').trim()
   if (!otpClean || otpClean.length !== OTP_LENGTH) return false
 
+  if (isReviewPhone(formatted)) return otpClean === REVIEW_OTP()
+
   if (IS_BYPASS()) {
     const stored = await cache.get(bypassKey(formatted))
     if (stored && String(stored).trim() === otpClean) {
@@ -209,6 +222,8 @@ export async function resendOtp(phone, retryType = 'text') {
   let formatted
   try { formatted = formatPhone(phone) }
   catch { return { success: false, error: 'Invalid phone number' } }
+
+  if (isReviewPhone(formatted)) return { success: true }
 
   if (await cache.get(cooldownKey(formatted))) {
     return { success: false, error: 'Please wait before requesting another OTP' }
