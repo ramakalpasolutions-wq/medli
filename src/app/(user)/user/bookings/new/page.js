@@ -18,19 +18,11 @@ import Navbar from '@/components/public/Navbar'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/context/ToastContext'
 
-// ============================================================
-// CURRENCY
-// ============================================================
-
 const rs = (value) =>
   `₹${Number(value ?? 0).toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`
-
-// ============================================================
-// API HELPERS
-// ============================================================
 
 async function readResponse(response) {
   const json = await response.json().catch(() => ({}))
@@ -66,375 +58,100 @@ const postJSON = (url, data) =>
 // ============================================================
 
 const css = `
-.medli-checkout {
-  min-height: 100vh;
-  background: #f8fafc;
-  color: #0f172a;
-}
+.medli-checkout{min-height:100vh;background:#f8fafc;color:#0f172a}
+.medli-checkout *{box-sizing:border-box}
+.medli-checkout main{width:min(560px,calc(100% - 28px));margin:auto;padding:90px 0 65px}
 
-.medli-checkout * {
-  box-sizing: border-box;
-}
+.mc-steps{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:25px}
+.mc-step{flex:1;position:relative;display:flex;align-items:center;flex-direction:column;gap:5px;min-width:0}
+.mc-step:not(:last-child):after{content:"";position:absolute;height:2px;left:calc(50% + 21px);right:calc(-50% + 21px);top:16px;background:#e2e8f0}
+.mc-step.done:not(:last-child):after{background:#10b981}
+.mc-circle{height:34px;width:34px;display:grid;place-items:center;border-radius:50%;background:#eef2f7;color:#94a3b8;font-size:14px;font-weight:800;position:relative;z-index:1}
+.mc-step.done .mc-circle{background:#10b981;color:#fff}
+.mc-step.active .mc-circle{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 3px 12px #6366f144}
+.mc-step small{font-size:10px;color:#94a3b8}
+.mc-step.done small{color:#10b981}
+.mc-step.active small{color:#6366f1}
 
-.medli-checkout main {
-  width: min(560px, calc(100% - 28px));
-  margin: auto;
-  padding: 90px 0 65px;
-}
+.mc-card{background:#fff;border-radius:20px;border:1px solid #f1f5f9;box-shadow:0 3px 12px #0f172a0a;padding:24px}
+.mc-card h2{font-size:19px;font-weight:800;margin:0 0 5px}
+.mc-sub{color:#94a3b8;font-size:13px;margin:0 0 21px}
+.mc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.mc-stack{display:grid;gap:14px}
 
-.mc-steps {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 25px;
-}
+.mc-field{display:grid;gap:6px;min-width:0;flex:1}
+.mc-field span{font-size:12px;font-weight:650;color:#475569}
+.mc-field input{border:1.5px solid #e2e8f0;border-radius:12px;padding:11px 12px;width:100%;min-width:0;font-size:13px;color:#1e293b;outline:none;background:#fff}
+.mc-field input:focus,.mc-family-select:focus{border-color:#818cf8;box-shadow:0 0 0 3px #6366f115}
 
-.mc-step {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-}
+.mc-family-select{width:100%;padding:12px 13px;border:1.5px solid #e2e8f0;border-radius:12px;background:#fff;color:#1e293b;font-size:13px;outline:none;cursor:pointer}
+.mc-family-select:disabled{opacity:.5;cursor:not-allowed}
+.mc-family-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.mc-family-actions a{color:#4f46e5;font-weight:600;font-size:12px}
+.mc-family-actions button{background:#eef2ff;color:#4f46e5;font-size:12px;padding:8px 10px;border:0;border-radius:8px;cursor:pointer}
 
-.mc-step:not(:last-child):after {
-  content: "";
-  position: absolute;
-  height: 2px;
-  left: calc(50% + 21px);
-  right: calc(-50% + 21px);
-  top: 16px;
-  background: #e2e8f0;
-}
+.mc-btn{min-height:46px;padding:11px 14px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;min-width:0}
+.mc-btn.primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 14px #6366f13b;color:#fff}
+.mc-btn.secondary{border:1.5px solid #e2e8f0;background:#fff;color:#475569}
+.mc-btn:disabled{opacity:.52;cursor:not-allowed;box-shadow:none}
+.mc-actions{display:flex;gap:10px;margin-top:18px}
+.mc-actions>*{flex:1}
 
-.mc-step.done:not(:last-child):after {
-  background: #10b981;
-}
+.mc-options{display:flex;gap:8px}
+.mc-options button{flex:1;background:#fff;border:1px solid #e2e8f0;border-radius:12px;color:#64748b;font-size:13px;font-weight:650;padding:12px;cursor:pointer}
+.mc-options button.active{border-color:#a5b4fc;background:#eef2ff;color:#4f46e5}
 
-.mc-circle {
-  height: 34px;
-  width: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #eef2f7;
-  color: #94a3b8;
-  font-size: 14px;
-  font-weight: 800;
-  position: relative;
-  z-index: 1;
-}
+.mc-price{background:#f8fafc;border-radius:15px;padding:16px;display:grid;gap:9px;margin:14px 0 6px}
+.mc-price.payment{background:linear-gradient(135deg,#f3f2ff,#fafaff);border:1px solid #dcdcff;padding:18px}
+.mc-price-line{display:flex;justify-content:space-between;gap:14px;font-size:13px;color:#64748b;align-items:center}
+.mc-price-line strong{font-weight:650;color:#334155;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mc-price-line.discount strong{color:#059669}
+.mc-price-line.total{padding-top:13px;margin-top:5px;border-top:1px solid #e2e8f0;color:#4f46e5;font-weight:800}
+.mc-price-line.total strong{font-size:22px;font-weight:850;color:#4f46e5}
 
-.mc-step.done .mc-circle {
-  background: #10b981;
-  color: #fff;
-}
+.mc-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+.mc-row span:first-child{color:#64748b}
+.mc-row strong{text-align:right;overflow-wrap:anywhere;color:#334155}
+.mc-note{font-size:12px;line-height:1.5;color:#94a3b8}
+.mc-error{padding:11px 12px;border-radius:11px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;font-size:12px}
+.mc-success{padding:11px 12px;border-radius:11px;border:1px solid #bbf7d0;background:#f0fdf4;color:#047857;font-size:12px}
 
-.mc-step.active .mc-circle {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 3px 12px #6366f144;
-}
-
-.mc-step small {
-  font-size: 10px;
-  color: #94a3b8;
-}
-
-.mc-step.done small {
-  color: #10b981;
-}
-
-.mc-step.active small {
-  color: #6366f1;
-}
-
-.mc-card {
-  background: #fff;
-  border-radius: 20px;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 3px 12px #0f172a0a;
-  padding: 24px;
-}
-
-.mc-card h2 {
-  font-size: 19px;
-  font-weight: 800;
-  margin: 0 0 5px;
-}
-
-.mc-sub {
-  color: #94a3b8;
-  font-size: 13px;
-  margin: 0 0 21px;
-}
-
-.mc-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.mc-stack {
-  display: grid;
-  gap: 14px;
-}
-
-.mc-field {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  flex: 1;
-}
-
-.mc-field span {
-  font-size: 12px;
-  font-weight: 650;
-  color: #475569;
-}
-
-.mc-field input {
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 11px 12px;
-  width: 100%;
-  min-width: 0;
-  font-size: 13px;
-  color: #1e293b;
-  outline: none;
-  background: #fff;
-}
-
-.mc-field input:focus {
-  border-color: #818cf8;
-  box-shadow: 0 0 0 3px #6366f115;
-}
-
-.mc-btn {
-  min-height: 46px;
-  padding: 11px 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 0;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  min-width: 0;
-}
-
-.mc-btn.primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  box-shadow: 0 4px 14px #6366f13b;
-  color: #fff;
-}
-
-.mc-btn.secondary {
-  border: 1.5px solid #e2e8f0;
-  background: #fff;
-  color: #475569;
-}
-
-.mc-btn:disabled {
-  opacity: .52;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.mc-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.mc-actions > * {
-  flex: 1;
-}
-
-.mc-options {
-  display: flex;
-  gap: 8px;
-}
-
-.mc-options button {
-  flex: 1;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 650;
-  padding: 12px;
-  cursor: pointer;
-}
-
-.mc-options button.active {
-  border-color: #a5b4fc;
-  background: #eef2ff;
-  color: #4f46e5;
-}
-
-/* Combined pricing display */
-
-.mc-price {
-  background: #f8fafc;
-  border-radius: 15px;
-  padding: 16px;
-  display: grid;
-  gap: 9px;
-  margin: 14px 0 6px;
-}
-
-.mc-price.payment {
-  background: linear-gradient(135deg, #f3f2ff, #fafaff);
-  border: 1px solid #dcdcff;
-  padding: 18px;
-}
-
-.mc-price-line {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  font-size: 13px;
-  color: #64748b;
-  align-items: center;
-}
-
-.mc-price-line strong {
-  font-weight: 650;
-  color: #334155;
-  text-align: right;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.mc-price-line.discount strong {
-  color: #059669;
-}
-
-.mc-price-line.total {
-  padding-top: 13px;
-  margin-top: 5px;
-  border-top: 1px solid #e2e8f0;
-  color: #4f46e5;
-  font-weight: 800;
-}
-
-.mc-price-line.total strong {
-  font-size: 22px;
-  font-weight: 850;
-  color: #4f46e5;
-}
-
-.mc-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 13px;
-}
-
-.mc-row span:first-child {
-  color: #64748b;
-}
-
-.mc-row strong {
-  text-align: right;
-  overflow-wrap: anywhere;
-  color: #334155;
-}
-
-.mc-note {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #94a3b8;
-}
-
-.mc-error {
-  padding: 11px 12px;
-  border-radius: 11px;
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-  font-size: 12px;
-}
-
-.mc-success {
-  padding: 11px 12px;
-  border-radius: 11px;
-  border: 1px solid #bbf7d0;
-  background: #f0fdf4;
-  color: #047857;
-  font-size: 12px;
-}
-
-@media (max-width: 450px) {
-  .medli-checkout main {
-    padding-top: 82px;
-  }
-
-  .mc-card {
-    padding: 18px;
-  }
-
-  .mc-actions {
-    flex-wrap: wrap;
-  }
-
-  .mc-actions > * {
-    flex: 1 1 130px;
-  }
-
-  .mc-sub {
-    margin-bottom: 16px;
-  }
+@media(max-width:450px){
+  .medli-checkout main{padding-top:82px}
+  .mc-card{padding:18px}
+  .mc-actions{flex-wrap:wrap}
+  .mc-actions>*{flex:1 1 130px}
+  .mc-sub{margin-bottom:16px}
 }
 `
 
 // ============================================================
-// STEPS
+// REUSABLE COMPONENTS
 // ============================================================
 
 function Steps({ step }) {
   return (
     <div className="mc-steps">
-      {['Details', 'Patient', 'Pricing', 'Payment'].map(
-        (label, i) => {
-          const n = i + 1
+      {['Details', 'Patient', 'Pricing', 'Payment'].map((label, i) => {
+        const n = i + 1
 
-          return (
-            <div
-              key={label}
-              className={`mc-step ${
-                n < step
-                  ? 'done'
-                  : n === step
-                    ? 'active'
-                    : ''
-              }`}
-            >
-              <div className="mc-circle">
-                {n < step ? <Check size={16} /> : n}
-              </div>
-
-              <small>{label}</small>
+        return (
+          <div
+            key={label}
+            className={`mc-step ${
+              n < step ? 'done' : n === step ? 'active' : ''
+            }`}
+          >
+            <div className="mc-circle">
+              {n < step ? <Check size={16} /> : n}
             </div>
-          )
-        }
-      )}
+            <small>{label}</small>
+          </div>
+        )
+      })}
     </div>
   )
 }
-
-// ============================================================
-// REUSABLE COMPONENTS
-// ============================================================
 
 function Card({ title, sub, children }) {
   return (
@@ -459,9 +176,7 @@ function Btn({ children, secondary, ...props }) {
   return (
     <button
       type="button"
-      className={`mc-btn ${
-        secondary ? 'secondary' : 'primary'
-      }`}
+      className={`mc-btn ${secondary ? 'secondary' : 'primary'}`}
       {...props}
     >
       {children}
@@ -471,8 +186,7 @@ function Btn({ children, secondary, ...props }) {
 
 // ============================================================
 // PRICE SUMMARY
-// Only shows Base Fee, GST & Other Charges, Total Amount.
-// Platform fee and GST are combined in the UI.
+// Platform fee and GST are combined visually.
 // ============================================================
 
 function Summary({ pricing, payment = false }) {
@@ -487,11 +201,7 @@ function Summary({ pricing, payment = false }) {
     ) / 100
 
   return (
-    <div
-      className={`mc-price ${
-        payment ? 'payment' : ''
-      }`}
-    >
+    <div className={`mc-price ${payment ? 'payment' : ''}`}>
       <div className="mc-price-line">
         <span>Base Fee</span>
         <strong>{rs(pricing.baseFee)}</strong>
@@ -500,9 +210,7 @@ function Summary({ pricing, payment = false }) {
       {Number(pricing.couponDiscount) > 0 && (
         <div className="mc-price-line discount">
           <span>Coupon Discount</span>
-          <strong>
-            − {rs(pricing.couponDiscount)}
-          </strong>
+          <strong>− {rs(pricing.couponDiscount)}</strong>
         </div>
       )}
 
@@ -514,9 +222,7 @@ function Summary({ pricing, payment = false }) {
       {Number(pricing.adminCouponDiscount) > 0 && (
         <div className="mc-price-line discount">
           <span>Coupon Discount</span>
-          <strong>
-            − {rs(pricing.adminCouponDiscount)}
-          </strong>
+          <strong>− {rs(pricing.adminCouponDiscount)}</strong>
         </div>
       )}
 
@@ -529,81 +235,45 @@ function Summary({ pricing, payment = false }) {
 }
 
 // ============================================================
-// MAIN BOOKING CONTENT
+// MAIN CHECKOUT
 // ============================================================
 
 function BookingContent() {
   const router = useRouter()
   const params = useSearchParams()
   const toast = useToast()
-
-  const {
-    user,
-    refreshUser,
-  } = useAuth()
+  const { user, refreshUser } = useAuth()
 
   const [mounted, setMounted] = useState(false)
   const [step, setStep] = useState(1)
-
   const [working, setWorking] = useState(false)
   const busyRef = useRef(false)
-
   const [booking, setBooking] = useState(null)
 
-  // Patient information
+  const [patientType, setPatientType] = useState('myself')
+  const [selectedFamilyId, setSelectedFamilyId] = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
 
-  const [patientType, setPatientType] =
-    useState('myself')
+  const [collectionType, setCollectionType] = useState('walk_in')
+  const [collectionDate, setCollectionDate] = useState('')
+  const [collectionTime, setCollectionTime] = useState('')
+  const [collectionAddr, setCollectionAddr] = useState({
+    line1: '',
+    city: '',
+    pinCode: '',
+  })
 
-  const [patientName, setPatientName] =
-    useState('')
-
-  const [contactEmail, setContactEmail] =
-    useState('')
-
-  const [contactPhone, setContactPhone] =
-    useState('')
-
-  // Lab collection information
-
-  const [collectionType, setCollectionType] =
-    useState('walk_in')
-
-  const [collectionDate, setCollectionDate] =
-    useState('')
-
-  const [collectionTime, setCollectionTime] =
-    useState('')
-
-  const [collectionAddr, setCollectionAddr] =
-    useState({
-      line1: '',
-      city: '',
-      pinCode: '',
-    })
-
-  // Coupon
-
-  const [couponCode, setCouponCode] =
-    useState('')
-
-  const [validatedCoupon, setValidatedCoupon] =
-    useState(null)
-
-  const [couponWorking, setCouponWorking] =
-    useState(false)
+  const [couponCode, setCouponCode] = useState('')
+  const [validatedCoupon, setValidatedCoupon] = useState(null)
+  const [couponWorking, setCouponWorking] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // ==========================================================
-  // URL PARAMETERS
-  // ==========================================================
-
   const doctorId = params.get('doctorId')
   const labId = params.get('labId')
-
   const isLab = Boolean(labId)
   const isOnline = params.get('type') === 'online'
 
@@ -621,7 +291,6 @@ function BookingContent() {
 
   const date = params.get('date')
   const slot = params.get('slot')
-
   const idsString = params.get('testIds') || ''
 
   const testIds = useMemo(
@@ -633,29 +302,17 @@ function BookingContent() {
   // FETCH DOCTOR / LAB
   // ==========================================================
 
-  const {
-    data: doctor,
-    error: doctorError,
-  } = useSWR(
-    mounted && doctorId
-      ? `/api/doctors/${doctorId}`
-      : null,
+  const { data: doctor, error: doctorError } = useSWR(
+    mounted && doctorId ? `/api/doctors/${doctorId}` : null,
     getJSON
   )
 
-  const {
-    data: lab,
-    error: labError,
-  } = useSWR(
-    mounted && labId
-      ? `/api/labs/${labId}`
-      : null,
+  const { data: lab, error: labError } = useSWR(
+    mounted && labId ? `/api/labs/${labId}` : null,
     getJSON
   )
 
-  const {
-    data: testsData,
-  } = useSWR(
+  const { data: testsData } = useSWR(
     mounted && isLab && testIds.length
       ? `/api/labs/${labId}/tests`
       : null,
@@ -671,20 +328,43 @@ function BookingContent() {
   )
 
   // ==========================================================
-  // SERVICE BASE PRICE
-  // Used only for checking that pricing is ready.
-  // Final charges are calculated on the backend.
+  // FETCH FAMILY MEMBERS FROM THE SAME API AS PROFILE
+  // ==========================================================
+
+  const {
+    data: familyData,
+    error: familyError,
+    isLoading: familyLoading,
+    mutate: refreshFamily,
+  } = useSWR(
+    mounted &&
+    user?.id &&
+    patientType === 'family' &&
+    !booking
+      ? `/api/users/${user.id}/family`
+      : null,
+    getJSON,
+    {
+      revalidateOnFocus: false,
+    }
+  )
+
+  const familyMembers = Array.isArray(familyData)
+    ? familyData
+    : []
+
+  const selectedFamilyMember = familyMembers.find(
+    (member) => member.id === selectedFamilyId
+  )
+
+  // ==========================================================
+  // SERVICE FEE
   // ==========================================================
 
   const baseFee = isLab
     ? selectedTests.reduce((total, test) => {
-        const normal = Number(
-          test.price ?? 0
-        )
-
-        const discount = Number(
-          test.discountedPrice
-        )
+        const normal = Number(test.price ?? 0)
+        const discount = Number(test.discountedPrice)
 
         const effective =
           test.discountedPrice != null &&
@@ -702,10 +382,7 @@ function BookingContent() {
           : doctor?.consultationFee?.offline ?? 0
       )
 
-  // ==========================================================
-  // DATE / TIME
-  // Interpret chosen date & time as IST.
-  // ==========================================================
+  // Appointment times interpreted as India Standard Time.
 
   const selectedTime = isLab
     ? collectionDate && collectionTime
@@ -744,27 +421,16 @@ function BookingContent() {
   // SERVER PRICE PREVIEW
   // ==========================================================
 
-  const appliedCode =
-    validatedCoupon?.valid
-      ? validatedCoupon.code
-      : null
+  const appliedCode = validatedCoupon?.valid
+    ? validatedCoupon.code
+    : null
 
   const quotePayload = useMemo(
     () => ({
       bookingType,
-
-      doctorId: isLab
-        ? null
-        : doctorId,
-
-      labId: isLab
-        ? labId
-        : null,
-
-      testIds: isLab
-        ? testIds
-        : [],
-
+      doctorId: isLab ? null : doctorId,
+      labId: isLab ? labId : null,
+      testIds: isLab ? testIds : [],
       couponCode: appliedCode,
     }),
     [
@@ -794,26 +460,12 @@ function BookingContent() {
     isLoading: quoteLoading,
   } = useSWR(
     previewKey,
-
     ([url, payload]) =>
-      postJSON(
-        url,
-        JSON.parse(payload)
-      ),
-
-    {
-      revalidateOnFocus: false,
-    }
+      postJSON(url, JSON.parse(payload)),
+    { revalidateOnFocus: false }
   )
 
-  // Before booking: quote from backend.
-  // After booking: exact amount stored in MongoDB.
-
   const pricing = booking || quote
-
-  // ==========================================================
-  // TODAY IN IST
-  // ==========================================================
 
   const dateParts = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
@@ -833,7 +485,7 @@ function BookingContent() {
     `${dateParts.year}-${dateParts.month}-${dateParts.day}`
 
   // ==========================================================
-  // SAVE PATIENT INFORMATION
+  // SAVE PATIENT CONTACT DETAILS
   // ==========================================================
 
   async function savePatient() {
@@ -844,12 +496,15 @@ function BookingContent() {
       return
     }
 
-    if (
-      patientType === 'family' &&
-      !patientName.trim()
-    ) {
-      toast.error('Enter the patient name')
-      return
+    if (patientType === 'family') {
+      if (
+        familyLoading ||
+        familyError ||
+        !selectedFamilyMember
+      ) {
+        toast.error('Select a saved family member')
+        return
+      }
     }
 
     const needEmail = !user.email?.trim()
@@ -884,28 +539,17 @@ function BookingContent() {
 
       try {
         await readResponse(
-          await fetch(
-            `/api/users/${user.id}`,
-            {
-              method: 'PUT',
-              credentials: 'include',
-
-              headers: {
-                'Content-Type':
-                  'application/json',
-              },
-
-              body: JSON.stringify({
-                ...(needEmail
-                  ? { email }
-                  : {}),
-
-                ...(needPhone
-                  ? { phone }
-                  : {}),
-              }),
-            }
-          )
+          await fetch(`/api/users/${user.id}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ...(needEmail ? { email } : {}),
+              ...(needPhone ? { phone } : {}),
+            }),
+          })
         )
 
         await refreshUser?.()
@@ -961,18 +605,14 @@ function BookingContent() {
       )
     } catch (error) {
       setValidatedCoupon(null)
-
-      toast.error(
-        error.message || 'Invalid coupon'
-      )
+      toast.error(error.message || 'Invalid coupon')
     } finally {
       setCouponWorking(false)
     }
   }
 
   // ==========================================================
-  // CREATE BOOKING
-  // Booking is created AFTER coupon selection.
+  // CREATE BOOKING AFTER SELECTING PATIENT AND COUPON
   // ==========================================================
 
   async function createBooking() {
@@ -984,17 +624,20 @@ function BookingContent() {
     }
 
     if (!detailsReady) {
-      toast.error(
-        'Complete appointment details first'
-      )
+      toast.error('Complete appointment details first')
       return
     }
 
     if (
-      quoteLoading ||
-      quoteError ||
-      !quote
+      patientType === 'family' &&
+      !selectedFamilyMember
     ) {
+      toast.error('Select a valid saved family member')
+      setStep(2)
+      return
+    }
+
+    if (quoteLoading || quoteError || !quote) {
       toast.error(
         quoteError?.message ||
         'Price is not ready'
@@ -1002,10 +645,7 @@ function BookingContent() {
       return
     }
 
-    if (
-      appliedCode &&
-      !quote.couponApplied
-    ) {
+    if (appliedCode && !quote.couponApplied) {
       toast.error(
         'Coupon was not accepted by the pricing server'
       )
@@ -1016,53 +656,43 @@ function BookingContent() {
     setWorking(true)
 
     try {
-      const saved = await postJSON(
-        '/api/bookings',
-        {
-          type: bookingType,
+      const saved = await postJSON('/api/bookings', {
+        type: bookingType,
 
-          doctorId: isLab
-            ? undefined
-            : doctorId,
+        doctorId: isLab ? undefined : doctorId,
+        labId: isLab ? labId : undefined,
+        testIds: isLab ? testIds : [],
 
-          labId: isLab
-            ? labId
+        startTime,
+
+        collectionType: isLab
+          ? collectionType
+          : undefined,
+
+        collectionAddress:
+          isLab && collectionType === 'home'
+            ? collectionAddr
             : undefined,
 
-          testIds: isLab
-            ? testIds
-            : [],
+        // No manual patient name.
+        // Server verifies member and resolves patient name.
 
-          startTime,
+        patientType:
+          patientType === 'family'
+            ? 'family'
+            : 'self',
 
-          collectionType: isLab
-            ? collectionType
-            : undefined,
+        familyMemberId:
+          patientType === 'family'
+            ? selectedFamilyId
+            : null,
 
-          collectionAddress:
-            isLab &&
-            collectionType === 'home'
-              ? collectionAddr
-              : undefined,
-
-          patientName:
-            patientType === 'family'
-              ? patientName.trim()
-              : user?.name || undefined,
-
-          couponCode:
-            appliedCode || undefined,
-
-          // Do not send client-calculated prices.
-          // The backend calculates all charges.
-        }
-      )
+        couponCode: appliedCode || undefined,
+      })
 
       if (
         !saved?.id ||
-        !Number.isFinite(
-          Number(saved.totalAmount)
-        )
+        !Number.isFinite(Number(saved.totalAmount))
       ) {
         throw new Error(
           'The server did not return the booked price'
@@ -1078,7 +708,7 @@ function BookingContent() {
         ) >= 0.01
       ) {
         toast.error(
-          'Price changed. Please review the amount before paying.'
+          'Price changed. Review the amount before paying.'
         )
       }
 
@@ -1092,41 +722,24 @@ function BookingContent() {
   }
 
   // ==========================================================
-  // CASHFREE PAYMENT
+  // CASHFREE PAYMENT — USE SAVED BOOKING TOTAL
   // ==========================================================
 
   async function initiatePayment() {
-    if (
-      busyRef.current ||
-      !booking?.id
-    ) {
-      return
-    }
+    if (busyRef.current || !booking?.id) return
 
     busyRef.current = true
     setWorking(true)
 
     try {
-      // Cashfree creates its order using
-      // booking.totalAmount from MongoDB.
-
       const order = await postJSON(
         '/api/payments/create-order',
-        {
-          bookingId: booking.id,
-        }
+        { bookingId: booking.id }
       )
 
-      // Prevent a mismatch between booking
-      // and payment gateway amounts.
-
       if (
-        Math.round(
-          Number(order.amount) * 100
-        ) !==
-        Math.round(
-          Number(booking.totalAmount) * 100
-        )
+        Math.round(Number(order.amount) * 100) !==
+        Math.round(Number(booking.totalAmount) * 100)
       ) {
         throw new Error(
           'Booking and payment order totals do not match'
@@ -1147,10 +760,7 @@ function BookingContent() {
       }
 
       if (
-        ![
-          'sandbox',
-          'production',
-        ].includes(
+        !['sandbox', 'production'].includes(
           order.cashfreeEnvironment
         )
       ) {
@@ -1159,21 +769,15 @@ function BookingContent() {
         )
       }
 
-      // Initialize Cashfree.
-
       const cashfree = await load({
         mode: order.cashfreeEnvironment,
       })
 
-      // Open Cashfree checkout popup.
-
-      const outcome =
-        await cashfree.checkout({
-          paymentSessionId:
-            order.paymentSessionId.trim(),
-
-          redirectTarget: '_modal',
-        })
+      const outcome = await cashfree.checkout({
+        paymentSessionId:
+          order.paymentSessionId.trim(),
+        redirectTarget: '_modal',
+      })
 
       if (outcome?.error) {
         throw new Error(
@@ -1182,20 +786,16 @@ function BookingContent() {
         )
       }
 
-      // Verify server-side.
-      // Closing the popup does not prove payment.
+      // Always verify payment on the server.
 
       const response = await fetch(
         '/api/payments/verify',
         {
           method: 'POST',
           credentials: 'include',
-
           headers: {
-            'Content-Type':
-              'application/json',
+            'Content-Type': 'application/json',
           },
-
           body: JSON.stringify({
             orderId,
             bookingId: booking.id,
@@ -1203,10 +803,9 @@ function BookingContent() {
         }
       )
 
-      const verified =
-        await response.json().catch(
-          () => ({})
-        )
+      const verified = await response.json().catch(
+        () => ({})
+      )
 
       if (
         response.status === 202 ||
@@ -1219,7 +818,6 @@ function BookingContent() {
         router.replace(
           `/user/bookings/${booking.id}`
         )
-
       } else if (
         !response.ok ||
         !verified.success
@@ -1232,7 +830,6 @@ function BookingContent() {
         router.replace(
           `/user/bookings/${booking.id}/failed`
         )
-
       } else {
         toast.success('Payment successful')
 
@@ -1245,7 +842,6 @@ function BookingContent() {
         '[MEDLI Payment]',
         error.message
       )
-
       toast.error(
         error.message ||
         'Could not open payment'
@@ -1263,7 +859,6 @@ function BookingContent() {
   return (
     <div className="medli-checkout">
       <style>{css}</style>
-
       <Navbar />
 
       <main>
@@ -1276,9 +871,7 @@ function BookingContent() {
           </p>
         )}
 
-        {/* =================================================
-            STEP 1 — APPOINTMENT
-            ================================================= */}
+        {/* STEP 1 — APPOINTMENT */}
 
         {step === 1 && (
           <Card
@@ -1298,29 +891,19 @@ function BookingContent() {
                 <>
                   <div className="mc-row">
                     <span>Lab</span>
-                    <strong>
-                      {lab?.name || 'Loading…'}
-                    </strong>
+                    <strong>{lab?.name || 'Loading…'}</strong>
                   </div>
 
                   <div className="mc-row">
                     <span>Selected Tests</span>
-                    <strong>
-                      {selectedTests.length}
-                    </strong>
+                    <strong>{selectedTests.length}</strong>
                   </div>
 
                   {selectedTests.map((test) => (
-                    <div
-                      className="mc-row"
-                      key={test.id}
-                    >
+                    <div className="mc-row" key={test.id}>
                       <span>{test.name}</span>
                       <strong>
-                        {rs(
-                          test.discountedPrice ||
-                          test.price
-                        )}
+                        {rs(test.discountedPrice || test.price)}
                       </strong>
                     </div>
                   ))}
@@ -1333,30 +916,20 @@ function BookingContent() {
                           ? 'active'
                           : ''
                       }
-                      onClick={() =>
-                        setCollectionType(
-                          'walk_in'
-                        )
-                      }
+                      onClick={() => setCollectionType('walk_in')}
                     >
                       Walk-in
                     </button>
 
                     <button
                       type="button"
-                      disabled={
-                        !lab?.homeCollection?.enabled
-                      }
+                      disabled={!lab?.homeCollection?.enabled}
                       className={
                         collectionType === 'home'
                           ? 'active'
                           : ''
                       }
-                      onClick={() =>
-                        setCollectionType(
-                          'home'
-                        )
-                      }
+                      onClick={() => setCollectionType('home')}
                     >
                       Home Collection
                     </button>
@@ -1369,9 +942,7 @@ function BookingContent() {
                       min={today}
                       value={collectionDate}
                       onChange={(e) =>
-                        setCollectionDate(
-                          e.target.value
-                        )
+                        setCollectionDate(e.target.value)
                       }
                     />
 
@@ -1380,9 +951,7 @@ function BookingContent() {
                       type="time"
                       value={collectionTime}
                       onChange={(e) =>
-                        setCollectionTime(
-                          e.target.value
-                        )
+                        setCollectionTime(e.target.value)
                       }
                     />
                   </div>
@@ -1393,13 +962,10 @@ function BookingContent() {
                         label="Street Address"
                         value={collectionAddr.line1}
                         onChange={(e) =>
-                          setCollectionAddr(
-                            (value) => ({
-                              ...value,
-                              line1:
-                                e.target.value,
-                            })
-                          )
+                          setCollectionAddr((value) => ({
+                            ...value,
+                            line1: e.target.value,
+                          }))
                         }
                       />
 
@@ -1408,30 +974,22 @@ function BookingContent() {
                           label="City"
                           value={collectionAddr.city}
                           onChange={(e) =>
-                            setCollectionAddr(
-                              (value) => ({
-                                ...value,
-                                city:
-                                  e.target.value,
-                              })
-                            )
+                            setCollectionAddr((value) => ({
+                              ...value,
+                              city: e.target.value,
+                            }))
                           }
                         />
 
                         <Field
                           label="PIN Code"
-                          value={
-                            collectionAddr.pinCode
-                          }
+                          value={collectionAddr.pinCode}
                           maxLength={6}
                           onChange={(e) =>
-                            setCollectionAddr(
-                              (value) => ({
-                                ...value,
-                                pinCode:
-                                  e.target.value,
-                              })
-                            )
+                            setCollectionAddr((value) => ({
+                              ...value,
+                              pinCode: e.target.value,
+                            }))
                           }
                         />
                       </div>
@@ -1451,38 +1009,30 @@ function BookingContent() {
 
                   <div className="mc-row">
                     <span>Visit Type</span>
-                    <strong>
-                      {typeLabel}
-                    </strong>
+                    <strong>{typeLabel}</strong>
                   </div>
 
                   <div className="mc-row">
                     <span>Date</span>
-                    <strong>
-                      {date || '—'}
-                    </strong>
+                    <strong>{date || '—'}</strong>
                   </div>
 
                   <div className="mc-row">
                     <span>Time</span>
-                    <strong>
-                      {slot || '—'}
-                    </strong>
+                    <strong>{slot || '—'}</strong>
                   </div>
 
                   <div className="mc-row">
                     <span>Base Fee</span>
-                    <strong>
-                      {rs(baseFee)}
-                    </strong>
+                    <strong>{rs(baseFee)}</strong>
                   </div>
                 </>
               )}
 
               {!detailsReady && (
                 <p className="mc-note">
-                  Select the required date, time,
-                  and appointment details to continue.
+                  Select the required date, time, and
+                  appointment details to continue.
                 </p>
               )}
 
@@ -1497,9 +1047,7 @@ function BookingContent() {
           </Card>
         )}
 
-        {/* =================================================
-            STEP 2 — PATIENT
-            ================================================= */}
+        {/* STEP 2 — PATIENT DETAILS */}
 
         {step === 2 && (
           <Card
@@ -1515,9 +1063,10 @@ function BookingContent() {
                       ? 'active'
                       : ''
                   }
-                  onClick={() =>
+                  onClick={() => {
                     setPatientType('myself')
-                  }
+                    setSelectedFamilyId('')
+                  }}
                 >
                   <UserRound size={14} />
                   {' '}Self
@@ -1530,9 +1079,7 @@ function BookingContent() {
                       ? 'active'
                       : ''
                   }
-                  onClick={() =>
-                    setPatientType('family')
-                  }
+                  onClick={() => setPatientType('family')}
                 >
                   <Users size={14} />
                   {' '}Family
@@ -1540,22 +1087,87 @@ function BookingContent() {
               </div>
 
               {patientType === 'family' ? (
-                <Field
-                  label="Patient Full Name"
-                  placeholder="Name"
-                  value={patientName}
-                  onChange={(e) =>
-                    setPatientName(
-                      e.target.value
-                    )
-                  }
-                />
+                <div className="mc-stack">
+                  <label className="mc-field">
+                    <span>Select Family Member *</span>
+
+                    <select
+                      className="mc-family-select"
+                      value={selectedFamilyId}
+                      onChange={(e) =>
+                        setSelectedFamilyId(e.target.value)
+                      }
+                      disabled={familyLoading || !!familyError}
+                    >
+                      <option value="">
+                        Choose a family member
+                      </option>
+
+                      {familyMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name} — {member.relation}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {familyLoading && (
+                    <p className="mc-note">
+                      Loading saved family members…
+                    </p>
+                  )}
+
+                  {familyError && (
+                    <div className="mc-error" role="alert">
+                      Could not load family members:
+                      {' '}{familyError.message}
+                    </div>
+                  )}
+
+                  {!familyLoading &&
+                    !familyError &&
+                    familyMembers.length === 0 && (
+                      <div className="mc-error">
+                        No family members saved yet.
+                        Add one under Profile → Family.
+                      </div>
+                    )}
+
+                  {selectedFamilyMember && (
+                    <div className="mc-row">
+                      <span>Selected Patient</span>
+                      <strong>
+                        {selectedFamilyMember.name}
+                        {' ('}
+                        {selectedFamilyMember.relation}
+                        {')'}
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="mc-family-actions">
+                    <a
+                      href="/user/profile"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Manage Family Members
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => refreshFamily()}
+                      disabled={familyLoading}
+                    >
+                      Refresh List
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <div className="mc-row">
                   <span>Patient</span>
                   <strong>
-                    {user?.name ||
-                      'Signed-in patient'}
+                    {user?.name || 'Signed-in patient'}
                   </strong>
                 </div>
               )}
@@ -1566,9 +1178,7 @@ function BookingContent() {
                   type="email"
                   value={contactEmail}
                   onChange={(e) =>
-                    setContactEmail(
-                      e.target.value
-                    )
+                    setContactEmail(e.target.value)
                   }
                   placeholder="name@example.com"
                 />
@@ -1600,10 +1210,7 @@ function BookingContent() {
                   Back
                 </Btn>
 
-                <Btn
-                  disabled={working}
-                  onClick={savePatient}
-                >
+                <Btn disabled={working} onClick={savePatient}>
                   Continue
                   <ChevronRight size={16} />
                 </Btn>
@@ -1612,9 +1219,7 @@ function BookingContent() {
           </Card>
         )}
 
-        {/* =================================================
-            STEP 3 — COUPON & PRICING
-            ================================================= */}
+        {/* STEP 3 — COUPON & PRICING */}
 
         {step === 3 && (
           <Card
@@ -1622,8 +1227,6 @@ function BookingContent() {
             sub="Apply a coupon to save on your booking"
           >
             <div className="mc-stack">
-              {/* Coupon input */}
-
               <div
                 style={{
                   display: 'flex',
@@ -1637,10 +1240,7 @@ function BookingContent() {
                   value={couponCode}
                   disabled={!!booking}
                   onChange={(e) => {
-                    setCouponCode(
-                      e.target.value.toUpperCase()
-                    )
-
+                    setCouponCode(e.target.value.toUpperCase())
                     setValidatedCoupon(null)
                   }}
                 />
@@ -1654,32 +1254,28 @@ function BookingContent() {
                   }
                   onClick={applyCoupon}
                 >
-                  {couponWorking
-                    ? 'Checking…'
-                    : 'Apply'}
+                  {couponWorking ? 'Checking…' : 'Apply'}
                 </Btn>
               </div>
 
               {validatedCoupon && !booking && (
                 <div className="mc-success">
-                  Coupon validated. Final savings
-                  are calculated on the server.
+                  Coupon validated. Final savings are
+                  calculated on the server.
                 </div>
               )}
 
               {couponCode && !booking && (
-                <div>
-                  <button
-                    type="button"
-                    className="mc-btn secondary"
-                    onClick={() => {
-                      setCouponCode('')
-                      setValidatedCoupon(null)
-                    }}
-                  >
-                    Remove Coupon
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="mc-btn secondary"
+                  onClick={() => {
+                    setCouponCode('')
+                    setValidatedCoupon(null)
+                  }}
+                >
+                  Remove Coupon
+                </button>
               )}
 
               {quoteLoading && !booking && (
@@ -1694,12 +1290,7 @@ function BookingContent() {
                 </p>
               )}
 
-              {/* Same compact pricing layout.
-                  No platform fee/GST breakdown. */}
-
-              {pricing && (
-                <Summary pricing={pricing} />
-              )}
+              {pricing && <Summary pricing={pricing} />}
 
               {appliedCode &&
                 quote &&
@@ -1742,7 +1333,6 @@ function BookingContent() {
                   {working
                     ? 'Creating…'
                     : 'Continue to Payment'}
-
                   <ChevronRight size={16} />
                 </Btn>
               </div>
@@ -1750,9 +1340,7 @@ function BookingContent() {
           </Card>
         )}
 
-        {/* =================================================
-            STEP 4 — PAYMENT
-            ================================================= */}
+        {/* STEP 4 — PAYMENT */}
 
         {step === 4 && (
           <Card
@@ -1777,22 +1365,21 @@ function BookingContent() {
                   : `${date} · ${slot}`}
               </div>
 
-              {/* Saved booking pricing.
-                  The total is NOT calculated in the browser. */}
+              {booking?.patientName && (
+                <div className="mc-row">
+                  <span>Patient</span>
+                  <strong>{booking.patientName}</strong>
+                </div>
+              )}
 
               {booking ? (
-                <Summary
-                  pricing={booking}
-                  payment
-                />
+                <Summary pricing={booking} payment />
               ) : (
                 <div className="mc-error">
                   No saved booking found.
                   Return to Pricing.
                 </div>
               )}
-
-              {/* Payment security */}
 
               <div
                 style={{
@@ -1804,28 +1391,18 @@ function BookingContent() {
                   background: '#f8fafc',
                 }}
               >
-                <ShieldCheck
-                  size={25}
-                  color="#6366f1"
-                />
+                <ShieldCheck size={25} color="#6366f1" />
 
                 <div>
-                  <strong
-                    style={{
-                      fontSize: 13,
-                    }}
-                  >
+                  <strong style={{ fontSize: 13 }}>
                     Secured by Cashfree Payments
                   </strong>
 
                   <p
                     className="mc-note"
-                    style={{
-                      margin: '4px 0 0',
-                    }}
+                    style={{ margin: '4px 0 0' }}
                   >
-                    Cards · Net Banking · UPI ·
-                    Wallets · EMI
+                    Cards · Net Banking · UPI · Wallets · EMI
                   </p>
                 </div>
               </div>
@@ -1841,17 +1418,12 @@ function BookingContent() {
                 </Btn>
 
                 <Btn
-                  disabled={
-                    !booking ||
-                    working
-                  }
+                  disabled={!booking || working}
                   onClick={initiatePayment}
                 >
                   {working
                     ? 'Opening Checkout…'
-                    : `PAY ${rs(
-                        booking?.totalAmount
-                      )}`}
+                    : `PAY ${rs(booking?.totalAmount)}`}
                 </Btn>
               </div>
 
@@ -1863,13 +1435,9 @@ function BookingContent() {
                 }}
               >
                 By proceeding, you agree to our{' '}
-                <a href="/terms">
-                  Terms
-                </a>
+                <a href="/terms">Terms</a>
                 {' '}and{' '}
-                <a href="/privacy">
-                  Privacy Policy
-                </a>.
+                <a href="/privacy">Privacy Policy</a>.
               </p>
             </div>
           </Card>
@@ -1878,10 +1446,6 @@ function BookingContent() {
     </div>
   )
 }
-
-// ============================================================
-// NEXT.JS PAGE EXPORT
-// ============================================================
 
 export default function NewBookingPage() {
   return (
