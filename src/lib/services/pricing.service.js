@@ -1,5 +1,10 @@
+
 import { prisma } from '@/lib/prisma'
 import { validateCoupon } from './coupon.service'
+
+// ============================================================
+// MONEY HELPER
+// ============================================================
 
 function round2(value) {
   const number = Number(value || 0)
@@ -8,8 +13,16 @@ function round2(value) {
     return 0
   }
 
-  return Math.round((number + Number.EPSILON) * 100) / 100
+  return (
+    Math.round(
+      (number + Number.EPSILON) * 100
+    ) / 100
+  )
 }
+
+// ============================================================
+// CALCULATE COUPON DISCOUNT
+// ============================================================
 
 export function calculateDiscount(coupon, amount) {
   const safeAmount = round2(amount)
@@ -18,7 +31,8 @@ export function calculateDiscount(coupon, amount) {
     return 0
   }
 
-  const discountValue = Number(coupon.discountValue || 0)
+  const discountValue =
+    Number(coupon.discountValue || 0)
 
   let discount = 0
 
@@ -51,6 +65,10 @@ export function calculateDiscount(coupon, amount) {
   return round2(discount)
 }
 
+// ============================================================
+// CALCULATE BOOKING PRICE
+// ============================================================
+
 export async function calculateBookingPrice({
   bookingType,
   entityId,
@@ -58,16 +76,30 @@ export async function calculateBookingPrice({
   couponCode,
   userId,
 }) {
-  // --------------------------------------------------
-  // VALIDATION
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 1. VALIDATION
+  // ----------------------------------------------------------
 
   if (!bookingType) {
-    throw new Error('Booking type is required for pricing')
+    throw new Error(
+      'Booking type is required for pricing'
+    )
   }
 
   if (!entityId) {
-    throw new Error('Entity ID is required for pricing')
+    throw new Error(
+      'Entity ID is required for pricing'
+    )
+  }
+
+  const allowedTypes = [
+    'hospital',
+    'online',
+    'lab',
+  ]
+
+  if (!allowedTypes.includes(bookingType)) {
+    throw new Error('Invalid booking type')
   }
 
   const baseFee = round2(baseAmount)
@@ -78,15 +110,14 @@ export async function calculateBookingPrice({
     )
   }
 
-  // --------------------------------------------------
-  // PLATFORM FEE
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 2. GET PLATFORM FEE PERCENTAGE
+  // ----------------------------------------------------------
 
   let platformFeePercent =
-    bookingType === 'lab'
-      ? 8
-      : 10
+    bookingType === 'lab' ? 8 : 10
 
+  // Hospital and online consultation bookings
   if (
     bookingType === 'hospital' ||
     bookingType === 'online'
@@ -98,6 +129,7 @@ export async function calculateBookingPrice({
         },
         select: {
           id: true,
+          name: true,
           platformFeePercent: true,
           isActive: true,
         },
@@ -109,10 +141,23 @@ export async function calculateBookingPrice({
       )
     }
 
-    platformFeePercent =
-      Number(
-        hospital.platformFeePercent ?? 10
-      )
+    // Use the hospital-specific configured percentage.
+    // Only fall back to 10 if the value is null/undefined.
+    // A configured 0% rate remains valid.
+
+    platformFeePercent = Number(
+      hospital.platformFeePercent ?? 10
+    )
+
+    console.log(
+      '[Pricing] Hospital platform fee configuration:',
+      {
+        hospitalId: hospital.id,
+        hospitalName: hospital.name,
+        platformFeePercent,
+      }
+    )
+
   } else if (bookingType === 'lab') {
     const lab =
       await prisma.lab.findUnique({
@@ -121,6 +166,7 @@ export async function calculateBookingPrice({
         },
         select: {
           id: true,
+          name: true,
           platformFeePercent: true,
           isActive: true,
         },
@@ -132,22 +178,23 @@ export async function calculateBookingPrice({
       )
     }
 
-    platformFeePercent =
-      Number(
-        lab.platformFeePercent ?? 8
-      )
-  } else {
-    throw new Error('Invalid booking type')
+    platformFeePercent = Number(
+      lab.platformFeePercent ?? 8
+    )
+
+    console.log(
+      '[Pricing] Lab platform fee configuration:',
+      {
+        labId: lab.id,
+        labName: lab.name,
+        platformFeePercent,
+      }
+    )
   }
 
-  // Hospital and online consultation bookings charge the consultation fee
-  // only. Lab bookings continue to use the lab's configured platform fee.
-  if (
-    bookingType === 'hospital' ||
-    bookingType === 'online'
-  ) {
-    platformFeePercent = 0
-  }
+  // IMPORTANT FIX:
+  // Do not override hospital/online platformFeePercent to 0.
+  // All booking types use their configured entity percentage.
 
   if (
     !Number.isFinite(platformFeePercent) ||
@@ -158,9 +205,9 @@ export async function calculateBookingPrice({
     )
   }
 
-  // --------------------------------------------------
-  // COUPON
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 3. VALIDATE COUPON
+  // ----------------------------------------------------------
 
   let appliedCoupon = null
   let couponType = null
@@ -172,40 +219,34 @@ export async function calculateBookingPrice({
     String(couponCode).trim()
   ) {
     try {
-      appliedCoupon =
-        await validateCoupon({
-          code: String(
-            couponCode
-          ).trim(),
-
-          bookingType,
-          amount: baseFee,
-          entityId,
-          userId,
-        })
+      appliedCoupon = await validateCoupon({
+        code: String(couponCode).trim(),
+        bookingType,
+        amount: baseFee,
+        entityId,
+        userId,
+      })
 
       couponType =
         appliedCoupon?.couponType || null
+
     } catch (couponError) {
       console.warn(
         '[Pricing] Coupon rejected:',
         couponError.message
       )
 
-      /*
-       * Current MEDLI behaviour:
-       * Invalid coupon does NOT block booking.
-       * Booking continues without coupon.
-       */
+      // Preserve existing behavior:
+      // Invalid coupons do not block booking creation.
+
       appliedCoupon = null
       couponType = null
     }
   }
 
-  // --------------------------------------------------
-  // ENTITY DISCOUNT
-  // Hospital/Lab coupon reduces service fee.
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 4. APPLY HOSPITAL / LAB DISCOUNT
+  // ----------------------------------------------------------
 
   let discountedFee = baseFee
 
@@ -222,57 +263,55 @@ export async function calculateBookingPrice({
         baseFee
       )
 
-    discountedFee =
-      round2(
-        baseFee - couponDiscount
-      )
+    discountedFee = round2(
+      baseFee - couponDiscount
+    )
   }
 
   if (discountedFee < 0) {
     discountedFee = 0
   }
 
-  // --------------------------------------------------
-  // PLATFORM FEE
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 5. CALCULATE PLATFORM FEE
+  // ----------------------------------------------------------
 
-  const platformFee =
-    round2(
-      (
-        discountedFee *
-        platformFeePercent
-      ) / 100
-    )
+  // Platform fee is calculated on the service amount
+  // after any hospital/lab coupon discount.
 
-  // --------------------------------------------------
-  // GST
-  //
-  // MEDLI current business rule:
-  // 18% GST only on platform fee.
-  // --------------------------------------------------
+  const platformFee = round2(
+    (
+      discountedFee *
+      platformFeePercent
+    ) / 100
+  )
+
+  // ----------------------------------------------------------
+  // 6. CALCULATE GST
+  // ----------------------------------------------------------
+
+  // Preserve MEDLI's existing pricing rule:
+  // GST is 18% of the platform fee only.
 
   const gstPercent = 18
 
-  const gst =
-    round2(
-      platformFee *
-      (gstPercent / 100)
-    )
+  const gst = round2(
+    platformFee * (gstPercent / 100)
+  )
 
-  // --------------------------------------------------
-  // SUBTOTAL
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 7. SUBTOTAL
+  // ----------------------------------------------------------
 
-  const subtotal =
-    round2(
-      discountedFee +
-      platformFee +
-      gst
-    )
+  const subtotal = round2(
+    discountedFee +
+    platformFee +
+    gst
+  )
 
-  // --------------------------------------------------
-  // PLATFORM COUPON
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 8. APPLY PLATFORM COUPON
+  // ----------------------------------------------------------
 
   let totalAmount = subtotal
 
@@ -286,47 +325,59 @@ export async function calculateBookingPrice({
         subtotal
       )
 
-    totalAmount =
-      round2(
-        subtotal -
-        adminCouponDiscount
-      )
+    totalAmount = round2(
+      subtotal - adminCouponDiscount
+    )
   }
 
   if (totalAmount < 0) {
     totalAmount = 0
   }
 
-  // --------------------------------------------------
-  // CASHFREE SAFETY
-  // --------------------------------------------------
+  // ----------------------------------------------------------
+  // 9. PAYMENT VALIDATION
+  // ----------------------------------------------------------
 
-  if (totalAmount <= 0) {
+  if (
+    !Number.isFinite(totalAmount) ||
+    totalAmount <= 0
+  ) {
     throw new Error(
       'Final payable amount must be greater than zero'
     )
   }
 
-  console.log('[Pricing]', {
-    bookingType,
-    entityId,
-    baseFee,
-    couponCode:
-      appliedCoupon?.code || null,
-    couponType,
-    couponDiscount,
-    discountedFee,
-    platformFeePercent,
-    platformFee,
-    gstPercent,
-    gst,
-    subtotal,
-    adminCouponDiscount,
-    totalAmount,
-  })
+  // ----------------------------------------------------------
+  // 10. LOG FINAL PRICING
+  // ----------------------------------------------------------
+
+  console.log(
+    '[Pricing] Final booking calculation:',
+    {
+      bookingType,
+      entityId,
+      baseFee,
+      couponCode:
+        appliedCoupon?.code || null,
+      couponType,
+      couponDiscount,
+      discountedFee,
+      platformFeePercent,
+      platformFee,
+      gstPercent,
+      gst,
+      subtotal,
+      adminCouponDiscount,
+      totalAmount,
+    }
+  )
+
+  // ----------------------------------------------------------
+  // 11. RETURN PRICING
+  // ----------------------------------------------------------
 
   return {
-    baseFee,
+    baseFee: round2(baseFee),
 
     couponCode:
       appliedCoupon?.code || null,

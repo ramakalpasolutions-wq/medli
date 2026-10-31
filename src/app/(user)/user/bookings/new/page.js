@@ -1,2461 +1,1903 @@
+
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
-import Navbar from '@/components/public/Navbar'
-import { useToast } from '@/context/ToastContext'
-import { useAuth } from '@/hooks/useAuth'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import { load } from '@cashfreepayments/cashfree-js'
-
 import {
   Check,
-  FlaskConical,
-  MapPin,
-  Home,
-  User,
-  Users,
-  CalendarDays,
-  Clock3,
-  Tag,
-  ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  Stethoscope,
-  Video,
-  Building2,
-  CircleAlert,
+  ShieldCheck,
+  UserRound,
+  Users,
 } from 'lucide-react'
 
-
-
-function useMounted() {
-
-  const [m, setM] = useState(false)
-
-  useEffect(() => { setM(true) }, [])
-
-  return m
-
-}
-
-
-
-const fetcher = (url) =>
-
-  fetch(url, { credentials: 'include' }).then((r) => r.json()).then((j) => j.data)
-
-
-
-const fmtRs = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
-
-
-
-const KF = `
-
-  @keyframes nb-spin     { to{transform:rotate(360deg)} }
-
-  @keyframes nb-in       { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-
-  @keyframes nb-shimmer  { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-
-  @keyframes nb-slide-in { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
-
-  @keyframes nb-coupon-ok{ from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
-
-`
-
-const SHIMMER = {
-
-  backgroundImage: 'linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)',
-
-  backgroundSize: '200% 100%',
-
-  animation: 'nb-shimmer 1.5s linear infinite',
-
-}
-
-
-
-function StepBar({ step }) {
-
-  const steps = ['Details', 'Patient', 'Pricing', 'Payment']
-
-  return (
-
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
-
-      {steps.map((label, i) => {
-
-        const idx = i + 1
-
-        const done = idx < step
-
-        const active = idx === step
-
-        const isLast = i === steps.length - 1
-
-
-
-        return (
-
-          <div key={label} style={{ display: 'flex', alignItems: 'center', flex: isLast ? 0 : 1 }}>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-
-              <div style={{
-
-                width: 32, height: 32, borderRadius: '50%',
-
-                background: done ? '#10b981' : active ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#f1f5f9',
-
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-
-                fontSize: 14, fontWeight: 700,
-
-                color: done || active ? '#fff' : '#94a3b8',
-
-                boxShadow: active ? '0 3px 10px rgba(99,102,241,0.35)' : 'none',
-
-                transition: 'all .2s ease',
-
-              }}>
-
-                {done ? <Check size={16} strokeWidth={3} /> : idx}
-
-              </div>
-
-              <span style={{ fontSize: 10, fontWeight: 500, color: active ? '#6366f1' : done ? '#10b981' : '#94a3b8', whiteSpace: 'nowrap' }}>
-
-                {label}
-
-              </span>
-
-            </div>
-
-            {!isLast && (
-
-              <div style={{ flex: 1, height: 2, background: done ? '#10b981' : '#f1f5f9', margin: '0 4px', marginBottom: 18, transition: 'background .2s ease' }} />
-
-            )}
-
-          </div>
-
-        )
-
-      })}
-
-    </div>
-
-  )
-
-}
-
-
-
-function BookCard({ children, style: sx }) {
-
-  return (
-
-    <div style={{
-
-      background: '#fff', borderRadius: 20,
-
-      border: '1px solid #f1f5f9',
-
-      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-
-      overflow: 'hidden',
-
-      animation: 'nb-slide-in .2s ease',
-
-      ...sx,
-
-    }}>
-
-      {children}
-
-    </div>
-
-  )
-
-}
-
-
-
-function PBtn({ children, loading: isLoading, disabled, onClick, variant = 'primary', type = 'button', style: sx }) {
-
-  const [h, setH] = useState(false)
-
-  const isDisabled = disabled || isLoading
-
-
-
-  const V = {
-
-    primary: {
-
-      base: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-
-      hov: 'linear-gradient(135deg,#7c3aed,#6d28d9)',
-
-      color: '#fff',
-
-      border: 'none',
-
-      shadow: '0 4px 14px rgba(99,102,241,0.3)',
-
-      shadowHov: '0 6px 20px rgba(99,102,241,0.45)'
-
-    },
-
-    secondary: {
-
-      base: '#fff',
-
-      hov: '#f8fafc',
-
-      color: '#475569',
-
-      border: '1.5px solid #e2e8f0',
-
-      shadow: '0 1px 3px rgba(0,0,0,0.06)',
-
-      shadowHov: 'none'
-
-    },
-
-    outline: {
-
-      base: 'transparent',
-
-      hov: 'rgba(99,102,241,0.06)',
-
-      color: '#6366f1',
-
-      border: '1.5px solid rgba(99,102,241,0.3)',
-
-      shadow: 'none',
-
-      shadowHov: 'none'
-
-    },
-
+import Navbar from '@/components/public/Navbar'
+import { useAuth } from '@/hooks/useAuth'
+import { useToast } from '@/context/ToastContext'
+
+// ============================================================
+// CURRENCY
+// ============================================================
+
+const rs = (value) =>
+  `₹${Number(value ?? 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+
+// ============================================================
+// API HELPERS
+// ============================================================
+
+async function readResponse(response) {
+  const json = await response.json().catch(() => ({}))
+
+  if (!response.ok || json.success === false) {
+    throw new Error(
+      json.error ||
+      json.message ||
+      `Request failed (${response.status})`
+    )
   }
 
-
-
-  const s = V[variant] || V.primary
-
-
-
-  return (
-
-    <button
-
-      type={type}
-
-      onClick={onClick}
-
-      disabled={isDisabled}
-
-      onMouseEnter={() => !isDisabled && setH(true)}
-
-      onMouseLeave={() => setH(false)}
-
-      style={{
-
-        padding: '12px 18px',
-
-        borderRadius: 12,
-
-        background: isDisabled ? '#e2e8f0' : h ? s.hov : s.base,
-
-        color: isDisabled ? '#94a3b8' : s.color,
-
-        border: s.border || 'none',
-
-        fontSize: 14,
-
-        fontWeight: 600,
-
-        cursor: isDisabled ? 'not-allowed' : 'pointer',
-
-        opacity: isDisabled ? 0.65 : 1,
-
-        boxShadow: isDisabled ? 'none' : h ? s.shadowHov : s.shadow,
-
-        transition: 'all .18s ease',
-
-        display: 'flex',
-
-        alignItems: 'center',
-
-        justifyContent: 'center',
-
-        gap: 8,
-
-        ...sx,
-
-      }}
-
-    >
-
-      {isLoading && (
-
-        <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'nb-spin .7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
-
-      )}
-
-      {children}
-
-    </button>
-
-  )
-
+  return json.data ?? json
 }
 
+const getJSON = (url) =>
+  fetch(url, {
+    credentials: 'include',
+  }).then(readResponse)
 
+const postJSON = (url, data) =>
+  fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  }).then(readResponse)
 
-function NInput({ label, icon, ...props }) {
+// ============================================================
+// STYLES
+// ============================================================
 
-  const [focused, setFocused] = useState(false)
-
-
-
-  return (
-
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-
-      {label && <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{label}</label>}
-
-      <div style={{ position: 'relative' }}>
-
-        {icon && (
-
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: focused ? '#6366f1' : '#94a3b8', display: 'flex', alignItems: 'center' }}>
-
-            {icon}
-
-          </span>
-
-        )}
-
-        <input
-
-          {...props}
-
-          onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
-
-          onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
-
-          style={{
-
-            width: '100%',
-
-            padding: icon ? '11px 14px 11px 40px' : '11px 14px',
-
-            fontSize: 13,
-
-            fontFamily: 'inherit',
-
-            borderRadius: 12,
-
-            border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
-
-            background: '#fff',
-
-            color: '#0f172a',
-
-            outline: 'none',
-
-            boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.12)' : '0 1px 3px rgba(0,0,0,0.06)',
-
-            transition: 'all .15s ease',
-
-            boxSizing: 'border-box',
-
-          }}
-
-        />
-
-      </div>
-
-    </div>
-
-  )
-
+const css = `
+.medli-checkout {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
-
-
-function DateTimeInput({ label, type, min, value, onChange }) {
-
-  const [focused, setFocused] = useState(false)
-
-
-
-  return (
-
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-
-      {label && <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{label}</label>}
-
-      <input
-
-        type={type}
-
-        min={min}
-
-        value={value}
-
-        onChange={onChange}
-
-        onFocus={() => setFocused(true)}
-
-        onBlur={() => setFocused(false)}
-
-        style={{
-
-          width: '100%',
-
-          padding: '11px 14px',
-
-          fontSize: 13,
-
-          fontFamily: 'inherit',
-
-          borderRadius: 12,
-
-          border: `1.5px solid ${focused ? '#6366f1' : '#e2e8f0'}`,
-
-          background: '#fff',
-
-          color: '#0f172a',
-
-          outline: 'none',
-
-          boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.12)' : '0 1px 3px rgba(0,0,0,0.06)',
-
-          transition: 'all .15s ease',
-
-          boxSizing: 'border-box',
-
-        }}
-
-      />
-
-    </div>
-
-  )
-
+.medli-checkout * {
+  box-sizing: border-box;
 }
 
-
-
-function PriceRow({ label, value, green, bold }) {
-
-  return (
-
-    <div style={{
-
-      display: 'flex',
-
-      justifyContent: 'space-between',
-
-      alignItems: 'center',
-
-      padding: bold ? '10px 0 0' : '6px 0',
-
-      borderTop: bold ? '1px solid #e2e8f0' : 'none',
-
-      marginTop: bold ? 4 : 0,
-
-    }}>
-
-      <span style={{ fontSize: 13, fontWeight: bold ? 600 : 400, color: bold ? '#1e293b' : '#64748b' }}>{label}</span>
-
-      <span style={{ fontSize: 13, fontWeight: bold ? 700 : 600, color: green ? '#10b981' : bold ? '#6366f1' : '#1e293b' }}>{value}</span>
-
-    </div>
-
-  )
-
+.medli-checkout main {
+  width: min(560px, calc(100% - 28px));
+  margin: auto;
+  padding: 90px 0 65px;
 }
 
-function PriceInfoRow({ label, value, infoLines = [], bold }) {
+.mc-steps {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 25px;
+}
 
-  const [showTip, setShowTip] = useState(false)
+.mc-step {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
 
+.mc-step:not(:last-child):after {
+  content: "";
+  position: absolute;
+  height: 2px;
+  left: calc(50% + 21px);
+  right: calc(-50% + 21px);
+  top: 16px;
+  background: #e2e8f0;
+}
 
+.mc-step.done:not(:last-child):after {
+  background: #10b981;
+}
 
+.mc-circle {
+  height: 34px;
+  width: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef2f7;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 800;
+  position: relative;
+  z-index: 1;
+}
+
+.mc-step.done .mc-circle {
+  background: #10b981;
+  color: #fff;
+}
+
+.mc-step.active .mc-circle {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  box-shadow: 0 3px 12px #6366f144;
+}
+
+.mc-step small {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.mc-step.done small {
+  color: #10b981;
+}
+
+.mc-step.active small {
+  color: #6366f1;
+}
+
+.mc-card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 3px 12px #0f172a0a;
+  padding: 24px;
+}
+
+.mc-card h2 {
+  font-size: 19px;
+  font-weight: 800;
+  margin: 0 0 5px;
+}
+
+.mc-sub {
+  color: #94a3b8;
+  font-size: 13px;
+  margin: 0 0 21px;
+}
+
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mc-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.mc-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mc-field span {
+  font-size: 12px;
+  font-weight: 650;
+  color: #475569;
+}
+
+.mc-field input {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 11px 12px;
+  width: 100%;
+  min-width: 0;
+  font-size: 13px;
+  color: #1e293b;
+  outline: none;
+  background: #fff;
+}
+
+.mc-field input:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px #6366f115;
+}
+
+.mc-btn {
+  min-height: 46px;
+  padding: 11px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.mc-btn.primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 4px 14px #6366f13b;
+  color: #fff;
+}
+
+.mc-btn.secondary {
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+}
+
+.mc-btn:disabled {
+  opacity: .52;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.mc-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.mc-actions > * {
+  flex: 1;
+}
+
+.mc-options {
+  display: flex;
+  gap: 8px;
+}
+
+.mc-options button {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 650;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.mc-options button.active {
+  border-color: #a5b4fc;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+/* Combined pricing display */
+
+.mc-price {
+  background: #f8fafc;
+  border-radius: 15px;
+  padding: 16px;
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 6px;
+}
+
+.mc-price.payment {
+  background: linear-gradient(135deg, #f3f2ff, #fafaff);
+  border: 1px solid #dcdcff;
+  padding: 18px;
+}
+
+.mc-price-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 13px;
+  color: #64748b;
+  align-items: center;
+}
+
+.mc-price-line strong {
+  font-weight: 650;
+  color: #334155;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-price-line.discount strong {
+  color: #059669;
+}
+
+.mc-price-line.total {
+  padding-top: 13px;
+  margin-top: 5px;
+  border-top: 1px solid #e2e8f0;
+  color: #4f46e5;
+  font-weight: 800;
+}
+
+.mc-price-line.total strong {
+  font-size: 22px;
+  font-weight: 850;
+  color: #4f46e5;
+}
+
+.mc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.mc-row span:first-child {
+  color: #64748b;
+}
+
+.mc-row strong {
+  text-align: right;
+  overflow-wrap: anywhere;
+  color: #334155;
+}
+
+.mc-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.mc-error {
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.mc-success {
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #047857;
+  font-size: 12px;
+}
+
+@media (max-width: 450px) {
+  .medli-checkout main {
+    padding-top: 82px;
+  }
+
+  .mc-card {
+    padding: 18px;
+  }
+
+  .mc-actions {
+    flex-wrap: wrap;
+  }
+
+  .mc-actions > * {
+    flex: 1 1 130px;
+  }
+
+  .mc-sub {
+    margin-bottom: 16px;
+  }
+}
+`
+
+// ============================================================
+// STEPS
+// ============================================================
+
+function Steps({ step }) {
   return (
-
-    <div
-
-      style={{
-
-        display: 'flex',
-
-        justifyContent: 'space-between',
-
-        alignItems: 'center',
-
-        padding: bold ? '10px 0 0' : '6px 0',
-
-        borderTop: bold ? '1px solid #e2e8f0' : 'none',
-
-        marginTop: bold ? 4 : 0,
-
-        position: 'relative',
-
-      }}
-
-    >
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
-
-        <span
-
-          style={{
-
-            fontSize: 13,
-
-            fontWeight: bold ? 600 : 400,
-
-            color: bold ? '#1e293b' : '#64748b',
-
-          }}
-
-        >
-
-          {label}
-
-        </span>
-
-
-
-        {infoLines.length > 0 && (
-
-          <span
-
-            onMouseEnter={() => setShowTip(true)}
-
-            onMouseLeave={() => setShowTip(false)}
-
-            style={{
-
-              width: 18,
-
-              height: 18,
-
-              borderRadius: '50%',
-
-              background: 'rgba(99,102,241,0.08)',
-
-              color: '#6366f1',
-
-              display: 'inline-flex',
-
-              alignItems: 'center',
-
-              justifyContent: 'center',
-
-              cursor: 'help',
-
-              position: 'relative',
-
-              flexShrink: 0,
-
-            }}
-
-            aria-label="Charge breakdown"
-
-            title={infoLines.join(' | ')}
-
-          >
-
-            <CircleAlert size={13} strokeWidth={2.2} />
-
-            {showTip && (
-
-              <div
-
-                style={{
-
-                  position: 'absolute',
-
-                  left: 0,
-
-                  top: 'calc(100% + 8px)',
-
-                  minWidth: 190,
-
-                  background: '#0f172a',
-
-                  color: '#fff',
-
-                  borderRadius: 10,
-
-                  padding: '10px 12px',
-
-                  boxShadow: '0 10px 24px rgba(0,0,0,0.18)',
-
-                  zIndex: 20,
-
-                }}
-
-              >
-
-                {infoLines.map((line, i) => (
-
-                  <div
-
-                    key={i}
-
-                    style={{
-
-                      fontSize: 11,
-
-                      lineHeight: 1.5,
-
-                      color: 'rgba(255,255,255,0.9)',
-
-                      whiteSpace: 'nowrap',
-
-                    }}
-
-                  >
-
-                    {line}
-
-                  </div>
-
-                ))}
-
+    <div className="mc-steps">
+      {['Details', 'Patient', 'Pricing', 'Payment'].map(
+        (label, i) => {
+          const n = i + 1
+
+          return (
+            <div
+              key={label}
+              className={`mc-step ${
+                n < step
+                  ? 'done'
+                  : n === step
+                    ? 'active'
+                    : ''
+              }`}
+            >
+              <div className="mc-circle">
+                {n < step ? <Check size={16} /> : n}
               </div>
 
-            )}
+              <small>{label}</small>
+            </div>
+          )
+        }
+      )}
+    </div>
+  )
+}
 
-          </span>
+// ============================================================
+// REUSABLE COMPONENTS
+// ============================================================
 
-        )}
+function Card({ title, sub, children }) {
+  return (
+    <section className="mc-card">
+      <h2>{title}</h2>
+      <p className="mc-sub">{sub}</p>
+      {children}
+    </section>
+  )
+}
 
+function Field({ label, ...props }) {
+  return (
+    <label className="mc-field">
+      <span>{label}</span>
+      <input {...props} />
+    </label>
+  )
+}
+
+function Btn({ children, secondary, ...props }) {
+  return (
+    <button
+      type="button"
+      className={`mc-btn ${
+        secondary ? 'secondary' : 'primary'
+      }`}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ============================================================
+// PRICE SUMMARY
+// Only shows Base Fee, GST & Other Charges, Total Amount.
+// Platform fee and GST are combined in the UI.
+// ============================================================
+
+function Summary({ pricing, payment = false }) {
+  if (!pricing) return null
+
+  const charges =
+    Math.round(
+      (
+        Number(pricing.platformFee ?? 0) +
+        Number(pricing.gst ?? 0)
+      ) * 100
+    ) / 100
+
+  return (
+    <div
+      className={`mc-price ${
+        payment ? 'payment' : ''
+      }`}
+    >
+      <div className="mc-price-line">
+        <span>Base Fee</span>
+        <strong>{rs(pricing.baseFee)}</strong>
       </div>
 
+      {Number(pricing.couponDiscount) > 0 && (
+        <div className="mc-price-line discount">
+          <span>Coupon Discount</span>
+          <strong>
+            − {rs(pricing.couponDiscount)}
+          </strong>
+        </div>
+      )}
 
+      <div className="mc-price-line">
+        <span>GST &amp; Other Charges</span>
+        <strong>{rs(charges)}</strong>
+      </div>
 
-      <span
+      {Number(pricing.adminCouponDiscount) > 0 && (
+        <div className="mc-price-line discount">
+          <span>Coupon Discount</span>
+          <strong>
+            − {rs(pricing.adminCouponDiscount)}
+          </strong>
+        </div>
+      )}
 
-        style={{
-
-          fontSize: 13,
-
-          fontWeight: bold ? 700 : 600,
-
-          color: bold ? '#6366f1' : '#1e293b',
-
-        }}
-
-      >
-
-        {value}
-
-      </span>
-
+      <div className="mc-price-line total">
+        <span>Total Amount</span>
+        <strong>{rs(pricing.totalAmount)}</strong>
+      </div>
     </div>
-
   )
-
 }
 
-function Toggle2({ options, value, onChange }) {
-
-  return (
-
-    <div style={{ display: 'flex', gap: 3, background: '#f1f5f9', borderRadius: 14, padding: 3 }}>
-
-      {options.map((opt) => (
-
-        <ToggleBtn key={opt.key} opt={opt} active={value === opt.key} onClick={() => onChange(opt.key)} />
-
-      ))}
-
-    </div>
-
-  )
-
-}
-
-
-
-function ToggleBtn({ opt, active, onClick }) {
-
-  const [h, setH] = useState(false)
-
-  return (
-
-    <button
-
-      onClick={onClick}
-
-      onMouseEnter={() => setH(true)}
-
-      onMouseLeave={() => setH(false)}
-
-      style={{
-
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-
-        padding: '10px 8px', borderRadius: 11, border: 'none',
-
-        background: active ? '#fff' : h ? 'rgba(255,255,255,0.5)' : 'transparent',
-
-        color: active ? '#0f172a' : '#64748b',
-
-        fontSize: 13, fontWeight: active ? 600 : 500, cursor: 'pointer',
-
-        boxShadow: active ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-
-        transition: 'all .15s ease',
-
-      }}
-
-    >
-
-      <span style={{ display: 'flex', alignItems: 'center' }}>{opt.icon}</span>
-
-      <span>{opt.label}</span>
-
-    </button>
-
-  )
-
-}
-
-
-
-function InfoRow({ label, value }) {
-
-  return (
-
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f8fafc' }}>
-
-      <span style={{ fontSize: 13, color: '#64748b' }}>{label}</span>
-
-      <span style={{ fontSize: 13, fontWeight: 500, color: '#1e293b' }}>{value}</span>
-
-    </div>
-
-  )
-
-}
-
-
-
-function PayButton({ totalAmount, loading, onPay }) {
-
-  const [h, setH] = useState(false)
-
-
-
-  return (
-
-    <button
-
-      onClick={onPay}
-
-      disabled={loading}
-
-      onMouseEnter={() => !loading && setH(true)}
-
-      onMouseLeave={() => setH(false)}
-
-      style={{
-
-        flex: 2,
-
-        padding: '13px',
-
-        borderRadius: 12,
-
-        border: 'none',
-
-        background: loading ? '#e2e8f0' : h ? 'linear-gradient(135deg,#7c3aed,#6d28d9)' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-
-        color: loading ? '#94a3b8' : '#fff',
-
-        fontSize: 14,
-
-        fontWeight: 700,
-
-        cursor: loading ? 'not-allowed' : 'pointer',
-
-        boxShadow: loading ? 'none' : h ? '0 8px 24px rgba(99,102,241,0.5)' : '0 4px 14px rgba(99,102,241,0.35)',
-
-        transition: 'all .18s ease',
-
-        display: 'flex',
-
-        alignItems: 'center',
-
-        justifyContent: 'center',
-
-        gap: 8,
-
-      }}
-
-    >
-
-      {loading ? (
-
-        <>
-
-          <span style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'nb-spin .7s linear infinite', display: 'inline-block' }} />
-
-          Opening Checkout...
-
-        </>
-
-      ) : `PAY ${fmtRs(totalAmount)}`}
-
-    </button>
-
-  )
-
-}
-
-
-
-function NewBookingContent() {
-
-  const searchParams = useSearchParams()
-
+// ============================================================
+// MAIN BOOKING CONTENT
+// ============================================================
+
+function BookingContent() {
   const router = useRouter()
-
+  const params = useSearchParams()
   const toast = useToast()
 
-  const { user, refreshUser } = useAuth()
+  const {
+    user,
+    refreshUser,
+  } = useAuth()
 
-  const mounted = useMounted()
-
-
-
+  const [mounted, setMounted] = useState(false)
   const [step, setStep] = useState(1)
 
-  const [bookingId, setBookingId] = useState(null)
+  const [working, setWorking] = useState(false)
+  const busyRef = useRef(false)
 
-  const [couponCode, setCouponCode] = useState('')
+  const [booking, setBooking] = useState(null)
 
-  const [couponResult, setCouponResult] = useState(null)
+  // Patient information
 
-  const [applyingCoupon, setApplyingCoupon] = useState(false)
+  const [patientType, setPatientType] =
+    useState('myself')
 
-  const [loading, setLoading] = useState(false)
+  const [patientName, setPatientName] =
+    useState('')
 
-  const [patientType, setPatientType] = useState('myself')
+  const [contactEmail, setContactEmail] =
+    useState('')
 
-  const [patientName, setPatientName] = useState('')
-  const [contactEmail, setContactEmail] = useState('')
-  const [contactPhone, setContactPhone] = useState('')
-  const [savingContact, setSavingContact] = useState(false)
+  const [contactPhone, setContactPhone] =
+    useState('')
 
-  const [collectionType, setCollectionType] = useState('walk_in')
+  // Lab collection information
 
-  const [collectionAddr, setCollectionAddr] = useState({ line1: '', city: '', pinCode: '' })
+  const [collectionType, setCollectionType] =
+    useState('walk_in')
 
-  const [collectionDate, setCollectionDate] = useState('')
+  const [collectionDate, setCollectionDate] =
+    useState('')
 
-  const [collectionTime, setCollectionTime] = useState('')
+  const [collectionTime, setCollectionTime] =
+    useState('')
 
+  const [collectionAddr, setCollectionAddr] =
+    useState({
+      line1: '',
+      city: '',
+      pinCode: '',
+    })
 
+  // Coupon
 
-  const doctorId = searchParams.get('doctorId')
+  const [couponCode, setCouponCode] =
+    useState('')
 
-  const labId = searchParams.get('labId')
+  const [validatedCoupon, setValidatedCoupon] =
+    useState(null)
 
-  const testIds = searchParams.get('testIds')?.split(',').filter(Boolean) || []
+  const [couponWorking, setCouponWorking] =
+    useState(false)
 
-  const date = searchParams.get('date')
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
-  const slot = searchParams.get('slot')
+  // ==========================================================
+  // URL PARAMETERS
+  // ==========================================================
 
-  const type = searchParams.get('type') || 'offline'
+  const doctorId = params.get('doctorId')
+  const labId = params.get('labId')
 
+  const isLab = Boolean(labId)
+  const isOnline = params.get('type') === 'online'
 
+  const bookingType = isLab
+    ? 'lab'
+    : isOnline
+      ? 'online'
+      : 'hospital'
 
-  const isLab = !!labId
+  const typeLabel = isLab
+    ? 'Lab Test'
+    : isOnline
+      ? 'Online Consultation'
+      : 'Hospital Visit'
 
-  const isOnline = type === 'online'
+  const date = params.get('date')
+  const slot = params.get('slot')
 
+  const idsString = params.get('testIds') || ''
 
+  const testIds = useMemo(
+    () => idsString.split(',').filter(Boolean),
+    [idsString]
+  )
 
-  const doctorStartTime = date && slot ? new Date(`${date}T${slot}:00`).toISOString() : null
+  // ==========================================================
+  // FETCH DOCTOR / LAB
+  // ==========================================================
 
-  const doctorEndTime = doctorStartTime ? new Date(new Date(doctorStartTime).getTime() + 30 * 60000).toISOString() : null
+  const {
+    data: doctor,
+    error: doctorError,
+  } = useSWR(
+    mounted && doctorId
+      ? `/api/doctors/${doctorId}`
+      : null,
+    getJSON
+  )
 
-  const labStartTime = collectionDate && collectionTime ? new Date(`${collectionDate}T${collectionTime}:00`).toISOString() : null
+  const {
+    data: lab,
+    error: labError,
+  } = useSWR(
+    mounted && labId
+      ? `/api/labs/${labId}`
+      : null,
+    getJSON
+  )
 
+  const {
+    data: testsData,
+  } = useSWR(
+    mounted && isLab && testIds.length
+      ? `/api/labs/${labId}/tests`
+      : null,
+    getJSON
+  )
 
+  const selectedTests = useMemo(
+    () =>
+      (testsData?.tests ?? []).filter(
+        (test) => testIds.includes(test.id)
+      ),
+    [testsData, testIds]
+  )
 
-  const { data: doctor } = useSWR(mounted && doctorId ? `/api/doctors/${doctorId}` : null, fetcher)
-
-  const { data: lab } = useSWR(mounted && labId ? `/api/labs/${labId}` : null, fetcher)
-
-  const { data: testsData } = useSWR(mounted && labId && testIds.length ? `/api/labs/${labId}/tests` : null, fetcher)
-
-
-
-  const allTests = testsData?.tests || []
-
-  const selectedTests = allTests.filter((t) => testIds.includes(t.id))
-
-
+  // ==========================================================
+  // SERVICE BASE PRICE
+  // Used only for checking that pricing is ready.
+  // Final charges are calculated on the backend.
+  // ==========================================================
 
   const baseFee = isLab
+    ? selectedTests.reduce((total, test) => {
+        const normal = Number(
+          test.price ?? 0
+        )
 
-    ? selectedTests.reduce((s, t) => s + (t.discountedPrice || t.price || 0), 0)
+        const discount = Number(
+          test.discountedPrice
+        )
 
-    : doctor ? (isOnline ? (doctor.consultationFee?.online || 0) : (doctor.consultationFee?.offline || 0)) : 0
+        const effective =
+          test.discountedPrice != null &&
+          Number.isFinite(discount) &&
+          discount > 0 &&
+          discount < normal
+            ? discount
+            : normal
 
+        return total + effective
+      }, 0)
+    : Number(
+        isOnline
+          ? doctor?.consultationFee?.online ?? 0
+          : doctor?.consultationFee?.offline ?? 0
+      )
 
+  // ==========================================================
+  // DATE / TIME
+  // Interpret chosen date & time as IST.
+  // ==========================================================
 
-  const platformFeePercent = isLab ? (lab?.platformFeePercent || 8) : (doctor?.platformFeePercent || 10)
+  const selectedTime = isLab
+    ? collectionDate && collectionTime
+      ? `${collectionDate}T${collectionTime}:00+05:30`
+      : null
+    : date && slot
+      ? `${date}T${slot}:00+05:30`
+      : null
 
-  const couponDiscount = couponResult?.discountAmount || 0
+  const startTime =
+    selectedTime &&
+    !Number.isNaN(Date.parse(selectedTime))
+      ? new Date(selectedTime).toISOString()
+      : null
 
-  const discountedFee = Math.max(0, baseFee - couponDiscount)
+  const detailsReady = Boolean(
+    isLab
+      ? startTime &&
+          testIds.length &&
+          selectedTests.length === testIds.length &&
+          baseFee > 0 &&
+          (
+            collectionType !== 'home' ||
+            (
+              lab?.homeCollection?.enabled &&
+              collectionAddr.line1.trim() &&
+              collectionAddr.city.trim()
+            )
+          )
+      : startTime &&
+          doctor?.id &&
+          baseFee > 0
+  )
 
-  const platformFee = Math.round(discountedFee * platformFeePercent / 100)
+  // ==========================================================
+  // SERVER PRICE PREVIEW
+  // ==========================================================
 
-  const gst = Math.round(platformFee * 18 / 100)
+  const appliedCode =
+    validatedCoupon?.valid
+      ? validatedCoupon.code
+      : null
 
-  const subtotal = discountedFee + platformFee
+  const quotePayload = useMemo(
+    () => ({
+      bookingType,
 
-  const totalAmount = subtotal + gst
+      doctorId: isLab
+        ? null
+        : doctorId,
 
+      labId: isLab
+        ? labId
+        : null,
 
+      testIds: isLab
+        ? testIds
+        : [],
 
-  const bookingTypeLabel = isLab ? 'Lab Test' : isOnline ? 'Online Consultation' : 'Hospital Visit'
+      couponCode: appliedCode,
+    }),
+    [
+      bookingType,
+      doctorId,
+      labId,
+      isLab,
+      testIds,
+      appliedCode,
+    ]
+  )
 
-  const step1Valid = isLab
+  const previewKey =
+    mounted &&
+    step === 3 &&
+    !booking &&
+    baseFee > 0
+      ? [
+          '/api/bookings/price-preview',
+          JSON.stringify(quotePayload),
+        ]
+      : null
 
-    ? (testIds.length > 0 && collectionDate && collectionTime && (collectionType !== 'home' || (collectionAddr.line1 && collectionAddr.city)))
+  const {
+    data: quote,
+    error: quoteError,
+    isLoading: quoteLoading,
+  } = useSWR(
+    previewKey,
 
-    : !!doctorStartTime
+    ([url, payload]) =>
+      postJSON(
+        url,
+        JSON.parse(payload)
+      ),
 
+    {
+      revalidateOnFocus: false,
+    }
+  )
 
+  // Before booking: quote from backend.
+  // After booking: exact amount stored in MongoDB.
 
-  const todayStr = mounted ? new Date().toISOString().split('T')[0] : ''
+  const pricing = booking || quote
 
-  const saveContactAndContinue = async () => {
-    if (patientType === 'family' && !patientName.trim()) {
+  // ==========================================================
+  // TODAY IN IST
+  // ==========================================================
+
+  const dateParts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+      .formatToParts(new Date())
+      .map((part) => [
+        part.type,
+        part.value,
+      ])
+  )
+
+  const today =
+    `${dateParts.year}-${dateParts.month}-${dateParts.day}`
+
+  // ==========================================================
+  // SAVE PATIENT INFORMATION
+  // ==========================================================
+
+  async function savePatient() {
+    if (working) return
+
+    if (!user?.id) {
+      toast.error('Please sign in again')
+      return
+    }
+
+    if (
+      patientType === 'family' &&
+      !patientName.trim()
+    ) {
       toast.error('Enter the patient name')
       return
     }
 
-    const needsEmail = !user?.email?.trim()
-    const needsPhone = !user?.phone?.trim()
-    const email = needsEmail ? contactEmail.trim().toLowerCase() : user.email
-    const phone = needsPhone ? contactPhone.replace(/\D/g, '') : user.phone
+    const needEmail = !user.email?.trim()
+    const needPhone = !user.phone?.trim()
 
-    if (needsEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error('Enter a valid email address for booking updates')
+    const email = needEmail
+      ? contactEmail.trim().toLowerCase()
+      : user.email
+
+    const phone = needPhone
+      ? contactPhone.replace(/\D/g, '')
+      : user.phone
+
+    if (
+      needEmail &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      toast.error('Enter a valid email')
       return
     }
 
-    if (needsPhone && !/^[6-9]\d{9}$/.test(phone)) {
-      toast.error('Enter a valid 10-digit mobile number')
+    if (
+      needPhone &&
+      !/^[6-9]\d{9}$/.test(phone)
+    ) {
+      toast.error('Enter a valid mobile number')
       return
     }
 
-    if (needsEmail || needsPhone) {
-      if (!user?.id) {
-        toast.error('Please sign in again before continuing')
-        return
-      }
+    if (needEmail || needPhone) {
+      setWorking(true)
 
-      setSavingContact(true)
       try {
-        const response = await fetch(`/api/users/${user.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            ...(needsEmail ? { email } : {}),
-            ...(needsPhone ? { phone } : {}),
-          }),
-        })
-        const result = await response.json()
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'Could not save your contact details')
-        }
+        await readResponse(
+          await fetch(
+            `/api/users/${user.id}`,
+            {
+              method: 'PUT',
+              credentials: 'include',
+
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
+
+              body: JSON.stringify({
+                ...(needEmail
+                  ? { email }
+                  : {}),
+
+                ...(needPhone
+                  ? { phone }
+                  : {}),
+              }),
+            }
+          )
+        )
+
         await refreshUser?.()
       } catch (error) {
-        toast.error(error.message || 'Could not save your contact details')
+        toast.error(error.message)
         return
       } finally {
-        setSavingContact(false)
+        setWorking(false)
       }
     }
 
     setStep(3)
   }
 
+  // ==========================================================
+  // APPLY COUPON
+  // ==========================================================
 
-
-  const createBooking = async () => {
-
-    if (!step1Valid) {
-
-      toast.error(isLab ? 'Select date, time and address' : 'No slot selected')
-
+  async function applyCoupon() {
+    if (
+      !couponCode.trim() ||
+      booking ||
+      couponWorking
+    ) {
       return
-
     }
 
-
-
-    setLoading(true)
+    setCouponWorking(true)
 
     try {
+      const url =
+        `/api/coupons/validate/${encodeURIComponent(
+          couponCode.trim()
+        )}` +
+        `?bookingType=${bookingType}` +
+        `&amount=${encodeURIComponent(baseFee)}`
 
-      const res = await fetch('/api/bookings', {
+      const data = await getJSON(url)
 
-        method: 'POST',
+      if (!data.valid) {
+        throw new Error(
+          data.message || 'Invalid coupon'
+        )
+      }
 
-        headers: { 'Content-Type': 'application/json' },
-
-        credentials: 'include',
-
-        body: JSON.stringify({
-
-          type: isLab ? 'lab' : isOnline ? 'online' : 'hospital',
-
-          doctorId: doctorId || undefined,
-
-          labId: labId || undefined,
-
-          testIds,
-
-          startTime: isLab ? labStartTime : doctorStartTime,
-
-          endTime: isLab ? null : doctorEndTime,
-
-          collectionType: isLab ? collectionType : undefined,
-
-          collectionAddress: isLab && collectionType === 'home' ? collectionAddr : undefined,
-
-          couponCode: couponCode || undefined,
-
-          baseFee,
-
-          platformFeePercent,
-
-          platformFee,
-
-          gstPercent: 18,
-
-          gst,
-
-          subtotal,
-
-          couponDiscount: couponDiscount || 0,
-
-          discountedFee,
-
-          totalAmount,
-
-        }),
-
+      setValidatedCoupon({
+        code: couponCode.trim(),
+        valid: true,
       })
 
+      toast.success(
+        data.message || 'Coupon applied'
+      )
+    } catch (error) {
+      setValidatedCoupon(null)
 
-
-      const json = await res.json()
-
-      if (json.success) {
-
-        setBookingId(json.data.id)
-
-        setStep(2)
-
-      } else {
-
-        toast.error(json.error || 'Failed to create booking')
-
-      }
-
-    } catch {
-
-      toast.error('Network error')
-
+      toast.error(
+        error.message || 'Invalid coupon'
+      )
     } finally {
-
-      setLoading(false)
-
+      setCouponWorking(false)
     }
-
   }
 
+  // ==========================================================
+  // CREATE BOOKING
+  // Booking is created AFTER coupon selection.
+  // ==========================================================
 
+  async function createBooking() {
+    if (busyRef.current) return
 
-  const applyCoupon = async () => {
-
-    if (!couponCode.trim()) return
-
-
-
-    setApplyingCoupon(true)
-
-    try {
-
-      const bType = isLab ? 'lab' : isOnline ? 'online' : 'hospital'
-
-      const res = await fetch(`/api/coupons/validate/${couponCode}?bookingType=${bType}&amount=${baseFee}`, { credentials: 'include' })
-
-      const json = await res.json()
-
-      const d = json.data || json
-
-
-
-      if (d.valid) {
-
-        setCouponResult(d)
-
-        toast.success(d.message || 'Coupon applied!')
-
-      } else {
-
-        setCouponResult({ valid: false })
-
-        toast.error(d.message || 'Invalid coupon')
-
-      }
-
-    } catch {
-
-      toast.error('Failed to validate coupon')
-
-    } finally {
-
-      setApplyingCoupon(false)
-
+    if (booking?.id) {
+      setStep(4)
+      return
     }
 
-  }
-
-
-
- const initiatePayment = async () => {
-  // ============================================================
-  // VALIDATE BOOKING
-  // ============================================================
-
-  if (!bookingId) {
-    toast.error(
-      'No booking found. Please go back and try again.'
-    )
-    return
-  }
-
-  setLoading(true)
-
-  try {
-    // ==========================================================
-    // 1. CREATE CASHFREE ORDER
-    // ==========================================================
-
-    console.log('[Cashfree] Creating payment order...', {
-      bookingId,
-    })
-
-    const orderRes = await fetch(
-      '/api/payments/create-order',
-      {
-        method: 'POST',
-
-        headers: {
-          'Content-Type': 'application/json',
-        },
-
-        credentials: 'include',
-
-        body: JSON.stringify({
-          bookingId,
-        }),
-      }
-    )
-
-    // ==========================================================
-    // 2. READ CREATE-ORDER RESPONSE
-    // ==========================================================
-
-    let orderJson
-
-    try {
-      orderJson = await orderRes.json()
-    } catch (parseError) {
-      console.error(
-        '[Cashfree] Failed to parse create-order response:',
-        parseError
+    if (!detailsReady) {
+      toast.error(
+        'Complete appointment details first'
       )
-
-      throw new Error(
-        'Invalid response received while creating payment order'
-      )
-    }
-
-    // ==========================================================
-    // 3. SAFE DEBUG
-    // ==========================================================
-    //
-    // IMPORTANT:
-    // Do NOT print the complete payment_session_id.
-    // ==========================================================
-
-    console.log('[Cashfree DEBUG] create-order:', {
-      httpStatus: orderRes.status,
-
-      success:
-        orderJson?.success ?? false,
-
-      orderId:
-        orderJson?.data?.orderId ?? null,
-
-      cashfreeOrderId:
-        orderJson?.data?.cashfreeOrderId ?? null,
-
-      cfOrderId:
-        orderJson?.data?.cfOrderId ?? null,
-
-      orderStatus:
-        orderJson?.data?.orderStatus ?? null,
-
-      amount:
-        orderJson?.data?.amount ?? null,
-
-      currency:
-        orderJson?.data?.currency ?? null,
-
-      hasPaymentSessionId:
-        Boolean(
-          orderJson?.data?.paymentSessionId
-        ),
-
-      cashfreeEnvironment:
-        orderJson?.data?.cashfreeEnvironment ?? null,
-    })
-
-    // ==========================================================
-    // 4. CHECK CREATE ORDER RESULT
-    // ==========================================================
-
-    if (
-      !orderRes.ok ||
-      !orderJson?.success
-    ) {
-      console.error(
-        '[Cashfree] create-order failed:',
-        {
-          status:
-            orderRes.status,
-
-          error:
-            orderJson?.error,
-
-          code:
-            orderJson?.code,
-        }
-      )
-
-      throw new Error(
-        orderJson?.error ||
-          'Could not create Cashfree payment order'
-      )
-    }
-
-    // ==========================================================
-    // 5. GET CASHFREE DATA
-    // ==========================================================
-
-    const {
-      orderId,
-      cashfreeOrderId,
-      paymentSessionId,
-      cashfreeEnvironment,
-    } = orderJson.data || {}
-
-    const finalOrderId =
-      orderId ||
-      cashfreeOrderId
-
-    // ==========================================================
-    // 6. VALIDATE ORDER ID
-    // ==========================================================
-
-    if (!finalOrderId) {
-      console.error(
-        '[Cashfree] Cashfree order ID missing'
-      )
-
-      throw new Error(
-        'Cashfree order ID was not returned'
-      )
-    }
-
-    // ==========================================================
-    // 7. VALIDATE PAYMENT SESSION
-    // ==========================================================
-
-    if (!paymentSessionId) {
-      console.error(
-        '[Cashfree] payment_session_id missing',
-        {
-          orderId:
-            finalOrderId,
-        }
-      )
-
-      throw new Error(
-        'Cashfree payment session ID was not returned'
-      )
+      return
     }
 
     if (
-      typeof paymentSessionId !==
-      'string'
+      quoteLoading ||
+      quoteError ||
+      !quote
     ) {
-      console.error(
-        '[Cashfree] Invalid payment session type:',
-        typeof paymentSessionId
+      toast.error(
+        quoteError?.message ||
+        'Price is not ready'
       )
-
-      throw new Error(
-        'Cashfree returned an invalid payment session ID'
-      )
+      return
     }
 
-    const cleanPaymentSessionId =
-      paymentSessionId.trim()
-
-    if (!cleanPaymentSessionId) {
-      throw new Error(
-        'Cashfree returned an empty payment session ID'
+    if (
+      appliedCode &&
+      !quote.couponApplied
+    ) {
+      toast.error(
+        'Coupon was not accepted by the pricing server'
       )
+      return
     }
 
-    // ==========================================================
-    // 8. DETERMINE CASHFREE ENVIRONMENT
-    // ==========================================================
-
-    if (!['sandbox', 'production'].includes(cashfreeEnvironment)) {
-      throw new Error('Backend returned an invalid Cashfree environment')
-    }
-
-    const cashfreeMode = cashfreeEnvironment
-
-    console.log(
-      '[Cashfree] Checkout configuration:',
-      {
-        orderId:
-          finalOrderId,
-
-        mode:
-          cashfreeMode,
-
-        hasPaymentSessionId:
-          true,
-      }
-    )
-
-    // ==========================================================
-    // 9. LOAD CASHFREE SDK
-    // ==========================================================
-
-    let cashfree
+    busyRef.current = true
+    setWorking(true)
 
     try {
-      cashfree = await load({
-        mode:
-          cashfreeMode,
+      const saved = await postJSON(
+        '/api/bookings',
+        {
+          type: bookingType,
+
+          doctorId: isLab
+            ? undefined
+            : doctorId,
+
+          labId: isLab
+            ? labId
+            : undefined,
+
+          testIds: isLab
+            ? testIds
+            : [],
+
+          startTime,
+
+          collectionType: isLab
+            ? collectionType
+            : undefined,
+
+          collectionAddress:
+            isLab &&
+            collectionType === 'home'
+              ? collectionAddr
+              : undefined,
+
+          patientName:
+            patientType === 'family'
+              ? patientName.trim()
+              : user?.name || undefined,
+
+          couponCode:
+            appliedCode || undefined,
+
+          // Do not send client-calculated prices.
+          // The backend calculates all charges.
+        }
+      )
+
+      if (
+        !saved?.id ||
+        !Number.isFinite(
+          Number(saved.totalAmount)
+        )
+      ) {
+        throw new Error(
+          'The server did not return the booked price'
+        )
+      }
+
+      setBooking(saved)
+
+      if (
+        Math.abs(
+          Number(saved.totalAmount) -
+          Number(quote.totalAmount)
+        ) >= 0.01
+      ) {
+        toast.error(
+          'Price changed. Please review the amount before paying.'
+        )
+      }
+
+      setStep(4)
+    } catch (error) {
+      toast.error(error.message)
+    } finally {
+      setWorking(false)
+      busyRef.current = false
+    }
+  }
+
+  // ==========================================================
+  // CASHFREE PAYMENT
+  // ==========================================================
+
+  async function initiatePayment() {
+    if (
+      busyRef.current ||
+      !booking?.id
+    ) {
+      return
+    }
+
+    busyRef.current = true
+    setWorking(true)
+
+    try {
+      // Cashfree creates its order using
+      // booking.totalAmount from MongoDB.
+
+      const order = await postJSON(
+        '/api/payments/create-order',
+        {
+          bookingId: booking.id,
+        }
+      )
+
+      // Prevent a mismatch between booking
+      // and payment gateway amounts.
+
+      if (
+        Math.round(
+          Number(order.amount) * 100
+        ) !==
+        Math.round(
+          Number(booking.totalAmount) * 100
+        )
+      ) {
+        throw new Error(
+          'Booking and payment order totals do not match'
+        )
+      }
+
+      const orderId =
+        order.orderId ||
+        order.cashfreeOrderId
+
+      if (
+        !orderId ||
+        !order.paymentSessionId?.trim()
+      ) {
+        throw new Error(
+          'Payment session unavailable'
+        )
+      }
+
+      if (
+        ![
+          'sandbox',
+          'production',
+        ].includes(
+          order.cashfreeEnvironment
+        )
+      ) {
+        throw new Error(
+          'Invalid payment environment'
+        )
+      }
+
+      // Initialize Cashfree.
+
+      const cashfree = await load({
+        mode: order.cashfreeEnvironment,
       })
-    } catch (sdkError) {
-      console.error(
-        '[Cashfree] SDK initialization error:',
-        sdkError
-      )
 
-      throw new Error(
-        'Unable to initialize Cashfree checkout'
-      )
-    }
+      // Open Cashfree checkout popup.
 
-    if (!cashfree) {
-      throw new Error(
-        'Cashfree checkout could not be initialized'
-      )
-    }
-
-    // ==========================================================
-    // 10. OPEN CASHFREE CHECKOUT
-    // ==========================================================
-
-    console.log(
-      '[Cashfree] Opening checkout...',
-      {
-        orderId:
-          finalOrderId,
-
-        mode:
-          cashfreeMode,
-      }
-    )
-
-    let checkoutResult
-
-    try {
-      checkoutResult =
+      const outcome =
         await cashfree.checkout({
           paymentSessionId:
-            cleanPaymentSessionId,
+            order.paymentSessionId.trim(),
 
-          redirectTarget:
-            '_modal',
+          redirectTarget: '_modal',
         })
-    } catch (checkoutError) {
-      console.error(
-        '[Cashfree] checkout() exception:',
-        checkoutError
-      )
 
-      throw new Error(
-        checkoutError?.message ||
-          'Unable to open Cashfree checkout'
-      )
-    }
-
-    console.log(
-      '[Cashfree] Checkout finished:',
-      {
-        hasError:
-          Boolean(
-            checkoutResult?.error
-          ),
-
-        redirect:
-          checkoutResult?.redirect ??
-          null,
+      if (outcome?.error) {
+        throw new Error(
+          outcome.error.message ||
+          'Payment cancelled'
+        )
       }
-    )
 
-    // ==========================================================
-    // 11. CASHFREE CHECKOUT ERROR
-    // ==========================================================
+      // Verify server-side.
+      // Closing the popup does not prove payment.
 
-    if (checkoutResult?.error) {
-      console.error(
-        '[Cashfree] Checkout error:',
-        checkoutResult.error
-      )
-
-      const checkoutMessage =
-        checkoutResult.error
-          ?.message ||
-        checkoutResult.error
-          ?.errorText ||
-        'Payment failed or was cancelled'
-
-      throw new Error(
-        checkoutMessage
-      )
-    }
-
-    // ==========================================================
-    // 12. VERIFY PAYMENT SERVER-SIDE
-    // ==========================================================
-
-    console.log(
-      '[Cashfree] Verifying payment...',
-      {
-        orderId:
-          finalOrderId,
-
-        bookingId,
-      }
-    )
-
-    const verifyRes =
-      await fetch(
+      const response = await fetch(
         '/api/payments/verify',
         {
           method: 'POST',
+          credentials: 'include',
 
           headers: {
             'Content-Type':
               'application/json',
           },
 
-          credentials:
-            'include',
-
-          body:
-            JSON.stringify({
-              orderId:
-                finalOrderId,
-
-              bookingId,
-            }),
+          body: JSON.stringify({
+            orderId,
+            bookingId: booking.id,
+          }),
         }
       )
 
-    // ==========================================================
-    // 13. READ VERIFY RESPONSE
-    // ==========================================================
+      const verified =
+        await response.json().catch(
+          () => ({})
+        )
 
-    let verifyJson
+      if (
+        response.status === 202 ||
+        verified.pending
+      ) {
+        toast.error(
+          'Payment processing. Check your booking status.'
+        )
 
-    try {
-      verifyJson =
-        await verifyRes.json()
-    } catch (parseError) {
-      console.error(
-        '[Cashfree] Failed to parse verify response:',
-        parseError
-      )
+        router.replace(
+          `/user/bookings/${booking.id}`
+        )
 
-      throw new Error(
-        'Invalid response received while verifying payment'
-      )
-    }
+      } else if (
+        !response.ok ||
+        !verified.success
+      ) {
+        toast.error(
+          verified.error ||
+          'Payment verification failed'
+        )
 
-    // ==========================================================
-    // 14. VERIFY DEBUG
-    // ==========================================================
+        router.replace(
+          `/user/bookings/${booking.id}/failed`
+        )
 
-    console.log(
-      '[Cashfree DEBUG] verify:',
-      {
-        httpStatus:
-          verifyRes.status,
+      } else {
+        toast.success('Payment successful')
 
-        success:
-          verifyJson?.success ??
-          false,
-
-        pending:
-          verifyJson?.pending ??
-          false,
-
-        error:
-          verifyJson?.error ??
-          null,
-
-        orderId:
-          verifyJson?.data
-            ?.orderId ??
-          null,
-
-        paymentStatus:
-          verifyJson?.data
-            ?.paymentStatus ??
-          null,
-
-        bookingStatus:
-          verifyJson?.data
-            ?.bookingStatus ??
-          null,
-
-        paymentId:
-          verifyJson?.data
-            ?.cashfreePaymentId ||
-          verifyJson?.data
-            ?.paymentId ||
-          null,
+        router.replace(
+          `/user/bookings/${booking.id}/success`
+        )
       }
-    )
-
-    // ==========================================================
-    // 15. PAYMENT STILL PENDING
-    // ==========================================================
-
-    if (
-      verifyRes.status === 202 ||
-      verifyJson?.pending === true
-    ) {
-      toast.error(
-        'Payment is still processing. Please check the booking status shortly.'
-      )
-
-      router.replace(
-        `/user/bookings/${bookingId}`
-      )
-
-      return
-    }
-
-    // ==========================================================
-    // 16. VERIFICATION FAILED
-    // ==========================================================
-
-    if (
-      !verifyRes.ok ||
-      !verifyJson?.success
-    ) {
+    } catch (error) {
       console.error(
-        '[Cashfree] Verification failed:',
-        {
-          status:
-            verifyRes.status,
-
-          response:
-            verifyJson,
-        }
+        '[MEDLI Payment]',
+        error.message
       )
 
       toast.error(
-        verifyJson?.error ||
-          'Payment verification failed. Please contact support.'
+        error.message ||
+        'Could not open payment'
       )
-
-      router.replace(
-        `/user/bookings/${bookingId}/failed`
-      )
-
-      return
+    } finally {
+      setWorking(false)
+      busyRef.current = false
     }
-
-    // ==========================================================
-    // 17. PAYMENT SUCCESS
-    // ==========================================================
-
-    const verifiedPaymentId =
-      verifyJson?.data
-        ?.cashfreePaymentId ||
-      verifyJson?.data
-        ?.paymentId ||
-      null
-
-    console.log(
-      '[Cashfree] Payment successful:',
-      {
-        bookingId,
-
-        orderId:
-          finalOrderId,
-
-        paymentId:
-          verifiedPaymentId,
-
-        paymentStatus:
-          verifyJson?.data
-            ?.paymentStatus,
-
-        bookingStatus:
-          verifyJson?.data
-            ?.bookingStatus,
-
-        amount:
-          verifyJson?.data
-            ?.amount,
-      }
-    )
-
-    toast.success(
-      'Payment successful!'
-    )
-
-    // ==========================================================
-    // 18. REDIRECT SUCCESS PAGE
-    // ==========================================================
-
-    router.replace(
-      `/user/bookings/${bookingId}/success`
-    )
-  } catch (err) {
-    // ==========================================================
-    // PAYMENT ERROR
-    // ==========================================================
-
-    console.error(
-      '[Cashfree initiatePayment] Error:',
-      {
-        name:
-          err?.name,
-
-        message:
-          err?.message,
-      }
-    )
-
-    toast.error(
-      err?.message ||
-        'Could not open payment. Please try again.'
-    )
-  } finally {
-    setLoading(false)
-  }
-}
-
-
-  if (!mounted) {
-
-    return (
-
-      <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-
-        <Navbar />
-
-        <div style={{ maxWidth: 560, margin: '0 auto', padding: '88px 16px 64px' }}>
-
-          <div style={{ height: 48, borderRadius: 20, marginBottom: 20, ...SHIMMER }} />
-
-          <div style={{ height: 280, borderRadius: 20, ...SHIMMER }} />
-
-        </div>
-
-      </div>
-
-    )
-
   }
 
-
+  // ==========================================================
+  // PAGE UI
+  // ==========================================================
 
   return (
+    <div className="medli-checkout">
+      <style>{css}</style>
 
-    <>
+      <Navbar />
 
-      <style>{KF}</style>
+      <main>
+        <Steps step={step} />
 
-      <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+        {(doctorError || labError) && (
+          <p className="mc-error">
+            {doctorError?.message ||
+              labError?.message}
+          </p>
+        )}
 
-        <Navbar />
+        {/* =================================================
+            STEP 1 — APPOINTMENT
+            ================================================= */}
 
-        <div style={{ maxWidth: 560, margin: '0 auto', padding: '88px 16px 64px' }}>
-
-          <StepBar step={step} />
-
-
-
-          {step === 1 && (
-
-            <BookCard>
-
-              <div style={{ backgroundImage: 'linear-gradient(135deg,#4f46e5,#2563eb)', padding: 24, color: '#fff' }}>
-
-                <h2 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 4px' }}>
-
-                  {isLab ? 'Select Collection Details' : 'Review Appointment'}
-
-                </h2>
-
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: 0 }}>
-
-                  {isLab ? 'Choose how and when to collect your sample' : 'Confirm your appointment details'}
-
-                </p>
-
-              </div>
-
-
-
-              <div style={{ padding: 20 }}>
-
-                {!isLab && (
-
-                  <div>
-
-                    {doctor ? (
-
-                      <>
-
-                        <InfoRow label="Doctor" value={`Dr. ${doctor.name}`} />
-
-                        {doctor.specialization?.length > 0 && <InfoRow label="Specialization" value={doctor.specialization.slice(0, 2).join(', ')} />}
-
-                      </>
-
-                    ) : (
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 0' }}>
-
-                        <div style={{ width: 192, height: 14, borderRadius: 6, ...SHIMMER }} />
-
-                        <div style={{ width: 128, height: 12, borderRadius: 6, ...SHIMMER }} />
-
-                      </div>
-
-                    )}
-
-
-
-                    <InfoRow
-
-                      label="Type"
-
-                      value={bookingTypeLabel}
-
-                    />
-
-                    {date && <InfoRow label="Date" value={new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { dateStyle: 'long' })} />}
-
-                    {slot && <InfoRow label="Time" value={slot} />}
-
-                    {baseFee > 0 && <InfoRow label="Consultation Fee" value={fmtRs(baseFee)} />}
-
+        {step === 1 && (
+          <Card
+            title={
+              isLab
+                ? 'Collection Details'
+                : 'Review Appointment'
+            }
+            sub={
+              isLab
+                ? 'Select your sample collection date and location'
+                : 'Confirm your appointment details'
+            }
+          >
+            <div className="mc-stack">
+              {isLab ? (
+                <>
+                  <div className="mc-row">
+                    <span>Lab</span>
+                    <strong>
+                      {lab?.name || 'Loading…'}
+                    </strong>
                   </div>
 
-                )}
+                  <div className="mc-row">
+                    <span>Selected Tests</span>
+                    <strong>
+                      {selectedTests.length}
+                    </strong>
+                  </div>
 
-
-
-                {isLab && (
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-                    {lab && (
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(16,185,129,0.06)', borderRadius: 12, border: '1px solid rgba(16,185,129,0.15)' }}>
-
-                        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', flexShrink: 0 }}>
-
-                          <FlaskConical size={22} strokeWidth={2.2} />
-
-                        </div>
-
-                        <div>
-
-                          <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{lab.name}</p>
-
-                          <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>{testIds.length} test{testIds.length > 1 ? 's' : ''} selected</p>
-
-                        </div>
-
-                      </div>
-
-                    )}
-
-
-
-                    {selectedTests.length > 0 && (
-
-                      <div style={{ background: '#f8fafc', borderRadius: 12, padding: 12 }}>
-
-                        {selectedTests.map((t) => (
-
-                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
-
-                            <span style={{ color: '#64748b' }}>{t.name}</span>
-
-                            <span style={{ fontWeight: 600, color: '#1e293b' }}>{fmtRs(t.discountedPrice || t.price)}</span>
-
-                          </div>
-
-                        ))}
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', marginTop: 4, borderTop: '1px solid #e2e8f0', fontSize: 12 }}>
-
-                          <span style={{ fontWeight: 600, color: '#475569' }}>Tests Total</span>
-
-                          <span style={{ fontWeight: 700, color: '#10b981' }}>{fmtRs(baseFee)}</span>
-
-                        </div>
-
-                      </div>
-
-                    )}
-
-
-
-                    <Toggle2
-
-                      value={collectionType}
-
-                      onChange={setCollectionType}
-
-                      options={[
-
-                        { key: 'walk_in', icon: <MapPin size={16} strokeWidth={2} />, label: 'Walk-in' },
-
-                        { key: 'home', icon: <Home size={16} strokeWidth={2} />, label: 'Home Collection' },
-
-                      ]}
-
-                    />
-
-
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-
-                      <DateTimeInput
-
-                        label={collectionType === 'home' ? 'Pickup Date' : 'Visit Date'}
-
-                        type="date"
-
-                        min={todayStr}
-
-                        value={collectionDate}
-
-                        onChange={(e) => setCollectionDate(e.target.value)}
-
-                      />
-
-                      <DateTimeInput
-
-                        label={collectionType === 'home' ? 'Pickup Time' : 'Visit Time'}
-
-                        type="time"
-
-                        value={collectionTime}
-
-                        onChange={(e) => setCollectionTime(e.target.value)}
-
-                      />
-
+                  {selectedTests.map((test) => (
+                    <div
+                      className="mc-row"
+                      key={test.id}
+                    >
+                      <span>{test.name}</span>
+                      <strong>
+                        {rs(
+                          test.discountedPrice ||
+                          test.price
+                        )}
+                      </strong>
                     </div>
-
-
-
-                    {collectionType === 'home' && (
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'nb-slide-in .2s ease' }}>
-
-                        <p style={{ fontSize: 13, fontWeight: 600, color: '#475569', margin: 0 }}>Pickup Address</p>
-
-                        <NInput
-
-                          icon={<MapPin size={16} strokeWidth={2} />}
-
-                          placeholder="Street address / flat no."
-
-                          value={collectionAddr.line1}
-
-                          onChange={(e) => setCollectionAddr((a) => ({ ...a, line1: e.target.value }))}
-
-                        />
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-
-                          <NInput
-
-                            placeholder="City"
-
-                            value={collectionAddr.city}
-
-                            onChange={(e) => setCollectionAddr((a) => ({ ...a, city: e.target.value }))}
-
-                          />
-
-                          <NInput
-
-                            placeholder="PIN Code"
-
-                            value={collectionAddr.pinCode}
-
-                            maxLength={6}
-
-                            onChange={(e) => setCollectionAddr((a) => ({ ...a, pinCode: e.target.value }))}
-
-                          />
-
-                        </div>
-
-                      </div>
-
-                    )}
-
-                  </div>
-
-                )}
-
-
-
-                <div style={{ marginTop: 20 }}>
-
-                  <PBtn onClick={createBooking} loading={loading} disabled={loading || !step1Valid} style={{ width: '100%' }}>
-
-                    {isLab ? 'Confirm Collection Details' : 'Continue to Patient Details'}
-
-                    <ChevronRight size={16} strokeWidth={2.5} />
-
-                  </PBtn>
-
-                  {!step1Valid && (
-
-                    <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', marginTop: 8 }}>
-
-                      {isLab ? `Select date and time${collectionType === 'home' ? ' and address' : ''}` : 'No slot selected — go back and select a slot'}
-
-                    </p>
-
-                  )}
-
-                </div>
-
-              </div>
-
-            </BookCard>
-
-          )}
-
-
-
-          {step === 2 && (
-
-            <BookCard>
-
-              <div style={{ padding: 24 }}>
-
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>Patient Details</h2>
-
-                <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 20px' }}>Who is this appointment for?</p>
-
-
-
-                <Toggle2
-
-                  value={patientType}
-
-                  onChange={setPatientType}
-
-                  options={[
-
-                    { key: 'myself', icon: <User size={16} strokeWidth={2} />, label: 'For Self' },
-
-                    { key: 'family', icon: <Users size={16} strokeWidth={2} />, label: 'For Family' },
-
-                  ]}
-
-                />
-
-
-
-                <div style={{ marginTop: 16 }}>
-
-                  {patientType === 'myself' ? (
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: 'rgba(99,102,241,0.06)', borderRadius: 14, border: '1px solid rgba(99,102,241,0.12)' }}>
-
-                      <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 18, flexShrink: 0 }}>
-
-                        {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-
-                      </div>
-
-                      <div>
-
-                        <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: 0 }}>{user?.name || '—'}</p>
-
-                        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{user?.phone || user?.email || '—'}</p>
-
-                      </div>
-
-                    </div>
-
-                  ) : (
-
-                    <NInput
-
-                      label="Patient Name"
-
-                      icon={<User size={16} strokeWidth={2} />}
-
-                      value={patientName}
-
-                      onChange={(e) => setPatientName(e.target.value)}
-
-                      placeholder="Enter family member's full name"
-
-                    />
-
-                  )}
-
-                </div>
-
-
-
-                {(!user?.email?.trim() || !user?.phone?.trim()) && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 18, padding: 14, borderRadius: 14, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0 }}>Contact details</p>
-                      <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>We’ll use these to send your booking confirmation and updates.</p>
-                    </div>
-                    {!user?.email?.trim() && (
-                      <NInput
-                        label="Email address"
-                        type="email"
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        value={contactEmail}
-                        onChange={(e) => setContactEmail(e.target.value)}
-                      />
-                    )}
-                    {!user?.phone?.trim() && (
-                      <NInput
-                        label="Mobile number"
-                        type="tel"
-                        inputMode="numeric"
-                        autoComplete="tel-national"
-                        maxLength={10}
-                        placeholder="10-digit mobile number"
-                        value={contactPhone}
-                        onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      />
-                    )}
-                  </div>
-                )}
-
-
-
-                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-
-                  <PBtn variant="secondary" onClick={() => setStep(1)} style={{ flex: 1 }}>
-
-                    <ChevronLeft size={16} strokeWidth={2.5} />
-
-                    Back
-
-                  </PBtn>
-
-                  <PBtn onClick={saveContactAndContinue} loading={savingContact} disabled={savingContact || (patientType === 'family' && !patientName.trim())} style={{ flex: 1 }}>
-
-                    Continue
-
-                    <ChevronRight size={16} strokeWidth={2.5} />
-
-                  </PBtn>
-
-                </div>
-
-              </div>
-
-            </BookCard>
-
-          )}
-
-
-
-          {step === 3 && (
-
-            <BookCard>
-
-              <div style={{ padding: 24 }}>
-
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>Coupon & Pricing</h2>
-
-                <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 20px' }}>Apply a coupon to save on your booking</p>
-
-
-
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-
-                  <NInput
-
-                    icon={<Tag size={16} strokeWidth={2} />}
-
-                    placeholder="Enter coupon code"
-
-                    value={couponCode}
-
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-
-                  />
-
-                  <PBtn variant="outline" onClick={applyCoupon} loading={applyingCoupon} disabled={!couponCode.trim() || applyingCoupon} style={{ flexShrink: 0, padding: '11px 16px' }}>
-
-                    Apply
-
-                  </PBtn>
-
-                </div>
-
-
-
-                {couponResult?.valid && (
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 12, padding: '10px 14px', marginBottom: 12, animation: 'nb-coupon-ok .2s ease', fontSize: 13, color: '#059669', fontWeight: 500 }}>
-
-                    <Check size={16} strokeWidth={2.8} />
-
-                    Coupon applied! Saved {fmtRs(couponResult.discountAmount)}
-
-                  </div>
-
-                )}
-
-
-
-                {couponResult && !couponResult.valid && (
-
-                  <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#ef4444' }}>
-
-                    Invalid or expired coupon
-
-                  </div>
-
-                )}
-
-
-
-                <div style={{ background: '#f8fafc', borderRadius: 14, padding: 16, marginBottom: 20 }}>
-
-                  <PriceRow label="Base Fee" value={fmtRs(baseFee)} />
-
-                  {couponDiscount > 0 && <PriceRow label={`Coupon (${couponCode})`} value={`- ${fmtRs(couponDiscount)}`} green />}
-
-                  {couponDiscount > 0 && <PriceRow label="Discounted Fee" value={fmtRs(discountedFee)} />}
-
-
-
-                  <PriceInfoRow
-
-                    label="GST & Other Charges"
-
-                    value={fmtRs(platformFee + gst)}
-
-                    infoLines={[
-
-                      `Platform Fee (${platformFeePercent}%): ${fmtRs(platformFee)}`,
-
-                      `GST (18%): ${fmtRs(gst)}`,
-
-                    ]}
-
-                  />
-
-
-
-                  <PriceRow label="Total Amount" value={fmtRs(totalAmount)} bold />
-
-                </div>
-
-
-
-                <div style={{ display: 'flex', gap: 10 }}>
-
-                  <PBtn variant="secondary" onClick={() => setStep(2)} style={{ flex: 1 }}>
-
-                    <ChevronLeft size={16} strokeWidth={2.5} />
-
-                    Back
-
-                  </PBtn>
-
-                  <PBtn onClick={() => setStep(4)} style={{ flex: 1 }}>
-
-                    Continue to Payment
-
-                    <ChevronRight size={16} strokeWidth={2.5} />
-
-                  </PBtn>
-
-                </div>
-
-              </div>
-
-            </BookCard>
-
-          )}
-
-
-
-          {step === 4 && (
-
-            <BookCard>
-
-              <div style={{ padding: 24 }}>
-
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>Pay Securely</h2>
-
-                <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 20px' }}>
-
-                  Cashfree secure checkout will open in a popup
-
-                </p>
-
-
-
-                <div style={{ backgroundImage: 'linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.04))', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 16, padding: 18, marginBottom: 18 }}>
-
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: '#6366f1', marginBottom: 6 }}>
-
-                    {bookingTypeLabel.toUpperCase()}
-
-                  </p>
-
-                  <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 14 }}>
-
-                    {isLab ? `${collectionType === 'home' ? 'Home Collection' : 'Walk-in'} · ${collectionDate} ${collectionTime}` : `${date} · ${slot}`}
-
-                  </p>
-
-
-
-                  {[
-
-                    { l: 'Base Fee', v: fmtRs(baseFee), green: false },
-
-                    ...(couponDiscount > 0 ? [{ l: `Coupon (${couponCode})`, v: `- ${fmtRs(couponDiscount)}`, green: true }] : []),
-
-                  ].map(({ l, v, green }) => (
-
-                    <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: green ? '#10b981' : '#6366f1', marginBottom: 4 }}>
-
-                      <span>{l}</span>
-
-                      <span>{v}</span>
-
-                    </div>
-
                   ))}
 
+                  <div className="mc-options">
+                    <button
+                      type="button"
+                      className={
+                        collectionType === 'walk_in'
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() =>
+                        setCollectionType(
+                          'walk_in'
+                        )
+                      }
+                    >
+                      Walk-in
+                    </button>
 
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#6366f1', marginBottom: 4 }}>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-
-                      <span>GST & Other Charges</span>
-
-                      <span
-
-                        title={`Platform Fee (${platformFeePercent}%): ${fmtRs(platformFee)} | GST (18%): ${fmtRs(gst)}`}
-
-                        style={{
-
-                          width: 16,
-
-                          height: 16,
-
-                          borderRadius: '50%',
-
-                          background: 'rgba(99,102,241,0.12)',
-
-                          display: 'inline-flex',
-
-                          alignItems: 'center',
-
-                          justifyContent: 'center',
-
-                        }}
-
-                      >
-
-                        <CircleAlert size={11} strokeWidth={2.2} />
-
-                      </span>
-
-                    </div>
-
-                    <span>{fmtRs(platformFee + gst)}</span>
-
+                    <button
+                      type="button"
+                      disabled={
+                        !lab?.homeCollection?.enabled
+                      }
+                      className={
+                        collectionType === 'home'
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() =>
+                        setCollectionType(
+                          'home'
+                        )
+                      }
+                    >
+                      Home Collection
+                    </button>
                   </div>
 
+                  <div className="mc-grid">
+                    <Field
+                      label="Date"
+                      type="date"
+                      min={today}
+                      value={collectionDate}
+                      onChange={(e) =>
+                        setCollectionDate(
+                          e.target.value
+                        )
+                      }
+                    />
 
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, marginTop: 8, borderTop: '1px solid rgba(99,102,241,0.2)' }}>
-
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#4f46e5' }}>Total Amount</span>
-
-                    <span style={{ fontSize: 26, fontWeight: 900, color: '#4f46e5' }}>{fmtRs(totalAmount)}</span>
-
+                    <Field
+                      label="Time"
+                      type="time"
+                      value={collectionTime}
+                      onChange={(e) =>
+                        setCollectionTime(
+                          e.target.value
+                        )
+                      }
+                    />
                   </div>
 
-                </div>
+                  {collectionType === 'home' && (
+                    <>
+                      <Field
+                        label="Street Address"
+                        value={collectionAddr.line1}
+                        onChange={(e) =>
+                          setCollectionAddr(
+                            (value) => ({
+                              ...value,
+                              line1:
+                                e.target.value,
+                            })
+                          )
+                        }
+                      />
 
+                      <div className="mc-grid">
+                        <Field
+                          label="City"
+                          value={collectionAddr.city}
+                          onChange={(e) =>
+                            setCollectionAddr(
+                              (value) => ({
+                                ...value,
+                                city:
+                                  e.target.value,
+                              })
+                            )
+                          }
+                        />
 
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: '#f8fafc', borderRadius: 12, marginBottom: 18 }}>
-
-                  <span style={{ color: '#6366f1', display: 'flex', alignItems: 'center' }}>
-
-                    <ShieldCheck size={24} strokeWidth={2.2} />
-
-                  </span>
-
-                  <div>
-
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#334155', margin: 0 }}>Secured by Cashfree Payments</p>
-
-                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>Cards · Net Banking · UPI · Wallets · EMI</p>
-
+                        <Field
+                          label="PIN Code"
+                          value={
+                            collectionAddr.pinCode
+                          }
+                          maxLength={6}
+                          onChange={(e) =>
+                            setCollectionAddr(
+                              (value) => ({
+                                ...value,
+                                pinCode:
+                                  e.target.value,
+                              })
+                            )
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="mc-row">
+                    <span>Doctor</span>
+                    <strong>
+                      {doctor
+                        ? `Dr. ${doctor.name}`
+                        : 'Loading…'}
+                    </strong>
                   </div>
 
-                </div>
+                  <div className="mc-row">
+                    <span>Visit Type</span>
+                    <strong>
+                      {typeLabel}
+                    </strong>
+                  </div>
 
+                  <div className="mc-row">
+                    <span>Date</span>
+                    <strong>
+                      {date || '—'}
+                    </strong>
+                  </div>
 
+                  <div className="mc-row">
+                    <span>Time</span>
+                    <strong>
+                      {slot || '—'}
+                    </strong>
+                  </div>
 
-                <div style={{ display: 'flex', gap: 10 }}>
+                  <div className="mc-row">
+                    <span>Base Fee</span>
+                    <strong>
+                      {rs(baseFee)}
+                    </strong>
+                  </div>
+                </>
+              )}
 
-                  <PBtn variant="secondary" onClick={() => setStep(3)} disabled={loading} style={{ flex: 1 }}>
-
-                    <ChevronLeft size={16} strokeWidth={2.5} />
-
-                    Back
-
-                  </PBtn>
-
-                  <PayButton totalAmount={totalAmount} loading={loading} onPay={initiatePayment} />
-
-                </div>
-
-
-
-                <p style={{ textAlign: 'center', fontSize: 11, color: '#94a3b8', marginTop: 12 }}>
-
-                  By proceeding you agree to our{' '}
-
-                  <a href="/terms" style={{ color: '#6366f1', textDecoration: 'none' }}>Terms</a>
-
-                  {' '}and{' '}
-
-                  <a href="/privacy" style={{ color: '#6366f1', textDecoration: 'none' }}>Privacy Policy</a>
-
+              {!detailsReady && (
+                <p className="mc-note">
+                  Select the required date, time,
+                  and appointment details to continue.
                 </p>
+              )}
 
+              <Btn
+                disabled={!detailsReady}
+                onClick={() => setStep(2)}
+              >
+                Continue
+                <ChevronRight size={16} />
+              </Btn>
+            </div>
+          </Card>
+        )}
+
+        {/* =================================================
+            STEP 2 — PATIENT
+            ================================================= */}
+
+        {step === 2 && (
+          <Card
+            title="Patient Details"
+            sub="Who is this appointment for?"
+          >
+            <div className="mc-stack">
+              <div className="mc-options">
+                <button
+                  type="button"
+                  className={
+                    patientType === 'myself'
+                      ? 'active'
+                      : ''
+                  }
+                  onClick={() =>
+                    setPatientType('myself')
+                  }
+                >
+                  <UserRound size={14} />
+                  {' '}Self
+                </button>
+
+                <button
+                  type="button"
+                  className={
+                    patientType === 'family'
+                      ? 'active'
+                      : ''
+                  }
+                  onClick={() =>
+                    setPatientType('family')
+                  }
+                >
+                  <Users size={14} />
+                  {' '}Family
+                </button>
               </div>
 
-            </BookCard>
+              {patientType === 'family' ? (
+                <Field
+                  label="Patient Full Name"
+                  placeholder="Name"
+                  value={patientName}
+                  onChange={(e) =>
+                    setPatientName(
+                      e.target.value
+                    )
+                  }
+                />
+              ) : (
+                <div className="mc-row">
+                  <span>Patient</span>
+                  <strong>
+                    {user?.name ||
+                      'Signed-in patient'}
+                  </strong>
+                </div>
+              )}
 
-          )}
+              {!user?.email?.trim() && (
+                <Field
+                  label="Contact Email"
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) =>
+                    setContactEmail(
+                      e.target.value
+                    )
+                  }
+                  placeholder="name@example.com"
+                />
+              )}
 
-        </div>
+              {!user?.phone?.trim() && (
+                <Field
+                  label="Mobile Number"
+                  type="tel"
+                  maxLength={10}
+                  value={contactPhone}
+                  onChange={(e) =>
+                    setContactPhone(
+                      e.target.value
+                        .replace(/\D/g, '')
+                        .slice(0, 10)
+                    )
+                  }
+                  placeholder="10-digit mobile number"
+                />
+              )}
 
-      </div>
+              <div className="mc-actions">
+                <Btn
+                  secondary
+                  onClick={() => setStep(1)}
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </Btn>
 
-    </>
+                <Btn
+                  disabled={working}
+                  onClick={savePatient}
+                >
+                  Continue
+                  <ChevronRight size={16} />
+                </Btn>
+              </div>
+            </div>
+          </Card>
+        )}
 
+        {/* =================================================
+            STEP 3 — COUPON & PRICING
+            ================================================= */}
+
+        {step === 3 && (
+          <Card
+            title="Coupon & Pricing"
+            sub="Apply a coupon to save on your booking"
+          >
+            <div className="mc-stack">
+              {/* Coupon input */}
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'flex-end',
+                }}
+              >
+                <Field
+                  label="Coupon Code (Optional)"
+                  placeholder="Enter coupon code"
+                  value={couponCode}
+                  disabled={!!booking}
+                  onChange={(e) => {
+                    setCouponCode(
+                      e.target.value.toUpperCase()
+                    )
+
+                    setValidatedCoupon(null)
+                  }}
+                />
+
+                <Btn
+                  secondary
+                  disabled={
+                    couponWorking ||
+                    !!booking ||
+                    !couponCode.trim()
+                  }
+                  onClick={applyCoupon}
+                >
+                  {couponWorking
+                    ? 'Checking…'
+                    : 'Apply'}
+                </Btn>
+              </div>
+
+              {validatedCoupon && !booking && (
+                <div className="mc-success">
+                  Coupon validated. Final savings
+                  are calculated on the server.
+                </div>
+              )}
+
+              {couponCode && !booking && (
+                <div>
+                  <button
+                    type="button"
+                    className="mc-btn secondary"
+                    onClick={() => {
+                      setCouponCode('')
+                      setValidatedCoupon(null)
+                    }}
+                  >
+                    Remove Coupon
+                  </button>
+                </div>
+              )}
+
+              {quoteLoading && !booking && (
+                <p className="mc-note">
+                  Calculating exact price…
+                </p>
+              )}
+
+              {quoteError && !booking && (
+                <p className="mc-error">
+                  {quoteError.message}
+                </p>
+              )}
+
+              {/* Same compact pricing layout.
+                  No platform fee/GST breakdown. */}
+
+              {pricing && (
+                <Summary pricing={pricing} />
+              )}
+
+              {appliedCode &&
+                quote &&
+                !quote.couponApplied &&
+                !booking && (
+                  <p className="mc-error">
+                    Coupon could not be applied.
+                    Remove it before continuing.
+                  </p>
+                )}
+
+              <div className="mc-actions">
+                <Btn
+                  secondary
+                  disabled={!!booking}
+                  onClick={() => setStep(2)}
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </Btn>
+
+                <Btn
+                  onClick={createBooking}
+                  disabled={
+                    working ||
+                    (
+                      !booking &&
+                      (
+                        quoteLoading ||
+                        !!quoteError ||
+                        !quote ||
+                        !!(
+                          appliedCode &&
+                          !quote.couponApplied
+                        )
+                      )
+                    )
+                  }
+                >
+                  {working
+                    ? 'Creating…'
+                    : 'Continue to Payment'}
+
+                  <ChevronRight size={16} />
+                </Btn>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* =================================================
+            STEP 4 — PAYMENT
+            ================================================= */}
+
+        {step === 4 && (
+          <Card
+            title="Pay Securely"
+            sub="Cashfree secure checkout will open in a popup"
+          >
+            <div className="mc-stack">
+              <div
+                style={{
+                  color: '#6366f1',
+                  fontWeight: 800,
+                  letterSpacing: 1,
+                  fontSize: 11,
+                }}
+              >
+                {typeLabel.toUpperCase()}
+              </div>
+
+              <div className="mc-note">
+                {isLab
+                  ? `${collectionDate} · ${collectionTime}`
+                  : `${date} · ${slot}`}
+              </div>
+
+              {/* Saved booking pricing.
+                  The total is NOT calculated in the browser. */}
+
+              {booking ? (
+                <Summary
+                  pricing={booking}
+                  payment
+                />
+              ) : (
+                <div className="mc-error">
+                  No saved booking found.
+                  Return to Pricing.
+                </div>
+              )}
+
+              {/* Payment security */}
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'center',
+                  borderRadius: 12,
+                  padding: 14,
+                  background: '#f8fafc',
+                }}
+              >
+                <ShieldCheck
+                  size={25}
+                  color="#6366f1"
+                />
+
+                <div>
+                  <strong
+                    style={{
+                      fontSize: 13,
+                    }}
+                  >
+                    Secured by Cashfree Payments
+                  </strong>
+
+                  <p
+                    className="mc-note"
+                    style={{
+                      margin: '4px 0 0',
+                    }}
+                  >
+                    Cards · Net Banking · UPI ·
+                    Wallets · EMI
+                  </p>
+                </div>
+              </div>
+
+              <div className="mc-actions">
+                <Btn
+                  secondary
+                  disabled={working}
+                  onClick={() => setStep(3)}
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </Btn>
+
+                <Btn
+                  disabled={
+                    !booking ||
+                    working
+                  }
+                  onClick={initiatePayment}
+                >
+                  {working
+                    ? 'Opening Checkout…'
+                    : `PAY ${rs(
+                        booking?.totalAmount
+                      )}`}
+                </Btn>
+              </div>
+
+              <p
+                className="mc-note"
+                style={{
+                  textAlign: 'center',
+                  margin: 0,
+                }}
+              >
+                By proceeding, you agree to our{' '}
+                <a href="/terms">
+                  Terms
+                </a>
+                {' '}and{' '}
+                <a href="/privacy">
+                  Privacy Policy
+                </a>.
+              </p>
+            </div>
+          </Card>
+        )}
+      </main>
+    </div>
   )
-
 }
 
-
+// ============================================================
+// NEXT.JS PAGE EXPORT
+// ============================================================
 
 export default function NewBookingPage() {
-
   return (
-
-    <Suspense fallback={
-
-      <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-
-        <style>{`@keyframes nb-spin{to{transform:rotate(360deg)}}`}</style>
-
-        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #6366f1', borderTopColor: 'transparent', animation: 'nb-spin .8s linear infinite' }} />
-
-        <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Loading...</p>
-
-      </div>
-
-    }>
-
-      <NewBookingContent />
-
+    <Suspense
+      fallback={
+        <div
+          style={{
+            padding: 60,
+            textAlign: 'center',
+          }}
+        >
+          Loading booking…
+        </div>
+      }
+    >
+      <BookingContent />
     </Suspense>
-
   )
-
 }
