@@ -8,11 +8,19 @@ export async function GET(req) {
     const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1)
     const limit = Math.max(parseInt(searchParams.get('limit') || '20', 10), 1)
     const status = (searchParams.get('status') || '').trim()
+    const bookingId = (searchParams.get('bookingId') || '').trim()
     const dateFrom = (searchParams.get('dateFrom') || '').trim()
     const dateTo = (searchParams.get('dateTo') || '').trim()
     const skip = (page - 1) * limit
 
     const where = {}
+
+    // Booking detail views request the refund for one booking. Without this
+    // filter Prisma returns the globally newest refund, which can make an
+    // unrelated booking appear refunded in the app and web UI.
+    if (bookingId) {
+      where.bookingId = bookingId
+    }
 
     if (status && status !== 'all') {
       where.status = status
